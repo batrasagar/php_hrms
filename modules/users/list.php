@@ -7,6 +7,20 @@ requireAdmin();
 $db   = getDb();
 $user = currentUser();
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
+    csrf_verify();
+    $id = (int)$_POST['delete_id'];
+    if ($id !== $user['id']) {
+        if ($user['role'] === 'superadmin') {
+            $db->prepare("DELETE FROM tblUser WHERE id = ? AND Role != 'superadmin'")->execute([$id]);
+        } else {
+            $db->prepare("DELETE FROM tblUser WHERE id = ? AND ParentAdminId = ?")->execute([$id, $user['id']]);
+        }
+    }
+    $_SESSION['flash'] = 'User deleted.';
+    header('Location: list.php'); exit;
+}
+
 if (isset($_GET['toggle'])) {
     $id = (int)$_GET['toggle'];
     if ($user['role'] === 'superadmin') {
@@ -102,6 +116,16 @@ if ($user['role'] === 'superadmin') {
               <a href="add.php?edit=<?= $u['id'] ?>" class="btn btn-sm btn-outline-primary">
                 <i class="bi bi-pencil"></i>
               </a>
+              <?php if ($u['Role'] !== 'superadmin'): ?>
+              <form method="POST" class="d-inline">
+                <?= csrf_field() ?>
+                <input type="hidden" name="delete_id" value="<?= $u['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-danger"
+                        onclick="return confirm('Delete <?= addslashes(htmlspecialchars($u['Name'])) ?>?')">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              <?php endif; ?>
             <?php else: ?>
               <span class="text-muted small">You</span>
             <?php endif; ?>
