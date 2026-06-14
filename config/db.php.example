@@ -1,0 +1,50 @@
+<?php
+date_default_timezone_set('Asia/Kolkata');
+
+define('CRON_MASTER_SECRET', 'your-cron-secret-here');
+
+define('DB_HOST', 'localhost');
+define('DB_PORT', '3306');
+define('DB_NAME', 'your_db_name');
+define('DB_USER', 'your_db_user');
+define('DB_PASS', 'your_db_password');
+
+function getDb(): PDO {
+    static $pdo = null;
+    static $migrationChecked = false;
+
+    if ($pdo === null) {
+        $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=utf8mb4";
+        try {
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, [
+                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES   => false,
+            ]);
+        } catch (PDOException $e) {
+            $skipScripts = ['migrate.php', 'run_schema.php'];
+            if (!in_array(basename($_SERVER['SCRIPT_FILENAME'] ?? ''), $skipScripts, true)) {
+                $base = defined('BASE_URL') ? BASE_URL : '';
+                header('Location: ' . $base . '/migrate.php');
+                exit;
+            }
+            throw $e;
+        }
+    }
+
+    if (!$migrationChecked) {
+        $migrationChecked = true;
+        $skipScripts = ['migrate.php', 'run_schema.php'];
+        if (!in_array(basename($_SERVER['SCRIPT_FILENAME'] ?? ''), $skipScripts, true)) {
+            try {
+                $pdo->query("SELECT `Status` FROM `tblUser` LIMIT 1");
+            } catch (PDOException $e) {
+                $base = defined('BASE_URL') ? BASE_URL : '';
+                header('Location: ' . $base . '/migrate.php');
+                exit;
+            }
+        }
+    }
+
+    return $pdo;
+}

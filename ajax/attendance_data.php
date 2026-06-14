@@ -1,0 +1,330 @@
+<?php
+define('BASE_URL', '..');
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/auth.php';
+requireLogin();
+
+header('Content-Type: application/json');
+
+$db   = getDb();
+$user = currentUser();
+
+function attendMinsToHm(int $m): string {
+    if ($m <= 0) return '';
+    $h = (int)floor($m / 60); $mn = $m % 60;
+    return ($h ? $h.'h' : '') . ($mn ? $mn.'m' : ($h ? '' : '0m'));
+}
+
+// ── Company access ────────────────────────────────────────────────────────────
+if ($user['role'] === 'user') {
+    $fCompany = $user['company_id'];
+} else {
+    $fCompany = (int)($_GET['company'] ?? 0);
+    if ($fCompany && $user['role'] === 'admin') {
+        $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
+        $chk->execute([$fCompany, $user['id']]);
+        if (!$chk->fetch()) $fCompany = 0;
+    }
+}
+
+if (!$fCompany) {
+    echo json_encode(['success' => false, 'errors' => ['No company selected or access denied.']]);
+    exit;
+}
+
+$fFrom       = trim($_GET['from']       ?? date('Y-m-d'));
+$fTo         = trim($_GET['to']         ?? date('Y-m-d'));
+$fDept       = trim($_GET['dept']       ?? '');
+$fContractor = trim($_GET['contractor'] ?? '');
+
+$coStmt = $db->prepare("SELECT Name FROM tblCompany WHERE id=?");
+$coStmt->execute([$fCompany]);
+$companyDisplayName = $coStmt->fetchColumn() ?: '';
+
+// ── Load settings (company overrides global) ──────────────────────────────────
+$settings = [];
+try {
+    $sRows = $db->query("SELECT CompanyId, SettingKey, SettingValue FROM tblSettings WHERE CompanyId IN (0, $fCompany) ORDER BY CompanyId ASC")->fetchAll();
+    foreach ($sRows as $sr) {
+        $settings[$sr['SettingKey']] = $sr['SettingValue']; // company row (DESC order) wins
+    }
+} catch (Exception $e) { /* table may not exist yet */ }
+$showHolPunch = !empty($settings['show_holiday_punches']);
+$showLvPunch  = !empty($settings['show_leave_punches']);
+$showWoPunch  = !empty($settings['show_weekoff_punches']);
+$showBefDoj   = !empty($settings['show_before_doj']);
+$showAftDol   = !empty($settings['show_after_dol']);
+
+// ── Employees ─────────────────────────────────────────────────────────────────
+$where  = ['e.CompanyId = ?'];
+$params = [$fCompany];
+if ($fDept)       { $where[] = 'e.Department = ?'; $params[] = $fDept; }
+if ($fContractor) { $where[] = 'e.Contractor = ?'; $params[] = $fContractor; }
+$estmt = $db->prepare(
+    "SELECT e.id, e.EmployeeCode, e.EnrollId, e.Name, e.FatherName, e.Contractor, e.Department, e.ShiftNo, e.JoinDate, e.DOL FROM tblEmployee e
+     WHERE " . implode(' AND ', $where) . " AND e.Status='active'
+     ORDER BY e.Department, ISNULL(e.Sr), e.Sr, e.Name"
+);
+$estmt->execute($params);
+$employees = $estmt->fetchAll();
+
+// ── Shifts ────────────────────────────────────────────────────────────────────
+$shiftMap = [];
+$sftStmt  = $db->prepare("SELECT id, HrsP, HrsHlf FROM tblShift WHERE CompanyId=? AND IsActive=1");
+$sftStmt->execute([$fCompany]);
+foreach ($sftStmt->fetchAll() as $sr) $shiftMap[(int)$sr['id']] = $sr;
+
+// ── Leaves, holidays, punches ─────────────────────────────────────────────────
+$leaveDates   = [];
+$holidayDates = [];
+$punchMap     = [];
+$fetchErrors  = [];
+
+if (!empty($employees)) {
+    $ids = implode(',', array_column($employees, 'id'));
+
+    foreach ($db->query(
+        "SELECT EmployeeId, LeaveDate, LeaveType FROM tblLeave
+         WHERE EmployeeId IN ($ids) AND LeaveDate BETWEEN '$fFrom' AND '$fTo'"
+    )->fetchAll() as $lv) {
+        $leaveDates[$lv['EmployeeId']][$lv['LeaveDate']] = $lv['LeaveType'];
+    }
+
+    $hStmt = $db->prepare("SELECT HolidayDate, Name FROM tblHoliday WHERE CompanyId=? AND HolidayDate BETWEEN ? AND ?");
+    $hStmt->execute([$fCompany, $fFrom, $fTo]);
+    foreach ($hStmt->fetchAll() as $h) $holidayDates[$h['HolidayDate']] = $h['Name'];
+
+    // Enrollment maps
+    $enrollMap = [];
+    $enrStmt   = $db->prepare("SELECT DeviceSerial, EnrollId, EmpCode FROM tblDeviceEnrollment WHERE CompanyId=?");
+    $enrStmt->execute([$fCompany]);
+    foreach ($enrStmt->fetchAll() as $row) {
+        $enrollMap[$row['DeviceSerial']][$row['EnrollId']] = $row['EmpCode'];
+    }
+
+    $empEnrollFallback = [];
+    foreach ($employees as $emp) {
+        if ($emp['EnrollId'] !== '' && $emp['EnrollId'] !== null) {
+            $empEnrollFallback[(string)$emp['EnrollId']] = $emp['EmployeeCode'];
+        }
+    }
+
+    // Punch data from ADMS
+    $cred = null;
+    try { $cred = $db->query("SELECT * FROM tblAdmsCredentials WHERE IsActive=1 ORDER BY id LIMIT 1")->fetch(); } catch (Exception $e) {}
+
+    if ($cred) {
+        $coName = $db->prepare("SELECT Name FROM tblCompany WHERE id=?");
+        $coName->execute([$fCompany]);
+        $companyName    = $coName->fetchColumn();
+        $companyDevices = [];
+        if ($companyName) {
+            $dStmt = $db->prepare("SELECT SerialNumber FROM tblDevices WHERE Company=?");
+            $dStmt->execute([$companyName]);
+            $companyDevices = $dStmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+
+        $devSerials = array_values(array_unique(array_merge(array_keys($enrollMap), $companyDevices)));
+        if (empty($devSerials)) {
+            $fetchErrors[] = 'No devices linked to this company.';
+        }
+
+        $fromDt = $fFrom . ' 00:00:00';
+        $toDt   = $fTo   . ' 23:59:59';
+
+        foreach ($devSerials as $serial) {
+            $url = rtrim($cred['Endpoint'], '/') . '/api/punchlog.php?SerialNumber=' . urlencode($serial);
+            $ch  = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER     => ['X-Api-Key: ' . $cred['ApiKey']],
+                CURLOPT_TIMEOUT        => 20,
+                CURLOPT_SSL_VERIFYPEER => true,
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr || $httpCode !== 200) {
+                $fetchErrors[] = "Device {$serial}: " . ($curlErr ?: "HTTP {$httpCode}");
+                continue;
+            }
+
+            $data = json_decode($response, true);
+            if (empty($data['success']) || empty($data['data'])) continue;
+
+            foreach ($data['data'] as $punch) {
+                $pdt = $punch['PunchDateTime'] ?? '';
+                if ($pdt < $fromDt || $pdt > $toDt) continue;
+                $eid  = (string)($punch['EnrollId'] ?? '');
+                $pSN  = $punch['SerialNumber'] ?? $serial;
+                $date = substr($pdt, 0, 10);
+                $time = substr($pdt, 11, 5);
+
+                $empCode = $enrollMap[$pSN][$eid]
+                        ?? $enrollMap[$serial][$eid]
+                        ?? $empEnrollFallback[$eid]
+                        ?? null;
+                if (!$empCode) continue;
+
+                if (!isset($punchMap[$empCode][$date])) {
+                    $punchMap[$empCode][$date] = ['in' => $time, 'out' => $time, 'count' => 0, 'punches' => []];
+                }
+                $entry = &$punchMap[$empCode][$date];
+                $entry['count']++;
+                $entry['punches'][] = $time;
+                if ($time < $entry['in'])  $entry['in']  = $time;
+                if ($time > $entry['out']) $entry['out'] = $time;
+                unset($entry);
+            }
+        }
+    }
+}
+
+// ── Date range (max 31 days) ──────────────────────────────────────────────────
+$dates  = [];
+$ts     = strtotime($fFrom);
+$tsEnd  = strtotime($fTo);
+while ($ts <= $tsEnd) { $dates[] = date('Y-m-d', $ts); $ts = strtotime('+1 day', $ts); }
+$notice = '';
+if (count($dates) > 31) { $dates = array_slice($dates, 0, 31); $notice = 'Showing first 31 days only.'; }
+
+$today = date('Y-m-d');
+
+// ── Build dates metadata ──────────────────────────────────────────────────────
+$datesData = [];
+foreach ($dates as $dt) {
+    $dow   = (int)date('N', strtotime($dt));
+    $isSun = ($dow === 7);
+    $isHol = isset($holidayDates[$dt]);
+    $datesData[] = [
+        'date'      => $dt,
+        'dayNum'    => date('d', strtotime($dt)),
+        'dayLetter' => substr(date('D', strtotime($dt)), 0, 1),
+        'dayName'   => date('D', strtotime($dt)),
+        'isSun'     => $isSun,
+        'isHol'     => $isHol,
+        'isFut'     => ($dt > $today),
+        'holName'   => $isHol ? $holidayDates[$dt] : '',
+        'bg'        => $isSun ? '#f0f0f0' : ($isHol ? '#e8f5e9' : ''),
+    ];
+}
+
+// ── Build employee rows & totals ──────────────────────────────────────────────
+$dayTotals    = [];
+foreach ($dates as $dt) $dayTotals[$dt] = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0];
+$grand        = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0];
+$employeeRows = [];
+
+foreach ($employees as $e) {
+    $presentDays = 0; $hpDays = 0; $absentDays = 0; $fullLv = 0; $halfLv = 0;
+    $days = [];
+
+    foreach ($dates as $dt) {
+        $dow    = (int)date('N', strtotime($dt));
+        $isSun  = ($dow === 7);
+        $isHol  = isset($holidayDates[$dt]);
+        $isFut  = ($dt > $today);
+        $lvType = $leaveDates[$e['id']][$dt] ?? null;
+        $punch  = $punchMap[$e['EmployeeCode']][$dt] ?? null;
+        $cell   = ['type' => ''];
+
+        // DOJ / DOL blanking (overrides everything else)
+        $doj = $e['JoinDate'] ?? '';
+        $dol = $e['DOL']      ?? '';
+        if (!$showBefDoj && $doj && $dt < $doj) {
+            $days[$dt] = $cell; continue;
+        }
+        if (!$showAftDol && $dol && $dt > $dol) {
+            $days[$dt] = $cell; continue;
+        }
+
+        if ($isSun && !($showWoPunch && $punch)) {
+            $cell['type'] = 'SUN';
+        } elseif ($isHol && !($showHolPunch && $punch)) {
+            $cell['type']    = 'HOL';
+            $cell['holName'] = $holidayDates[$dt];
+        } elseif ($lvType === 'full_day' && !($showLvPunch && $punch)) {
+            $cell['type'] = 'L';
+            $fullLv++; $dayTotals[$dt]['L']++;
+        } elseif (($lvType === 'half_am' || $lvType === 'half_pm') && !($showLvPunch && $punch)) {
+            $cell['type']  = 'HL';
+            $cell['lvSub'] = $lvType === 'half_am' ? 'AM' : 'PM';
+            $halfLv++; $dayTotals[$dt]['HL']++;
+        } elseif ($punch) {
+            $shiftRec  = $shiftMap[(int)($e['ShiftNo'] ?? 0)] ?? null;
+            $shiftHrsP = $shiftRec ? (float)$shiftRec['HrsP']   : 8.0;
+            $shiftHrsH = $shiftRec ? (float)$shiftRec['HrsHlf'] : 4.0;
+            $inMins    = (int)substr($punch['in'],  0, 2) * 60 + (int)substr($punch['in'],  3);
+            $outMins   = (int)substr($punch['out'], 0, 2) * 60 + (int)substr($punch['out'], 3);
+            $totMins   = ($punch['count'] > 1) ? max(0, $outMins - $inMins) : 0;
+            $otMins    = ($shiftHrsP > 0 && $totMins > 0) ? max(0, $totMins - (int)round($shiftHrsP * 60)) : 0;
+
+            if ($shiftRec && $totMins > 0 && $totMins < $shiftHrsH * 60) {
+                $code = 'HP'; $hpDays++; $dayTotals[$dt]['HP']++;
+            } else {
+                $code = 'P'; $presentDays++; $dayTotals[$dt]['P']++;
+            }
+            $cell['type']   = $code;
+            $cell['in']     = $punch['in'];
+            $cell['out']    = $punch['count'] > 1 ? $punch['out'] : null;
+            $cell['tot']    = attendMinsToHm($totMins);
+            $cell['ot']     = attendMinsToHm($otMins);
+            $cell['shift']  = $e['ShiftNo'] ? 'S' . $e['ShiftNo'] : '';
+            $sorted = $punch['punches']; sort($sorted);
+            $cell['punches'] = $sorted;
+        } elseif (!$isFut) {
+            $cell['type'] = 'A';
+            $absentDays++; $dayTotals[$dt]['A']++;
+        } else {
+            $cell['type'] = 'FUT';
+        }
+
+        $days[$dt] = $cell;
+    }
+
+    $grand['P']  += $presentDays;
+    $grand['HP'] += $hpDays;
+    $grand['A']  += $absentDays;
+    $grand['L']  += $fullLv;
+    $grand['HL'] += $halfLv;
+
+    $employeeRows[] = [
+        'id'         => (int)$e['id'],
+        'code'       => $e['EmployeeCode'],
+        'name'       => $e['Name'],
+        'fatherName' => $e['FatherName'] ?? '',
+        'contractor' => $e['Contractor'] ?? '',
+        'department' => $e['Department'] ?? '',
+        'shiftNo'    => $e['ShiftNo'] ?? '',
+        'days'       => $days,
+        'summary'    => ['P'=>$presentDays,'HP'=>$hpDays,'A'=>$absentDays,'L'=>$fullLv,'HL'=>$halfLv],
+    ];
+}
+
+$workingDays = count(array_filter($dates, fn($d) => !isset($holidayDates[$d]) && date('N', strtotime($d)) != 7 && $d <= $today));
+$totalEmps   = count($employees);
+$maxPossible = $totalEmps * $workingDays;
+$pctP        = $maxPossible > 0 ? round(($grand['P'] + $grand['HP'] * 0.5) / $maxPossible * 100) : 0;
+$pctA        = $maxPossible > 0 ? round($grand['A'] / $maxPossible * 100) : 0;
+
+echo json_encode([
+    'success'      => true,
+    'notice'       => $notice,
+    'errors'       => $fetchErrors,
+    'companyName'  => $companyDisplayName,
+    'fFrom'        => $fFrom,
+    'fTo'          => $fTo,
+    'fDept'        => $fDept,
+    'fContractor'  => $fContractor,
+    'dates'        => $datesData,
+    'employees'    => $employeeRows,
+    'dayTotals'    => $dayTotals,
+    'grand'        => $grand,
+    'totalEmps'    => $totalEmps,
+    'workingDays'  => $workingDays,
+    'holidayCount' => count($holidayDates),
+    'pctP'         => $pctP,
+    'pctA'         => $pctA,
+]);

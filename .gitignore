@@ -1,0 +1,16 @@
+# Credentials & secrets
+_uidpwd.txt
+apikey.txt
+_deploy.py
+_deploy.bat
+config/db.php
+
+# User uploads
+uploads/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log
+__pycache__/
+*.pyc

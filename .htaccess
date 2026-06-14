@@ -1,0 +1,10 @@
+Options -Indexes
+DirectoryIndex index.php login.php
+
+# Protect config directory
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^cdata\.aspx$ cdata.php [L]
+    RewriteRule ^config/ - [F,L]
+    RewriteRule ^includes/ - [F,L]
+</IfModule>
