@@ -201,6 +201,7 @@ $tiles = [
 .quick-link-del { border: none; background: transparent; border-left: 1px solid #e5e7eb; padding: 5px 7px; color: #9ca3af; cursor: pointer; font-size: 12px; transition: color .12s, background .12s; flex-shrink: 0; }
 .quick-link-del:hover { background: #fee2e2; color: #dc2626; }
 @media (max-width: 575.98px) { .quick-link-item { width: 100%; } }
+@media (min-width: 576px) and (max-width: 991.98px) { .quick-link-item { width: calc(50% - 4px); } }
 </style>
 
 <script>
