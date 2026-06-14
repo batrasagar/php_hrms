@@ -89,17 +89,17 @@ $rejected = $db->query("SELECT * FROM tblUser WHERE Role='admin' AND Status='rej
               <div>
                 <label class="form-label small mb-1">Companies</label>
                 <input type="number" name="company_limit"  class="form-control form-control-sm"
-                       value="1"   min="-1" style="width:75px" title="-1 = unlimited">
+                       value="1"   min="-1" style="width:75px" placeholder="1" title="-1 = unlimited">
               </div>
               <div>
                 <label class="form-label small mb-1">Machines</label>
                 <input type="number" name="machines_limit" class="form-control form-control-sm"
-                       value="5"   min="-1" style="width:75px" title="-1 = unlimited">
+                       value="5"   min="-1" style="width:75px" placeholder="5" title="-1 = unlimited">
               </div>
               <div>
                 <label class="form-label small mb-1">Employees</label>
                 <input type="number" name="emp_limit"      class="form-control form-control-sm"
-                       value="100" min="-1" style="width:85px" title="-1 = unlimited">
+                       value="100" min="-1" style="width:85px" placeholder="100" title="-1 = unlimited">
               </div>
               <button type="submit" class="btn btn-sm btn-success">
                 <i class="bi bi-check-lg"></i> Approve
@@ -167,11 +167,14 @@ $rejected = $db->query("SELECT * FROM tblUser WHERE Role='admin' AND Status='rej
             <input type="hidden" name="approve_id" value="<?= $u['id'] ?>">
             <div class="d-flex flex-wrap gap-1 align-items-center">
               <input type="number" name="company_limit"  class="form-control form-control-sm"
-                     value="<?= $u['CompanyLimit']  ?>" min="-1" style="width:60px" title="Company limit">
+                     value="<?= $u['CompanyLimit']  ?>" min="-1" style="width:60px"
+                     placeholder="Co." title="Company limit (-1=unlimited)">
               <input type="number" name="machines_limit" class="form-control form-control-sm"
-                     value="<?= $u['MachinesLimit'] ?>" min="-1" style="width:60px" title="Machines limit">
+                     value="<?= $u['MachinesLimit'] ?>" min="-1" style="width:60px"
+                     placeholder="Mac." title="Machines limit (-1=unlimited)">
               <input type="number" name="emp_limit"      class="form-control form-control-sm"
-                     value="<?= $u['EmpLimit']      ?>" min="-1" style="width:68px" title="Employee limit">
+                     value="<?= $u['EmpLimit']      ?>" min="-1" style="width:68px"
+                     placeholder="Emp." title="Employee limit (-1=unlimited)">
               <button type="submit" class="btn btn-sm btn-outline-primary" title="Save limits">
                 <i class="bi bi-floppy"></i>
               </button>
