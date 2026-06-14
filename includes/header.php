@@ -303,15 +303,27 @@ body.sb-collapsed .app-main { margin-left: var(--sidebar-c); }
 }
 .topbar-toggle:hover { background: rgba(0,0,0,.07); color: var(--text); }
 .topbar-title { font-size: 16px; font-weight: 600; color: var(--text); flex: 1; letter-spacing: -.01em; }
-.topbar-badge {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 3px 9px;
-  border-radius: 20px;
-  background: var(--blue-lt);
-  color: var(--blue);
-  text-transform: capitalize;
+.topbar-profile-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
 }
+.topbar-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  letter-spacing: 0;
+  flex-shrink: 0;
+  transition: opacity .15s;
+}
+.topbar-profile-btn:hover .topbar-avatar { opacity: .85; }
 
 /* ── Content ─────────────────────────────────────────────────────────── */
 .app-content { flex: 1; padding: 24px; }
@@ -785,22 +797,6 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </div>
       </li>
 
-      <!-- Settings -->
-      <li>
-        <a class="sb-item <?= $ap==='settings'?'active':'' ?>"
-           href="<?= $settingsUrl ?>" data-tip="Settings">
-          <span class="sb-item-icon"><i class="bi bi-gear"></i></span>
-          <span class="sb-item-label">Settings</span>
-        </a>
-      </li>
-      <li>
-        <a class="sb-item <?= $ap==='notifications'?'active':'' ?>"
-           href="<?= $notifUrl ?>" data-tip="Email Notifications">
-          <span class="sb-item-icon"><i class="bi bi-envelope-check"></i></span>
-          <span class="sb-item-label">Email Notifications</span>
-        </a>
-      </li>
-
       <!-- Misc -->
       <div class="sb-section-label">Tools</div>
       <li>
@@ -914,6 +910,23 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       </li>
       <?php endif; ?>
 
+      <!-- Settings (bottom of menu) -->
+      <div class="sb-section-label">Settings</div>
+      <li>
+        <a class="sb-item <?= $ap==='settings'?'active':'' ?>"
+           href="<?= $settingsUrl ?>" data-tip="Settings">
+          <span class="sb-item-icon"><i class="bi bi-gear"></i></span>
+          <span class="sb-item-label">Settings</span>
+        </a>
+      </li>
+      <li>
+        <a class="sb-item <?= $ap==='notifications'?'active':'' ?>"
+           href="<?= $notifUrl ?>" data-tip="Email Notifications">
+          <span class="sb-item-icon"><i class="bi bi-envelope-check"></i></span>
+          <span class="sb-item-label">Email Notifications</span>
+        </a>
+      </li>
+
 <?php else: // role === 'user' ?>
 <?php
   $rptOpenU = in_array($ap, ['report_monthly','report_ot','report_leave','report_strength']) ? 'show' : '';
@@ -1010,7 +1023,24 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <i class="bi bi-list" style="font-size:20px"></i>
     </button>
     <div class="topbar-title"><?= htmlspecialchars($pageTitle ?? '') ?></div>
-    <span class="topbar-badge"><?= htmlspecialchars($user['role']) ?></span>
+
+    <!-- Profile dropdown -->
+    <div class="dropdown" style="flex-shrink:0">
+      <button class="topbar-profile-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Profile">
+        <span class="topbar-avatar"><?= strtoupper(substr($user['Name'] ?? 'U', 0, 1)) ?></span>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:210px;border-radius:10px;border:.5px solid var(--border)">
+        <li class="px-3 pt-2 pb-1">
+          <div class="fw-semibold" style="font-size:13px"><?= htmlspecialchars($user['Name'] ?? '') ?></div>
+          <div class="text-muted" style="font-size:11px"><?= htmlspecialchars($user['Email'] ?? '') ?></div>
+          <span class="badge mt-1" style="font-size:10px;background:var(--blue-lt);color:var(--blue);text-transform:capitalize"><?= htmlspecialchars($user['role']) ?></span>
+        </li>
+        <li><hr class="dropdown-divider my-1"></li>
+        <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= BASE_URL ?>/logout.php">
+          <i class="bi bi-box-arrow-right text-danger"></i> Logout
+        </a></li>
+      </ul>
+    </div>
   </header>
 
   <!-- Page Content -->
