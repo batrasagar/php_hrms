@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!filter_var($ownerEmail, FILTER_VALIDATE_EMAIL)) {
                 $errors[] = 'Invalid owner email address.';
             } else {
-                $os = $db->prepare("SELECT id FROM tblUser WHERE Email=? AND Role='admin' AND IsActive=1");
+                $os = $db->prepare("SELECT id FROM tblUser WHERE Email=? AND Role IN ('admin','superadmin') AND IsActive=1");
                 $os->execute([$ownerEmail]);
                 $newAdminId = $os->fetchColumn();
                 if (!$newAdminId) $errors[] = 'Owner email not found or is not an active admin account.';
