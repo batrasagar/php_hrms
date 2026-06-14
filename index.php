@@ -20,29 +20,6 @@ $db->exec("CREATE TABLE IF NOT EXISTS tblDashboardLinks (
     KEY idx_user (UserId)
 )");
 
-// ── AJAX handlers ─────────────────────────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    csrf_verify();
-    header('Content-Type: application/json');
-    $action = $_POST['action'] ?? '';
-
-    if ($action === 'add_link') {
-        $title = trim($_POST['title'] ?? '');
-        $url   = trim($_POST['url']   ?? '');
-        if (!$title || !$url) { echo json_encode(['ok'=>false,'error'=>'Title and URL required']); exit; }
-        if (!filter_var($url, FILTER_VALIDATE_URL)) { echo json_encode(['ok'=>false,'error'=>'Invalid URL']); exit; }
-        $db->prepare("INSERT INTO tblDashboardLinks (UserId,Title,URL) VALUES (?,?,?)")->execute([$uid,$title,$url]);
-        echo json_encode(['ok'=>true,'id'=>$db->lastInsertId()]);
-        exit;
-    }
-
-    if ($action === 'delete_link') {
-        $id = (int)($_POST['id'] ?? 0);
-        $db->prepare("DELETE FROM tblDashboardLinks WHERE id=? AND UserId=?")->execute([$id,$uid]);
-        echo json_encode(['ok'=>true]);
-        exit;
-    }
-}
 
 // ── KPI helpers ───────────────────────────────────────────────────────────────
 function safeCount(PDO $db, string $sql, array $p = []): int {
@@ -125,55 +102,25 @@ $tiles = [
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-semibold" style="font-size:13px">Quick Links</span>
-    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addLinkModal">
-      <i class="bi bi-plus-lg me-1"></i>Add Link
-    </button>
+    <a href="<?= BASE_URL ?>/modules/links/index.php" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-pencil me-1"></i>Manage
+    </a>
   </div>
-  <div class="card-body" id="quickLinksBody">
+  <div class="card-body">
     <?php if (empty($myLinks)): ?>
-    <p class="text-muted small mb-0" id="emptyLinksMsg">No quick links yet. Click <strong>Add Link</strong> to add shortcuts to pages you use often.</p>
+    <p class="text-muted small mb-0">No quick links yet. <a href="<?= BASE_URL ?>/modules/links/index.php">Add your first link</a>.</p>
     <?php else: ?>
-    <div class="d-flex flex-wrap gap-2" id="linksList">
+    <div class="d-flex flex-wrap gap-2">
       <?php foreach ($myLinks as $lk): ?>
-      <div class="quick-link-item" data-id="<?= $lk['id'] ?>">
+      <div class="quick-link-item">
         <a href="<?= htmlspecialchars($lk['URL']) ?>" target="_blank" class="quick-link-btn">
           <i class="bi bi-link-45deg"></i>
           <?= htmlspecialchars($lk['Title']) ?>
         </a>
-        <button class="quick-link-del" onclick="deleteLink(<?= $lk['id'] ?>, this)" title="Remove">
-          <i class="bi bi-x"></i>
-        </button>
       </div>
       <?php endforeach; ?>
     </div>
     <?php endif; ?>
-  </div>
-</div>
-
-<!-- Add Link Modal -->
-<div class="modal fade" id="addLinkModal" tabindex="-1">
-  <div class="modal-dialog modal-sm modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <h6 class="modal-title mb-0">Add Quick Link</h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-2">
-          <label class="form-label form-label-sm">Label</label>
-          <input type="text" id="linkTitle" class="form-control form-control-sm" placeholder="e.g. Payroll Run">
-        </div>
-        <div class="mb-1">
-          <label class="form-label form-label-sm">URL</label>
-          <input type="url" id="linkUrl" class="form-control form-control-sm" placeholder="https://...">
-        </div>
-        <div id="linkError" class="text-danger small mt-1 d-none"></div>
-      </div>
-      <div class="modal-footer py-2">
-        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-sm btn-primary" onclick="saveLink()">Save</button>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -196,69 +143,11 @@ $tiles = [
 
 /* ── Quick Links ── */
 .quick-link-item { display: flex; align-items: center; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }
-.quick-link-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; font-size: 13px; color: #374151; text-decoration: none; background: #f9fafb; transition: background .12s; flex: 1; }
+.quick-link-btn { display: flex; align-items: center; gap: 5px; padding: 6px 12px; font-size: 13px; color: #374151; text-decoration: none; background: #f9fafb; transition: background .12s; flex: 1; }
 .quick-link-btn:hover { background: #f3f4f6; color: #111827; }
-.quick-link-del { border: none; background: transparent; border-left: 1px solid #e5e7eb; padding: 5px 7px; color: #9ca3af; cursor: pointer; font-size: 12px; transition: color .12s, background .12s; flex-shrink: 0; }
-.quick-link-del:hover { background: #fee2e2; color: #dc2626; }
 @media (max-width: 575.98px) { .quick-link-item { width: 100%; } }
 @media (min-width: 576px) and (max-width: 991.98px) { .quick-link-item { width: calc(50% - 4px); } }
 </style>
 
-<script>
-const CSRF = '<?= csrf_token() ?>';
-
-function saveLink() {
-    const title = document.getElementById('linkTitle').value.trim();
-    const url   = document.getElementById('linkUrl').value.trim();
-    const err   = document.getElementById('linkError');
-    err.classList.add('d-none');
-    if (!title || !url) { err.textContent = 'Both fields are required.'; err.classList.remove('d-none'); return; }
-
-    fetch('', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body: `action=add_link&title=${encodeURIComponent(title)}&url=${encodeURIComponent(url)}&_csrf=${encodeURIComponent(CSRF)}`
-    })
-    .then(r => r.json())
-    .then(d => {
-        if (!d.ok) { err.textContent = d.error; err.classList.remove('d-none'); return; }
-        bootstrap.Modal.getInstance(document.getElementById('addLinkModal')).hide();
-        // Append to list
-        let list = document.getElementById('linksList');
-        const emptyMsg = document.getElementById('emptyLinksMsg');
-        if (emptyMsg) {
-            const body = document.getElementById('quickLinksBody');
-            body.innerHTML = '<div class="d-flex flex-wrap gap-2" id="linksList"></div>';
-            list = document.getElementById('linksList');
-        }
-        const div = document.createElement('div');
-        div.className = 'quick-link-item';
-        div.dataset.id = d.id;
-        div.innerHTML = `<a href="${url}" target="_blank" class="quick-link-btn"><i class="bi bi-link-45deg"></i>${escHtml(title)}</a>
-            <button class="quick-link-del" onclick="deleteLink(${d.id},this)" title="Remove"><i class="bi bi-x"></i></button>`;
-        list.appendChild(div);
-        document.getElementById('linkTitle').value = '';
-        document.getElementById('linkUrl').value = '';
-    });
-}
-
-function deleteLink(id, btn) {
-    fetch('', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body: `action=delete_link&id=${id}&_csrf=${encodeURIComponent(CSRF)}`
-    })
-    .then(r => r.json())
-    .then(d => {
-        if (!d.ok) return;
-        const item = btn.closest('.quick-link-item');
-        item.remove();
-        if (!document.querySelectorAll('.quick-link-item').length) {
-            document.getElementById('quickLinksBody').innerHTML =
-                '<p class="text-muted small mb-0" id="emptyLinksMsg">No quick links yet. Click <strong>Add Link</strong> to add shortcuts to pages you use often.</p>';
-        }
-    });
-}
-
-function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-</script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
