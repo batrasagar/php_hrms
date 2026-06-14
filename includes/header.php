@@ -982,15 +982,6 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       </li>
 <?php endif; ?>
 
-      <div class="sb-section-label">Account</div>
-      <li>
-        <a class="sb-item <?= $ap==='profile'?'active':'' ?>"
-           href="<?= BASE_URL ?>/modules/profile/index.php" data-tip="Profile">
-          <span class="sb-item-icon"><i class="bi bi-person-circle"></i></span>
-          <span class="sb-item-label">Profile</span>
-        </a>
-      </li>
-
     </ul>
   </nav>
 
@@ -1036,6 +1027,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="badge mt-1" style="font-size:10px;background:var(--blue-lt);color:var(--blue);text-transform:capitalize"><?= htmlspecialchars($user['role']) ?></span>
         </li>
         <li><hr class="dropdown-divider my-1"></li>
+        <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= BASE_URL ?>/modules/profile/index.php">
+          <i class="bi bi-person-circle text-primary"></i> Profile
+        </a></li>
         <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= BASE_URL ?>/logout.php">
           <i class="bi bi-box-arrow-right text-danger"></i> Logout
         </a></li>
