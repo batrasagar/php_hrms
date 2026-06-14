@@ -911,20 +911,25 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <?php endif; ?>
 
       <!-- Settings (bottom of menu) -->
+      <?php $settingsOpen = in_array($ap, ['settings','notifications']) ? 'show' : ''; ?>
       <div class="sb-section-label">Settings</div>
       <li>
-        <a class="sb-item <?= $ap==='settings'?'active':'' ?>"
-           href="<?= $settingsUrl ?>" data-tip="Settings">
+        <a class="sb-item <?= $settingsOpen ? 'active' : '' ?>" data-bs-toggle="collapse" href="#navSettings"
+           aria-expanded="<?= $settingsOpen ? 'true' : 'false' ?>" data-tip="Settings">
           <span class="sb-item-icon"><i class="bi bi-gear"></i></span>
           <span class="sb-item-label">Settings</span>
+          <span class="sb-item-chevron"><i class="bi bi-chevron-right"></i></span>
         </a>
-      </li>
-      <li>
-        <a class="sb-item <?= $ap==='notifications'?'active':'' ?>"
-           href="<?= $notifUrl ?>" data-tip="Email Notifications">
-          <span class="sb-item-icon"><i class="bi bi-envelope-check"></i></span>
-          <span class="sb-item-label">Email Notifications</span>
-        </a>
+        <div class="collapse <?= $settingsOpen ?>" id="navSettings">
+          <div class="sb-sub">
+            <a class="sb-sub-item <?= $ap==='settings'?'active':'' ?>" href="<?= $settingsUrl ?>">
+              <i class="bi bi-toggles"></i> General
+            </a>
+            <a class="sb-sub-item <?= $ap==='notifications'?'active':'' ?>" href="<?= $notifUrl ?>">
+              <i class="bi bi-envelope-check"></i> Email Notifications
+            </a>
+          </div>
+        </div>
       </li>
 
 <?php else: // role === 'user' ?>
