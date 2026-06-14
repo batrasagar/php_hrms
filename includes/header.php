@@ -1017,6 +1017,10 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= BASE_URL ?>/modules/profile/index.php">
           <i class="bi bi-person-circle text-primary"></i> Profile
         </a></li>
+        <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= $settingsUrl ?>">
+          <i class="bi bi-gear text-secondary"></i> Settings
+        </a></li>
+        <li><hr class="dropdown-divider my-1"></li>
         <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= BASE_URL ?>/logout.php">
           <i class="bi bi-box-arrow-right text-danger"></i> Logout
         </a></li>
