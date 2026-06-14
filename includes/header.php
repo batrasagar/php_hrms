@@ -823,15 +823,6 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           </div>
         </div>
       </li>
-      <?php if ($user['role'] === 'superadmin'): ?>
-      <li>
-        <a class="sb-item <?= $ap==='adms'?'active':'' ?>"
-           href="<?= BASE_URL ?>/modules/adms_credentials/index.php" data-tip="ADMS Credentials">
-          <span class="sb-item-icon"><i class="bi bi-plug"></i></span>
-          <span class="sb-item-label">ADMS Credentials</span>
-        </a>
-      </li>
-      <?php endif; ?>
       <!-- Masters -->
       <div class="sb-section-label">Masters</div>
       <li>
@@ -891,7 +882,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <?php endif; ?>
 
       <!-- Settings (bottom of menu) -->
-      <?php $settingsOpen = in_array($ap, ['settings','notifications','devices','device_enrollment']) ? 'show' : ''; ?>
+      <?php $settingsOpen = in_array($ap, ['settings','notifications','devices','device_enrollment','adms']) ? 'show' : ''; ?>
       <div class="sb-section-label">Settings</div>
       <li>
         <a class="sb-item <?= $settingsOpen ? 'active' : '' ?>" data-bs-toggle="collapse" href="#navSettings"
@@ -914,6 +905,11 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             <a class="sb-sub-item <?= $ap==='device_enrollment'?'active':'' ?>" href="<?= BASE_URL ?>/modules/devices/enrollment.php">
               <i class="bi bi-person-badge"></i> Enrollment
             </a>
+            <?php if ($user['role'] === 'superadmin'): ?>
+            <a class="sb-sub-item <?= $ap==='adms'?'active':'' ?>" href="<?= BASE_URL ?>/modules/adms_credentials/index.php">
+              <i class="bi bi-plug"></i> ADMS Credentials
+            </a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
