@@ -196,10 +196,11 @@ $tiles = [
 
 /* ── Quick Links ── */
 .quick-link-item { display: flex; align-items: center; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }
-.quick-link-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; font-size: 13px; color: #374151; text-decoration: none; background: #f9fafb; transition: background .12s; }
+.quick-link-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; font-size: 13px; color: #374151; text-decoration: none; background: #f9fafb; transition: background .12s; flex: 1; }
 .quick-link-btn:hover { background: #f3f4f6; color: #111827; }
-.quick-link-del { border: none; background: transparent; border-left: 1px solid #e5e7eb; padding: 5px 7px; color: #9ca3af; cursor: pointer; font-size: 12px; transition: color .12s, background .12s; }
+.quick-link-del { border: none; background: transparent; border-left: 1px solid #e5e7eb; padding: 5px 7px; color: #9ca3af; cursor: pointer; font-size: 12px; transition: color .12s, background .12s; flex-shrink: 0; }
 .quick-link-del:hover { background: #fee2e2; color: #dc2626; }
+@media (max-width: 575.98px) { .quick-link-item { width: 100%; } }
 </style>
 
 <script>
