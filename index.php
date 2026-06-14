@@ -66,12 +66,12 @@ $totalCompanies = $db->query("SELECT COUNT(*) FROM tblCompany WHERE IsActive=1")
   <div class="card-body p-0">
     <table class="table table-hover table-sm mb-0">
       <thead class="table-light">
-        <tr><th>Name</th><th>Email</th><th>Status</th><th>Company Limit</th><th>Registered</th></tr>
+        <tr><th>Name</th><th>Email</th><th>Status</th><th>Companies</th><th>Machines</th><th>Employees</th><th>Registered</th></tr>
       </thead>
       <tbody>
       <?php
       $recent = $db->query(
-          "SELECT Name, Email, Status, CompanyLimit, CreatedAt FROM tblUser
+          "SELECT Name, Email, Status, CompanyLimit, MachinesLimit, EmpLimit, CreatedAt FROM tblUser
            WHERE Role='admin' ORDER BY CreatedAt DESC LIMIT 20"
       )->fetchAll();
       foreach ($recent as $r):
@@ -81,17 +81,20 @@ $totalCompanies = $db->query("SELECT COUNT(*) FROM tblCompany WHERE IsActive=1")
               'rejected' => 'bg-danger',
               default    => 'bg-secondary',
           };
+          $fmtL = fn($v) => $v == -1 ? '&#8734;' : $v;
       ?>
       <tr>
         <td><?= htmlspecialchars($r['Name']) ?></td>
         <td><?= htmlspecialchars($r['Email']) ?></td>
         <td><span class="badge <?= $badge ?>"><?= ucfirst($r['Status']) ?></span></td>
-        <td><?= $r['CompanyLimit'] == -1 ? 'Unlimited' : $r['CompanyLimit'] ?></td>
+        <td><?= $fmtL($r['CompanyLimit']) ?></td>
+        <td><?= $fmtL($r['MachinesLimit']) ?></td>
+        <td><?= $fmtL($r['EmpLimit']) ?></td>
         <td class="small text-muted"><?= htmlspecialchars(substr($r['CreatedAt'], 0, 10)) ?></td>
       </tr>
       <?php endforeach; ?>
       <?php if (empty($recent)): ?>
-      <tr><td colspan="5" class="text-center text-muted py-3">No tenant registrations yet.</td></tr>
+      <tr><td colspan="7" class="text-center text-muted py-3">No tenant registrations yet.</td></tr>
       <?php endif; ?>
       </tbody>
     </table>

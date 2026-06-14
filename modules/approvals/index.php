@@ -6,40 +6,47 @@ requireSuperAdmin();
 
 $db = getDb();
 
-// ── Actions (must run before any output) ─────────────────────────────────────
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_id'])) {
+// ── POST actions ──────────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_verify();
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-    csrf_verify();
-    $id    = (int)$_POST['approve_id'];
-    $limit = (int)($_POST['company_limit'] ?? 1);
-    if ($limit < 1 && $limit !== -1) $limit = 1;
-    $db->prepare(
-        "UPDATE tblUser SET Status='active', CompanyLimit=?, IsActive=1 WHERE id=?"
-    )->execute([$limit, $id]);
-    if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'message'=>'Account approved.','redirect'=>'index.php']); exit; }
-    $_SESSION['flash'] = 'Account approved.';
-    header('Location: index.php'); exit;
-}
+    $action = $_POST['_action'] ?? 'approve';
 
-if (isset($_GET['reject'])) {
-    $id = (int)$_GET['reject'];
-    $db->prepare("UPDATE tblUser SET Status='rejected' WHERE id=?")->execute([$id]);
-    $_SESSION['flash'] = 'Account rejected.';
-    header('Location: index.php'); exit;
-}
+    if ($action === 'approve' && isset($_POST['approve_id'])) {
+        $id      = (int)$_POST['approve_id'];
+        $coLimit = (int)($_POST['company_limit']  ?? 1);
+        $mLimit  = (int)($_POST['machines_limit'] ?? 5);
+        $eLimit  = (int)($_POST['emp_limit']      ?? 100);
+        if ($coLimit < 1 && $coLimit !== -1) $coLimit = 1;
+        if ($mLimit  < 1 && $mLimit  !== -1) $mLimit  = 5;
+        if ($eLimit  < 1 && $eLimit  !== -1) $eLimit  = 100;
+        $db->prepare(
+            "UPDATE tblUser SET Status='active', CompanyLimit=?, MachinesLimit=?, EmpLimit=?, IsActive=1 WHERE id=?"
+        )->execute([$coLimit, $mLimit, $eLimit, $id]);
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'message'=>'Account approved.','redirect'=>'index.php']); exit; }
+        $_SESSION['flash'] = 'Account approved.';
+        header('Location: index.php'); exit;
 
-if (isset($_GET['toggle'])) {
-    $id = (int)$_GET['toggle'];
-    $db->prepare(
-        "UPDATE tblUser SET Status = CASE WHEN Status='active' THEN 'rejected' ELSE 'active' END WHERE id=?"
-    )->execute([$id]);
-    header('Location: index.php'); exit;
+    } elseif ($action === 'reject' && isset($_POST['reject_id'])) {
+        $db->prepare("UPDATE tblUser SET Status='rejected' WHERE id=? AND Role='admin'")->execute([(int)$_POST['reject_id']]);
+        $_SESSION['flash'] = 'Account rejected.';
+        header('Location: index.php'); exit;
+
+    } elseif ($action === 'toggle' && isset($_POST['toggle_id'])) {
+        $db->prepare(
+            "UPDATE tblUser SET Status = CASE WHEN Status='active' THEN 'rejected' ELSE 'active' END WHERE id=? AND Role='admin'"
+        )->execute([(int)$_POST['toggle_id']]);
+        header('Location: index.php'); exit;
+
+    } elseif ($action === 'delete' && isset($_POST['delete_id'])) {
+        $db->prepare("DELETE FROM tblUser WHERE id=? AND Role='admin'")->execute([(int)$_POST['delete_id']]);
+        $_SESSION['flash'] = 'Account deleted.';
+        header('Location: index.php'); exit;
+    }
 }
 
 // ── Page setup ────────────────────────────────────────────────────────────────
-
 $pageTitle  = 'Signup Approvals';
 $activePage = 'approvals';
 require_once __DIR__ . '/../../includes/header.php';
@@ -65,7 +72,7 @@ $rejected = $db->query("SELECT * FROM tblUser WHERE Role='admin' AND Status='rej
   <div class="card-body p-0">
     <table class="table table-hover align-middle mb-0">
       <thead class="table-light">
-        <tr><th>Name</th><th>Email</th><th>Requested</th><th>Action</th></tr>
+        <tr><th>Name</th><th>Email</th><th>Requested</th><th>Limits &amp; Action</th></tr>
       </thead>
       <tbody>
       <?php foreach ($pending as $u): ?>
@@ -74,22 +81,52 @@ $rejected = $db->query("SELECT * FROM tblUser WHERE Role='admin' AND Status='rej
         <td><?= htmlspecialchars($u['Email']) ?></td>
         <td class="small text-muted"><?= htmlspecialchars(substr($u['CreatedAt'], 0, 16)) ?></td>
         <td>
-          <form method="POST" class="d-inline" data-ajax>
+          <form method="POST" class="mb-1" data-ajax>
+            <?= csrf_field() ?>
+            <input type="hidden" name="_action"    value="approve">
             <input type="hidden" name="approve_id" value="<?= $u['id'] ?>">
-            <div class="input-group input-group-sm" style="width:220px">
-              <input type="number" name="company_limit" class="form-control" value="1" min="-1"
-                     title="Company limit (-1 = unlimited)">
-              <button type="submit" class="btn btn-success">
+            <div class="d-flex flex-wrap gap-2 align-items-end">
+              <div>
+                <label class="form-label small mb-1">Companies</label>
+                <input type="number" name="company_limit"  class="form-control form-control-sm"
+                       value="1"   min="-1" style="width:75px" title="-1 = unlimited">
+              </div>
+              <div>
+                <label class="form-label small mb-1">Machines</label>
+                <input type="number" name="machines_limit" class="form-control form-control-sm"
+                       value="5"   min="-1" style="width:75px" title="-1 = unlimited">
+              </div>
+              <div>
+                <label class="form-label small mb-1">Employees</label>
+                <input type="number" name="emp_limit"      class="form-control form-control-sm"
+                       value="100" min="-1" style="width:85px" title="-1 = unlimited">
+              </div>
+              <button type="submit" class="btn btn-sm btn-success">
                 <i class="bi bi-check-lg"></i> Approve
               </button>
             </div>
-            <div class="form-text">Company limit (-1 = unlimited)</div>
+            <div class="form-text">-1 = unlimited</div>
           </form>
-          <a href="index.php?reject=<?= $u['id'] ?>"
-             class="btn btn-sm btn-outline-danger mt-1"
-             onclick="return confirm('Reject this request?')">
-            <i class="bi bi-x-lg"></i> Reject
-          </a>
+          <div class="d-flex gap-1">
+            <form method="POST" class="d-inline">
+              <?= csrf_field() ?>
+              <input type="hidden" name="_action"  value="reject">
+              <input type="hidden" name="reject_id" value="<?= $u['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-danger"
+                      onclick="return confirm('Reject this request?')">
+                <i class="bi bi-x-lg"></i> Reject
+              </button>
+            </form>
+            <form method="POST" class="d-inline">
+              <?= csrf_field() ?>
+              <input type="hidden" name="_action"   value="delete">
+              <input type="hidden" name="delete_id" value="<?= $u['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-secondary"
+                      onclick="return confirm('Permanently delete this account?')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
         </td>
       </tr>
       <?php endforeach; ?>
@@ -107,30 +144,59 @@ $rejected = $db->query("SELECT * FROM tblUser WHERE Role='admin' AND Status='rej
   <div class="card-body p-0">
     <table class="table table-hover table-sm align-middle mb-0" id="tblApproved">
       <thead class="table-light">
-        <tr><th>Name</th><th>Email</th><th>Company Limit</th><th>Approved</th><th>Action</th></tr>
+        <tr>
+          <th>Name</th><th>Email</th>
+          <th>Companies</th><th>Machines</th><th>Employees</th>
+          <th>Approved</th><th>Action</th>
+        </tr>
       </thead>
       <tbody>
       <?php foreach ($approved as $u): ?>
+      <?php $fmtLimit = fn($v) => $v == -1 ? '<span class="badge bg-info">&#8734;</span>' : $v; ?>
       <tr>
         <td><?= htmlspecialchars($u['Name']) ?></td>
         <td><?= htmlspecialchars($u['Email']) ?></td>
-        <td><?= $u['CompanyLimit'] == -1 ? '<span class="badge bg-info">Unlimited</span>' : $u['CompanyLimit'] ?></td>
+        <td><?= $fmtLimit($u['CompanyLimit']) ?></td>
+        <td><?= $fmtLimit($u['MachinesLimit']) ?></td>
+        <td><?= $fmtLimit($u['EmpLimit']) ?></td>
         <td class="small text-muted"><?= htmlspecialchars(substr($u['CreatedAt'], 0, 10)) ?></td>
         <td>
-          <form method="POST" class="d-inline" data-ajax>
+          <form method="POST" class="d-inline mb-1" data-ajax>
+            <?= csrf_field() ?>
+            <input type="hidden" name="_action"    value="approve">
             <input type="hidden" name="approve_id" value="<?= $u['id'] ?>">
-            <div class="input-group input-group-sm" style="width:160px">
-              <input type="number" name="company_limit" class="form-control" value="<?= $u['CompanyLimit'] ?>" min="-1">
-              <button type="submit" class="btn btn-outline-primary" title="Update limit">
-                <i class="bi bi-save"></i>
+            <div class="d-flex flex-wrap gap-1 align-items-center">
+              <input type="number" name="company_limit"  class="form-control form-control-sm"
+                     value="<?= $u['CompanyLimit']  ?>" min="-1" style="width:60px" title="Company limit">
+              <input type="number" name="machines_limit" class="form-control form-control-sm"
+                     value="<?= $u['MachinesLimit'] ?>" min="-1" style="width:60px" title="Machines limit">
+              <input type="number" name="emp_limit"      class="form-control form-control-sm"
+                     value="<?= $u['EmpLimit']      ?>" min="-1" style="width:68px" title="Employee limit">
+              <button type="submit" class="btn btn-sm btn-outline-primary" title="Save limits">
+                <i class="bi bi-floppy"></i>
               </button>
             </div>
           </form>
-          <a href="index.php?toggle=<?= $u['id'] ?>"
-             class="btn btn-sm btn-outline-warning ms-1"
-             onclick="return confirm('Revoke this account?')">
-            <i class="bi bi-pause-circle"></i>
-          </a>
+          <div class="d-flex gap-1 mt-1">
+            <form method="POST" class="d-inline">
+              <?= csrf_field() ?>
+              <input type="hidden" name="_action"   value="toggle">
+              <input type="hidden" name="toggle_id" value="<?= $u['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-warning"
+                      onclick="return confirm('Revoke this account?')" title="Revoke">
+                <i class="bi bi-pause-circle"></i>
+              </button>
+            </form>
+            <form method="POST" class="d-inline">
+              <?= csrf_field() ?>
+              <input type="hidden" name="_action"   value="delete">
+              <input type="hidden" name="delete_id" value="<?= $u['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-danger"
+                      onclick="return confirm('Permanently delete this account and all its data?')" title="Delete">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
         </td>
       </tr>
       <?php endforeach; ?>
@@ -155,9 +221,25 @@ $rejected = $db->query("SELECT * FROM tblUser WHERE Role='admin' AND Status='rej
         <td><?= htmlspecialchars($u['Email']) ?></td>
         <td class="small text-muted"><?= htmlspecialchars(substr($u['CreatedAt'], 0, 10)) ?></td>
         <td>
-          <a href="index.php?toggle=<?= $u['id'] ?>" class="btn btn-sm btn-outline-success">
-            <i class="bi bi-arrow-counterclockwise"></i> Re-approve
-          </a>
+          <div class="d-flex gap-1">
+            <form method="POST" class="d-inline">
+              <?= csrf_field() ?>
+              <input type="hidden" name="_action"   value="toggle">
+              <input type="hidden" name="toggle_id" value="<?= $u['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-arrow-counterclockwise"></i> Re-approve
+              </button>
+            </form>
+            <form method="POST" class="d-inline">
+              <?= csrf_field() ?>
+              <input type="hidden" name="_action"   value="delete">
+              <input type="hidden" name="delete_id" value="<?= $u['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-danger"
+                      onclick="return confirm('Permanently delete this account?')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
         </td>
       </tr>
       <?php endforeach; ?>
@@ -167,5 +249,5 @@ $rejected = $db->query("SELECT * FROM tblUser WHERE Role='admin' AND Status='rej
 </div>
 <?php endif; ?>
 <?php
-$extraJs = '<script>$(()=>{$("#tblApproved").DataTable({order:[[3,"desc"]],pageLength:15});});</script>';
+$extraJs = '<script>$(()=>{$("#tblApproved").DataTable({order:[[5,"desc"]],pageLength:15});});</script>';
 require_once __DIR__ . '/../../includes/footer.php';

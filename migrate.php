@@ -851,6 +851,17 @@ $migrations = [
             ) ENGINE=InnoDB",
         ],
     ],
+
+    [
+        'id'    => 'M016',
+        'desc'  => 'Add MachinesLimit and EmpLimit to tblUser',
+        'check' => "SELECT `MachinesLimit` FROM `tblUser` LIMIT 1",
+        'stmts' => [
+            "ALTER TABLE `tblUser`
+                ADD COLUMN `MachinesLimit` INT NOT NULL DEFAULT 5  COMMENT '-1 = unlimited' AFTER `CompanyLimit`,
+                ADD COLUMN `EmpLimit`      INT NOT NULL DEFAULT 100 COMMENT '-1 = unlimited' AFTER `MachinesLimit`",
+        ],
+    ],
 ];
 
 // ── DB connection ─────────────────────────────────────────────────────────────

@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pass  = $_POST['password'] ?? '';
             if ($email && $pass) {
                 $stmt = $db->prepare(
-                    "SELECT id, Name, Password, Role, Status, CompanyLimit, ParentAdminId, CompanyId
+                    "SELECT id, Name, Password, Role, Status, CompanyLimit, MachinesLimit, EmpLimit, ParentAdminId, CompanyId
                      FROM tblUser WHERE Email = ? AND IsActive = 1"
                 );
                 $stmt->execute([$email]);
@@ -88,12 +88,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } elseif ($row['Status'] === 'rejected') {
                         $error = 'Your account registration was rejected. Please contact support.';
                     } else {
-                        $_SESSION['user_id']              = $row['id'];
-                        $_SESSION['user_name']            = $row['Name'];
-                        $_SESSION['user_role']            = $row['Role'];
-                        $_SESSION['user_company_limit']   = $row['CompanyLimit'];
-                        $_SESSION['user_parent_admin_id'] = $row['ParentAdminId'] ?? 0;
-                        $_SESSION['user_company_id']      = $row['CompanyId'] ?? 0;
+                        $_SESSION['user_id']               = $row['id'];
+                        $_SESSION['user_name']             = $row['Name'];
+                        $_SESSION['user_role']             = $row['Role'];
+                        $_SESSION['user_company_limit']    = $row['CompanyLimit'];
+                        $_SESSION['user_machines_limit']   = $row['MachinesLimit'];
+                        $_SESSION['user_emp_limit']        = $row['EmpLimit'];
+                        $_SESSION['user_parent_admin_id']  = $row['ParentAdminId'] ?? 0;
+                        $_SESSION['user_company_id']       = $row['CompanyId'] ?? 0;
                         header('Location: index.php'); exit;
                     }
                 } else {
@@ -170,17 +172,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($stmt->fetch()) {
                 $db->prepare("UPDATE tblEmailOtp SET used=1 WHERE email=?")->execute([$email]);
                 $db->prepare("DELETE FROM tblLoginAttempts WHERE IpAddress=?")->execute([$ip]);
-                $uStmt = $db->prepare("SELECT id,Name,Role,Status,CompanyLimit,ParentAdminId,CompanyId FROM tblUser WHERE Email=? AND IsActive=1");
+                $uStmt = $db->prepare("SELECT id,Name,Role,Status,CompanyLimit,MachinesLimit,EmpLimit,ParentAdminId,CompanyId FROM tblUser WHERE Email=? AND IsActive=1");
                 $uStmt->execute([$email]);
                 $row = $uStmt->fetch();
                 if ($row && $row['Status'] === 'active') {
                     unset($_SESSION['otp_email']);
-                    $_SESSION['user_id']              = $row['id'];
-                    $_SESSION['user_name']            = $row['Name'];
-                    $_SESSION['user_role']            = $row['Role'];
-                    $_SESSION['user_company_limit']   = $row['CompanyLimit'];
-                    $_SESSION['user_parent_admin_id'] = $row['ParentAdminId'] ?? 0;
-                    $_SESSION['user_company_id']      = $row['CompanyId'] ?? 0;
+                    $_SESSION['user_id']               = $row['id'];
+                    $_SESSION['user_name']             = $row['Name'];
+                    $_SESSION['user_role']             = $row['Role'];
+                    $_SESSION['user_company_limit']    = $row['CompanyLimit'];
+                    $_SESSION['user_machines_limit']   = $row['MachinesLimit'];
+                    $_SESSION['user_emp_limit']        = $row['EmpLimit'];
+                    $_SESSION['user_parent_admin_id']  = $row['ParentAdminId'] ?? 0;
+                    $_SESSION['user_company_id']       = $row['CompanyId'] ?? 0;
                     header('Location: index.php'); exit;
                 } else {
                     $error = 'Account not active. Contact your administrator.';
