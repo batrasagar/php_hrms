@@ -181,17 +181,17 @@ require_once __DIR__ . '/../../includes/header.php';
 
         <div class="row g-3">
           <div class="col-lg-8" id="editorCol">
-            <label class="form-label mb-1">Content</label>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label mb-0">Content</label>
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="toggleVarPanel()" title="Toggle variable panel">
+                <i class="bi bi-layout-sidebar-reverse" id="varPanelIcon"></i>
+              </button>
+            </div>
             <textarea id="contentArea" name="content" rows="22"
                       placeholder="Write your template here. Use {{variable_name}} for dynamic fields."><?= htmlspecialchars($editRow['Content'] ?? '') ?></textarea>
           </div>
           <div class="col-lg-4" id="varPanel">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <label class="form-label mb-0">Insert Variable <span class="text-muted small">(click to insert)</span></label>
-              <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="toggleVarPanel()" title="Collapse variable panel">
-                <i class="bi bi-layout-sidebar-reverse" id="varPanelIcon"></i>
-              </button>
-            </div>
+            <label class="form-label mb-2">Insert Variable <span class="text-muted small">(click to insert)</span></label>
             <?php foreach ($availableVars as $group => $vars): ?>
             <div class="mb-2">
               <div class="text-muted small fw-semibold mb-1"><?= $group ?></div>

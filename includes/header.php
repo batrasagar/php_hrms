@@ -794,13 +794,6 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
       </li>
       <li>
-        <a class="sb-item <?= $ap==='smtp_settings'?'active':'' ?>"
-           href="<?= BASE_URL ?>/modules/settings/smtp.php" data-tip="SMTP Settings">
-          <span class="sb-item-icon"><i class="bi bi-envelope-gear"></i></span>
-          <span class="sb-item-label">SMTP Settings</span>
-        </a>
-      </li>
-      <li>
         <a class="sb-item <?= $ap==='notifications'?'active':'' ?>"
            href="<?= $notifUrl ?>" data-tip="Email Notifications">
           <span class="sb-item-icon"><i class="bi bi-envelope-check"></i></span>

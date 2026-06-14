@@ -226,4 +226,70 @@ require_once __DIR__ . '/../../includes/header.php';
 </form>
 <?php endif; ?>
 
+<?php if ($user['role'] === 'superadmin'):
+    $db->exec("CREATE TABLE IF NOT EXISTS `tblCronToken` (
+        `id`        INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        `Token`     CHAR(64)     NOT NULL UNIQUE,
+        `Label`     VARCHAR(100) NOT NULL DEFAULT '',
+        `IsActive`  TINYINT(1)   NOT NULL DEFAULT 1,
+        `LastUsed`  DATETIME     DEFAULT NULL,
+        PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB");
+    $cronTokens = $db->query("SELECT id, Label, IsActive, LastUsed FROM tblCronToken ORDER BY id")->fetchAll();
+?>
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-white fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-clock-history text-primary"></i>
+    Cron Token Status
+    <span class="badge bg-secondary ms-1">Superadmin</span>
+  </div>
+  <div class="card-body p-0">
+    <?php if (!$cronTokens): ?>
+    <p class="text-muted small p-3 mb-0">No cron tokens found. Generate one via <code>cron/trigger.php</code> setup.</p>
+    <?php else: ?>
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>#</th>
+          <th>Label</th>
+          <th>Active</th>
+          <th>Last Used</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($cronTokens as $ct):
+            $lastUsed = $ct['LastUsed'];
+            $hoursAgo = $lastUsed ? round((time() - strtotime($lastUsed)) / 3600, 1) : null;
+            if (!$lastUsed) {
+                $badge = '<span class="badge bg-secondary">Never</span>';
+            } elseif ($hoursAgo <= 25) {
+                $badge = '<span class="badge bg-success">OK</span>';
+            } elseif ($hoursAgo <= 49) {
+                $badge = '<span class="badge bg-warning text-dark">Delayed</span>';
+            } else {
+                $badge = '<span class="badge bg-danger">Stale</span>';
+            }
+        ?>
+        <tr>
+          <td class="text-muted"><?= $ct['id'] ?></td>
+          <td><?= htmlspecialchars($ct['Label'] ?: '—') ?></td>
+          <td><?= $ct['IsActive'] ? '<span class="badge bg-success">Yes</span>' : '<span class="badge bg-secondary">No</span>' ?></td>
+          <td class="font-monospace small"><?= $lastUsed ? htmlspecialchars($lastUsed) : '—' ?></td>
+          <td><?= $badge ?></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+    <p class="text-muted small px-3 pt-2 pb-1 mb-0">
+      <i class="bi bi-info-circle me-1"></i>
+      Status: <strong>OK</strong> = fired within 25 h &nbsp;|&nbsp;
+      <strong>Delayed</strong> = 25–49 h &nbsp;|&nbsp;
+      <strong>Stale</strong> = &gt;49 h or never fired.
+    </p>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
+
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>
