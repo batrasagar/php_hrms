@@ -15,6 +15,23 @@ if (isset($_GET['toggle'])) {
     header('Location: index.php'); exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_company_id'])) {
+    requireSuperAdmin();
+    csrf_verify();
+    $id = (int)$_POST['delete_company_id'];
+    $db->beginTransaction();
+    try {
+        $db->prepare("DELETE FROM tblEmployee WHERE CompanyId = ?")->execute([$id]);
+        $db->prepare("DELETE FROM tblCompany  WHERE id = ?")->execute([$id]);
+        $db->commit();
+        $_SESSION['flash'] = 'Company and all its employees deleted.';
+    } catch (\Throwable $e) {
+        $db->rollBack();
+        $_SESSION['flash'] = 'Delete failed: ' . $e->getMessage();
+    }
+    header('Location: index.php'); exit;
+}
+
 if ($user['role'] === 'superadmin') {
     $companies = $db->query(
         "SELECT c.*, u.Name AS AdminName, u.Email AS AdminEmail
@@ -86,6 +103,16 @@ require_once __DIR__ . '/../../includes/header.php';
              class="btn btn-sm <?= $c['IsActive'] ? 'btn-outline-warning' : 'btn-outline-success' ?>">
             <i class="bi bi-<?= $c['IsActive'] ? 'pause-circle' : 'play-circle' ?>"></i>
           </a>
+          <?php if ($user['role'] === 'superadmin'): ?>
+          <form method="POST" class="d-inline">
+            <?= csrf_field() ?>
+            <input type="hidden" name="delete_company_id" value="<?= $c['id'] ?>">
+            <button type="submit" class="btn btn-sm btn-outline-danger"
+                    onclick="return confirm('Delete <?= addslashes(htmlspecialchars($c['Name'])) ?> and ALL its employees? This cannot be undone.')">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+          <?php endif; ?>
         </td>
       </tr>
       <?php endforeach; ?>
