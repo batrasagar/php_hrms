@@ -800,26 +800,6 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <!-- Misc -->
       <div class="sb-section-label">Tools</div>
       <li>
-        <a class="sb-item" data-bs-toggle="collapse" href="#navDevices"
-           aria-expanded="<?= $devOpen?'true':'false' ?>" data-tip="Devices">
-          <span class="sb-item-icon"><i class="bi bi-hdd-network"></i></span>
-          <span class="sb-item-label">Devices</span>
-          <span class="sb-item-chevron"><i class="bi bi-chevron-right"></i></span>
-        </a>
-        <div class="collapse <?= $devOpen ?>" id="navDevices">
-          <div class="sb-sub">
-            <a class="sb-sub-item <?= $ap==='devices'?'active':'' ?>"
-               href="<?= BASE_URL ?>/modules/devices/list.php">
-              <i class="bi bi-list-ul"></i> All Devices
-            </a>
-            <a class="sb-sub-item <?= $ap==='device_enrollment'?'active':'' ?>"
-               href="<?= BASE_URL ?>/modules/devices/enrollment.php">
-              <i class="bi bi-person-badge"></i> Enrollment
-            </a>
-          </div>
-        </div>
-      </li>
-      <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navPunch"
            aria-expanded="<?= $punchOpen?'true':'false' ?>" data-tip="Punch Log">
           <span class="sb-item-icon"><i class="bi bi-clock-history"></i></span>
@@ -911,7 +891,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <?php endif; ?>
 
       <!-- Settings (bottom of menu) -->
-      <?php $settingsOpen = in_array($ap, ['settings','notifications']) ? 'show' : ''; ?>
+      <?php $settingsOpen = in_array($ap, ['settings','notifications','devices','device_enrollment']) ? 'show' : ''; ?>
       <div class="sb-section-label">Settings</div>
       <li>
         <a class="sb-item <?= $settingsOpen ? 'active' : '' ?>" data-bs-toggle="collapse" href="#navSettings"
@@ -927,6 +907,12 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             </a>
             <a class="sb-sub-item <?= $ap==='notifications'?'active':'' ?>" href="<?= $notifUrl ?>">
               <i class="bi bi-envelope-check"></i> Email Notifications
+            </a>
+            <a class="sb-sub-item <?= $ap==='devices'?'active':'' ?>" href="<?= BASE_URL ?>/modules/devices/list.php">
+              <i class="bi bi-hdd-network"></i> Devices
+            </a>
+            <a class="sb-sub-item <?= $ap==='device_enrollment'?'active':'' ?>" href="<?= BASE_URL ?>/modules/devices/enrollment.php">
+              <i class="bi bi-person-badge"></i> Enrollment
             </a>
           </div>
         </div>
