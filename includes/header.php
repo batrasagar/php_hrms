@@ -630,6 +630,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
   $docsOpen    = in_array($ap, ['doc_templates','doc_issue','doc_material','doc_fnf','doc_seed']) ? 'show' : '';
 ?>
 
+      <!-- Attendance Report -->
       <li>
         <a class="sb-item sb-featured"
            href="<?= BASE_URL ?>/modules/reports/attendance.php"
@@ -638,9 +639,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">Attendance Report</span>
         </a>
       </li>
-      <div class="sb-section-label">Organisation</div>
 
-      <!-- Employees group -->
+      <!-- Employees -->
+      <div class="sb-section-label">Employees</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navEmp"
            aria-expanded="<?= $empOpen?'true':'false' ?>" data-tip="Employees">
@@ -666,39 +667,55 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </div>
       </li>
 
-      <!-- Payroll -->
-      <div class="sb-section-label">Payroll</div>
+      <!-- Tools -->
+      <div class="sb-section-label">Tools</div>
       <li>
-        <a class="sb-item" data-bs-toggle="collapse" href="#navPayroll"
-           aria-expanded="<?= $payrollOpen?'true':'false' ?>" data-tip="Payroll">
-          <span class="sb-item-icon"><i class="bi bi-cash-stack"></i></span>
-          <span class="sb-item-label">Payroll</span>
+        <a class="sb-item" data-bs-toggle="collapse" href="#navPunch"
+           aria-expanded="<?= $punchOpen?'true':'false' ?>" data-tip="Punch Log">
+          <span class="sb-item-icon"><i class="bi bi-clock-history"></i></span>
+          <span class="sb-item-label">Punch Log</span>
           <span class="sb-item-chevron"><i class="bi bi-chevron-right"></i></span>
         </a>
-        <div class="collapse <?= $payrollOpen ?>" id="navPayroll">
+        <div class="collapse <?= $punchOpen ?>" id="navPunch">
           <div class="sb-sub">
-            <a class="sb-sub-item <?= $ap==='payroll_run'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/run.php">
-              <i class="bi bi-play-circle"></i> Run / Salary Sheet
+            <a class="sb-sub-item <?= $ap==='punch_sync'?'active':'' ?>" href="<?= BASE_URL ?>/modules/punchlog/sync.php">
+              <i class="bi bi-arrow-repeat"></i> Sync &amp; Process
             </a>
-            <a class="sb-sub-item <?= $ap==='payroll_emp_setup'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/employee_setup.php">
-              <i class="bi bi-person-gear"></i> Employee Setup
+            <a class="sb-sub-item <?= $ap==='punchlog'?'active':'' ?>" href="<?= BASE_URL ?>/modules/punchlog/view.php">
+              <i class="bi bi-list-columns"></i> View Log
             </a>
-            <a class="sb-sub-item <?= $ap==='payroll_components'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/components.php">
-              <i class="bi bi-list-columns-reverse"></i> Income / Deduction Heads
-            </a>
-            <a class="sb-sub-item <?= $ap==='payroll_settings'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/settings.php">
-              <i class="bi bi-sliders"></i> PF / ESI / TDS Settings
+            <a class="sb-sub-item <?= $ap==='punch_correction'?'active':'' ?>" href="<?= BASE_URL ?>/modules/punchlog/correction.php">
+              <i class="bi bi-pencil-square"></i> Correction
             </a>
           </div>
         </div>
       </li>
 
-      <!-- Advance -->
+      <!-- Shifts -->
+      <div class="sb-section-label">Shifts</div>
       <li>
-        <a class="sb-item <?= $ap==='advance'?'active':'' ?>" href="<?= $advanceUrl ?>" data-tip="Employee Advances">
-          <span class="sb-item-icon"><i class="bi bi-cash-coin"></i></span>
-          <span class="sb-item-label">Employee Advances</span>
+        <a class="sb-item" data-bs-toggle="collapse" href="#navShifts"
+           aria-expanded="<?= $shiftOpen?'true':'false' ?>" data-tip="Shift Management">
+          <span class="sb-item-icon"><i class="bi bi-clock-history"></i></span>
+          <span class="sb-item-label">Shift Management</span>
+          <span class="sb-item-chevron"><i class="bi bi-chevron-right"></i></span>
         </a>
+        <div class="collapse <?= $shiftOpen ?>" id="navShifts">
+          <div class="sb-sub">
+            <a class="sb-sub-item <?= $ap==='shifts'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/index.php">
+              <i class="bi bi-clock"></i> Shift Master
+            </a>
+            <a class="sb-sub-item <?= $ap==='shift_assign'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/assign.php">
+              <i class="bi bi-person-gear"></i> Shift Assignment
+            </a>
+            <a class="sb-sub-item <?= $ap==='shift_cyclic'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/cyclic.php">
+              <i class="bi bi-arrow-repeat"></i> Cyclic Shifts
+            </a>
+            <a class="sb-sub-item <?= $ap==='compoff'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/compoff.php">
+              <i class="bi bi-calendar-check"></i> Comp Off
+            </a>
+          </div>
+        </div>
       </li>
 
       <!-- Attendance -->
@@ -734,114 +751,40 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </div>
       </li>
 
-      <!-- Shift Management -->
-      <div class="sb-section-label">Shifts</div>
+      <!-- Payroll -->
+      <div class="sb-section-label">Payroll</div>
       <li>
-        <a class="sb-item" data-bs-toggle="collapse" href="#navShifts"
-           aria-expanded="<?= $shiftOpen?'true':'false' ?>" data-tip="Shift Management">
-          <span class="sb-item-icon"><i class="bi bi-clock-history"></i></span>
-          <span class="sb-item-label">Shift Management</span>
+        <a class="sb-item" data-bs-toggle="collapse" href="#navPayroll"
+           aria-expanded="<?= $payrollOpen?'true':'false' ?>" data-tip="Payroll">
+          <span class="sb-item-icon"><i class="bi bi-cash-stack"></i></span>
+          <span class="sb-item-label">Payroll</span>
           <span class="sb-item-chevron"><i class="bi bi-chevron-right"></i></span>
         </a>
-        <div class="collapse <?= $shiftOpen ?>" id="navShifts">
+        <div class="collapse <?= $payrollOpen ?>" id="navPayroll">
           <div class="sb-sub">
-            <a class="sb-sub-item <?= $ap==='shifts'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/index.php">
-              <i class="bi bi-clock"></i> Shift Master
+            <a class="sb-sub-item <?= $ap==='payroll_run'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/run.php">
+              <i class="bi bi-play-circle"></i> Run / Salary Sheet
             </a>
-            <a class="sb-sub-item <?= $ap==='shift_assign'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/assign.php">
-              <i class="bi bi-person-gear"></i> Shift Assignment
+            <a class="sb-sub-item <?= $ap==='payroll_emp_setup'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/employee_setup.php">
+              <i class="bi bi-person-gear"></i> Employee Setup
             </a>
-            <a class="sb-sub-item <?= $ap==='shift_cyclic'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/cyclic.php">
-              <i class="bi bi-arrow-repeat"></i> Cyclic Shifts
+            <a class="sb-sub-item <?= $ap==='payroll_components'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/components.php">
+              <i class="bi bi-list-columns-reverse"></i> Income / Deduction Heads
             </a>
-            <a class="sb-sub-item <?= $ap==='compoff'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/compoff.php">
-              <i class="bi bi-calendar-check"></i> Comp Off
+            <a class="sb-sub-item <?= $ap==='payroll_settings'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/settings.php">
+              <i class="bi bi-sliders"></i> PF / ESI / TDS Settings
             </a>
           </div>
         </div>
+      </li>
+      <li>
+        <a class="sb-item <?= $ap==='advance'?'active':'' ?>" href="<?= $advanceUrl ?>" data-tip="Employee Advances">
+          <span class="sb-item-icon"><i class="bi bi-cash-coin"></i></span>
+          <span class="sb-item-label">Employee Advances</span>
+        </a>
       </li>
 
-      <!-- Reports -->
-      <div class="sb-section-label">Reports</div>
-      <li>
-        <a class="sb-item" data-bs-toggle="collapse" href="#navReports"
-           aria-expanded="<?= $rptOpen?'true':'false' ?>" data-tip="Reports">
-          <span class="sb-item-icon"><i class="bi bi-bar-chart-line"></i></span>
-          <span class="sb-item-label">Reports</span>
-          <span class="sb-item-chevron"><i class="bi bi-chevron-right"></i></span>
-        </a>
-        <div class="collapse <?= $rptOpen ?>" id="navReports">
-          <div class="sb-sub">
-            <a class="sb-sub-item <?= $ap==='report_active'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/active_employees.php">
-              <i class="bi bi-person-lines-fill"></i> Active Employees
-            </a>
-            <a class="sb-sub-item <?= $ap==='report_attendance'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/attendance.php">
-              <i class="bi bi-calendar2-week"></i> Attendance
-            </a>
-            <a class="sb-sub-item <?= $ap==='report_monthly'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/monthly_attendance.php">
-              <i class="bi bi-calendar-month"></i> Monthly
-            </a>
-            <a class="sb-sub-item <?= $ap==='report_swipe'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/swipe_report.php">
-              <i class="bi bi-fingerprint"></i> Swipe Report
-            </a>
-            <a class="sb-sub-item <?= $ap==='report_strength'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/strength_summary.php">
-              <i class="bi bi-diagram-3"></i> Strength
-            </a>
-            <a class="sb-sub-item <?= $ap==='report_ot'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/ot_report.php">
-              <i class="bi bi-alarm"></i> OT Report
-            </a>
-            <a class="sb-sub-item <?= $ap==='report_leave'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/leave_report.php">
-              <i class="bi bi-file-earmark-x"></i> Leave Report
-            </a>
-          </div>
-        </div>
-      </li>
-
-      <!-- Misc -->
-      <div class="sb-section-label">Tools</div>
-      <li>
-        <a class="sb-item" data-bs-toggle="collapse" href="#navPunch"
-           aria-expanded="<?= $punchOpen?'true':'false' ?>" data-tip="Punch Log">
-          <span class="sb-item-icon"><i class="bi bi-clock-history"></i></span>
-          <span class="sb-item-label">Punch Log</span>
-          <span class="sb-item-chevron"><i class="bi bi-chevron-right"></i></span>
-        </a>
-        <div class="collapse <?= $punchOpen ?>" id="navPunch">
-          <div class="sb-sub">
-            <a class="sb-sub-item <?= $ap==='punch_sync'?'active':'' ?>"
-               href="<?= BASE_URL ?>/modules/punchlog/sync.php">
-              <i class="bi bi-arrow-repeat"></i> Sync &amp; Process
-            </a>
-            <a class="sb-sub-item <?= $ap==='punchlog'?'active':'' ?>"
-               href="<?= BASE_URL ?>/modules/punchlog/view.php">
-              <i class="bi bi-list-columns"></i> View Log
-            </a>
-            <a class="sb-sub-item <?= $ap==='punch_correction'?'active':'' ?>"
-               href="<?= BASE_URL ?>/modules/punchlog/correction.php">
-              <i class="bi bi-pencil-square"></i> Correction
-            </a>
-          </div>
-        </div>
-      </li>
-      <!-- Masters -->
-      <div class="sb-section-label">Masters</div>
-      <li>
-        <a class="sb-item" data-bs-toggle="collapse" href="#navMasters"
-           aria-expanded="<?= $masterOpen?'true':'false' ?>" data-tip="Masters">
-          <span class="sb-item-icon"><i class="bi bi-database-gear"></i></span>
-          <span class="sb-item-label">Masters</span>
-          <span class="sb-item-chevron"><i class="bi bi-chevron-right"></i></span>
-        </a>
-        <div class="collapse <?= $masterOpen ?>" id="navMasters">
-          <div class="sb-sub">
-            <a class="sb-sub-item <?= $ap==='holidays'?'active':'' ?>" href="<?= BASE_URL ?>/modules/holidays/index.php">
-              <i class="bi bi-calendar-heart"></i> Holidays
-            </a>
-          </div>
-        </div>
-      </li>
-
-      <!-- HR Docs -->
+      <!-- HR Documents -->
       <div class="sb-section-label">HR Documents</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navDocs"
@@ -870,7 +813,6 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           </div>
         </div>
       </li>
-
       <?php if ($user['role'] === 'superadmin'): ?>
       <li>
         <a class="sb-item <?= $ap==='docs_pipeline'?'active':'' ?>"
@@ -880,6 +822,24 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
       </li>
       <?php endif; ?>
+
+      <!-- Masters -->
+      <div class="sb-section-label">Masters</div>
+      <li>
+        <a class="sb-item" data-bs-toggle="collapse" href="#navMasters"
+           aria-expanded="<?= $masterOpen?'true':'false' ?>" data-tip="Masters">
+          <span class="sb-item-icon"><i class="bi bi-database-gear"></i></span>
+          <span class="sb-item-label">Masters</span>
+          <span class="sb-item-chevron"><i class="bi bi-chevron-right"></i></span>
+        </a>
+        <div class="collapse <?= $masterOpen ?>" id="navMasters">
+          <div class="sb-sub">
+            <a class="sb-sub-item <?= $ap==='holidays'?'active':'' ?>" href="<?= BASE_URL ?>/modules/holidays/index.php">
+              <i class="bi bi-calendar-heart"></i> Holidays
+            </a>
+          </div>
+        </div>
+      </li>
 
 
 <?php else: // role === 'user' ?>
