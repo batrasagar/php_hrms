@@ -881,38 +881,6 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       </li>
       <?php endif; ?>
 
-      <!-- Settings (bottom of menu) -->
-      <?php $settingsOpen = in_array($ap, ['settings','notifications','devices','device_enrollment','adms']) ? 'show' : ''; ?>
-      <div class="sb-section-label">Settings</div>
-      <li>
-        <a class="sb-item <?= $settingsOpen ? 'active' : '' ?>" data-bs-toggle="collapse" href="#navSettings"
-           aria-expanded="<?= $settingsOpen ? 'true' : 'false' ?>" data-tip="Settings">
-          <span class="sb-item-icon"><i class="bi bi-gear"></i></span>
-          <span class="sb-item-label">Settings</span>
-          <span class="sb-item-chevron"><i class="bi bi-chevron-right"></i></span>
-        </a>
-        <div class="collapse <?= $settingsOpen ?>" id="navSettings">
-          <div class="sb-sub">
-            <a class="sb-sub-item <?= $ap==='settings'?'active':'' ?>" href="<?= $settingsUrl ?>">
-              <i class="bi bi-toggles"></i> General
-            </a>
-            <a class="sb-sub-item <?= $ap==='notifications'?'active':'' ?>" href="<?= $notifUrl ?>">
-              <i class="bi bi-envelope-check"></i> Email Notifications
-            </a>
-            <a class="sb-sub-item <?= $ap==='devices'?'active':'' ?>" href="<?= BASE_URL ?>/modules/devices/list.php">
-              <i class="bi bi-hdd-network"></i> Devices
-            </a>
-            <a class="sb-sub-item <?= $ap==='device_enrollment'?'active':'' ?>" href="<?= BASE_URL ?>/modules/devices/enrollment.php">
-              <i class="bi bi-person-badge"></i> Enrollment
-            </a>
-            <?php if ($user['role'] === 'superadmin'): ?>
-            <a class="sb-sub-item <?= $ap==='adms'?'active':'' ?>" href="<?= BASE_URL ?>/modules/adms_credentials/index.php">
-              <i class="bi bi-plug"></i> ADMS Credentials
-            </a>
-            <?php endif; ?>
-          </div>
-        </div>
-      </li>
 
 <?php else: // role === 'user' ?>
 <?php
