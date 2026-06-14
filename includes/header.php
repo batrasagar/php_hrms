@@ -988,6 +988,11 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= $settingsUrl ?>">
           <i class="bi bi-gear text-secondary"></i> Settings
         </a></li>
+        <?php if ($user['role'] === 'superadmin'): ?>
+        <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= BASE_URL ?>/modules/adms_credentials/index.php">
+          <i class="bi bi-plug text-secondary"></i> ADMS Credentials
+        </a></li>
+        <?php endif; ?>
         <li><hr class="dropdown-divider my-1"></li>
         <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= BASE_URL ?>/logout.php">
           <i class="bi bi-box-arrow-right text-danger"></i> Logout
