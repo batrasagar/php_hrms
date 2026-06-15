@@ -859,6 +859,16 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       </li>
       <?php endif; ?>
 
+      <!-- Settings -->
+      <div class="sb-section-label">Settings</div>
+      <li>
+        <a class="sb-item <?= $ap==='notifications'?'active':'' ?>"
+           href="<?= $notifUrl ?>" data-tip="Email Notifications">
+          <span class="sb-item-icon"><i class="bi bi-envelope-check"></i></span>
+          <span class="sb-item-label">Email Notifications</span>
+        </a>
+      </li>
+
       <!-- Masters -->
       <div class="sb-section-label">Masters</div>
       <li>
