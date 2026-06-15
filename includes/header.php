@@ -751,6 +751,42 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </div>
       </li>
 
+      <!-- Reports -->
+      <div class="sb-section-label">Reports</div>
+      <li>
+        <a class="sb-item" data-bs-toggle="collapse" href="#navReports"
+           aria-expanded="<?= $rptOpen ? 'true' : 'false' ?>" data-tip="Reports">
+          <span class="sb-item-icon"><i class="bi bi-bar-chart-line"></i></span>
+          <span class="sb-item-label">Reports</span>
+          <span class="sb-item-chevron"><i class="bi bi-chevron-right"></i></span>
+        </a>
+        <div class="collapse <?= $rptOpen ?>" id="navReports">
+          <div class="sb-sub">
+            <a class="sb-sub-item <?= $ap==='report_active'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/active_employees.php">
+              <i class="bi bi-people"></i> Active Employees
+            </a>
+            <a class="sb-sub-item <?= $ap==='report_attendance'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/attendance.php">
+              <i class="bi bi-calendar2-week"></i> Attendance
+            </a>
+            <a class="sb-sub-item <?= $ap==='report_monthly'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/monthly_attendance.php">
+              <i class="bi bi-calendar-month"></i> Monthly
+            </a>
+            <a class="sb-sub-item <?= $ap==='report_swipe'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/swipe_report.php">
+              <i class="bi bi-fingerprint"></i> Swipe Report
+            </a>
+            <a class="sb-sub-item <?= $ap==='report_strength'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/strength_summary.php">
+              <i class="bi bi-diagram-3"></i> Strength
+            </a>
+            <a class="sb-sub-item <?= $ap==='report_ot'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/ot_report.php">
+              <i class="bi bi-alarm"></i> OT Report
+            </a>
+            <a class="sb-sub-item <?= $ap==='report_leave'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/leave_report.php">
+              <i class="bi bi-file-earmark-x"></i> Leave Report
+            </a>
+          </div>
+        </div>
+      </li>
+
       <!-- Payroll -->
       <div class="sb-section-label">Payroll</div>
       <li>
