@@ -1,5 +1,4 @@
 <?php
-ini_set('display_errors', '1'); error_reporting(E_ALL); // DEBUG — remove after fix
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
@@ -1132,42 +1131,8 @@ function recalcGross() {
 }
 document.querySelectorAll('.sal-comp').forEach(el => el.addEventListener('input', recalcGross));
 
-// AJAX save
-$('#empForm').on('submit', function(e) {
-  e.preventDefault();
-  const $form = $(this);
-  const $btn  = $form.find('[type=submit]');
-  const origText = $btn.text();
-
-  $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Saving…');
-  $form.find('.ajax-err').remove();
-
-  $.ajax({
-    url: $form.attr('action') || '',
-    type: 'POST',
-    data: new FormData(this),
-    processData: false,
-    contentType: false,
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    success: function(resp) {
-      if (resp.success) {
-        window.location.href = resp.redirect;
-      } else {
-        const html = (resp.errors || ['Unknown error.']).map(msg =>
-          '<div class="alert alert-danger py-2 ajax-err">' + $('<div>').text(msg).html() + '</div>'
-        ).join('');
-        $form.before(html);
-        window.scrollTo(0, 0);
-        $btn.prop('disabled', false).text(origText);
-      }
-    },
-    error: function(xhr) {
-      $form.before('<div class="alert alert-danger py-2 ajax-err">Server error (' + xhr.status + '). Please try again.</div>');
-      window.scrollTo(0, 0);
-      $btn.prop('disabled', false).text(origText);
-    }
-  });
-});
+// Note: form submission is handled by the global data-ajax handler in footer.php.
+// Do not add a local submit handler here — it would double-submit and create duplicate records.
 </script>
 JS;
 require_once __DIR__ . '/../../includes/footer.php';
