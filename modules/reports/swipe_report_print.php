@@ -44,7 +44,10 @@ $printedAt = date('d-m-Y H:i');
 <title>Swipe Report — <?= htmlspecialchars($fMonth) ?></title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Arial Narrow', Arial, sans-serif; font-size: 9px; color: #000; background: #fff; }
+body {
+  font-family: 'Arial Narrow', Arial, sans-serif; font-size: 9px; color: #000; background: #fff;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
 
 /* ── Loader ── */
 #pg-loader {
@@ -75,14 +78,17 @@ body { font-family: 'Arial Narrow', Arial, sans-serif; font-size: 9px; color: #0
 .report-title p  { font-size: 9px; color: #444; margin-top: 2px; }
 
 /* ── Table ── */
-table { border-collapse: collapse; width: 100%; }
-th, td { border: 1px solid #555; text-align: center; padding: 1px 1px; line-height: 1.15; vertical-align: middle; }
+/* table-layout:fixed + width:100% forces the whole grid to fit the page
+   width regardless of how many days the month has — no clipped columns. */
+table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+th, td { border: 1px solid #555; text-align: center; padding: 1px 1px; line-height: 1.15; vertical-align: middle; overflow: hidden; }
 th { background: #222; color: #fff; font-size: 7px; font-weight: 700; }
-th.col-name { text-align: left; background: #222; }
-td.col-name { text-align: left; font-size: 8px; white-space: nowrap; padding: 1px 3px; }
+th.col-name { text-align: left; background: #222; width: 92px; }
+td.col-name { text-align: left; font-size: 8px; white-space: normal; word-break: break-word; padding: 1px 3px; }
 
-th.col-day { width: 28px; min-width: 28px; }
-td.col-day { width: 28px; min-width: 28px; font-size: 8px; vertical-align: top; padding: 1px; }
+/* No fixed width on day columns: fixed layout shares the leftover space
+   equally between them so 28 or 31 days both fit exactly. */
+td.col-day { font-size: 8px; vertical-align: top; padding: 1px; }
 
 .sw-in  { font-size: 8px; font-weight: 600; color: #1a5e20; }
 .sw-out { font-size: 8px; color: #333; }
@@ -103,7 +109,8 @@ td.bg-s  { background: #e0e0e0; }
 .sw-badge-h  { color: #5a6268; }
 .sw-badge-s  { color: #9e9e9e; }
 
-td.col-sum { width: 22px; min-width: 22px; font-weight: 700; font-size: 9px; }
+.col-sum { width: 22px; }
+td.col-sum { font-weight: 700; font-size: 9px; }
 .sum-p  { color: #1b5e20; }
 .sum-hp { color: #004085; }
 .sum-a  { color: #7f0000; }
@@ -121,8 +128,15 @@ td.col-sum { width: 22px; min-width: 22px; font-weight: 700; font-size: 9px; }
   .toolbar { display: none !important; }
   #pg-loader { display: none !important; }
   .print-area { padding: 0; }
-  @page { size: A4 landscape; margin: 7mm 8mm; }
+  @page { size: A4 landscape; margin: 6mm; }
   body { font-size: 8px; }
+  /* Repeat the header rows at the top of every printed page */
+  thead { display: table-header-group; }
+  /* Don't split a single employee row (or a department heading) across pages */
+  tr { page-break-inside: avoid; }
+  .dept-row td { page-break-after: avoid; }
+  /* Force cell background colors (P/A/L/H shading) to print */
+  th, td, .sw-badge, .l-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 </style>
 </head>
@@ -285,7 +299,15 @@ td.col-sum { width: 22px; min-width: 22px; font-weight: 700; font-size: 9px; }
   function show() {
     document.getElementById('pg-loader').style.display  = 'none';
     document.getElementById('pg-content').style.display = 'block';
-    if (AUTOPRINT) setTimeout(function(){ window.print(); }, 400);
+    if (AUTOPRINT) {
+      // Wait for two frames + a short delay so the full table is laid out
+      // and painted before the print dialog snapshots the page.
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          setTimeout(function () { window.print(); }, 500);
+        });
+      });
+    }
   }
 
   $.getJSON(DATA_URL + '?' + QUERY)
