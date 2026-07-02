@@ -152,8 +152,11 @@ td.col-sum { font-weight: 700; font-size: 9px; }
 <script>
 (function () {
   var DATA_URL      = '<?= $dataUrl ?>';
-  var QUERY         = '<?= htmlspecialchars($queryStr, ENT_QUOTES) ?>';
-  var BACK_URL      = '<?= htmlspecialchars($backUrl, ENT_QUOTES) ?>';
+  // json_encode gives a proper JS string literal. Do NOT htmlspecialchars
+  // here: inside <script> entities aren't decoded, so "&amp;" would be sent
+  // literally and the server would lose the from/to params (only today shown).
+  var QUERY         = <?= json_encode($queryStr, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
+  var BACK_URL      = <?= json_encode($backUrl, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
   var PRINTED_AT    = '<?= $printedAt ?>';
   var DAYS_IN_MONTH = <?= $daysInMonth ?>;
   var AUTOPRINT     = <?= $autoPrint ? 'true' : 'false' ?>;
