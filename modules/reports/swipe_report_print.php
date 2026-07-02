@@ -79,16 +79,16 @@ body {
 .report-title p  { font-size: 9px; color: #444; margin-top: 2px; }
 
 /* ── Table ── */
-/* table-layout:fixed + width:100% forces the whole grid to fit the page
-   width regardless of how many days the month has — no clipped columns. */
-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+/* table-layout:fixed with compact fixed column widths. The table width is
+   set inline (in JS) to the exact sum of its columns, so ~15 days per page
+   stay tight instead of stretching to fill the page. */
+table { border-collapse: collapse; table-layout: fixed; }
 th, td { border: 1px solid #555; text-align: center; padding: 1px 1px; line-height: 1.15; vertical-align: middle; overflow: hidden; }
 th { background: #222; color: #fff; font-size: 7px; font-weight: 700; }
 th.col-name { text-align: left; background: #222; width: 92px; }
 td.col-name { text-align: left; font-size: 8px; white-space: normal; word-break: break-word; padding: 1px 3px; }
 
-/* No fixed width on day columns: fixed layout shares the leftover space
-   equally between them so 28 or 31 days both fit exactly. */
+.col-day { width: 34px; }
 td.col-day { font-size: 8px; vertical-align: top; padding: 1px; }
 
 .sw-in  { font-size: 8px; font-weight: 600; color: #1a5e20; }
@@ -205,8 +205,10 @@ td.col-sum { font-weight: 700; font-size: 9px; }
   function buildTable(data, dates) {
     var emps = data.employees;
     var cols = dates.length + 6;
+    // Exact table width = name(92) + days*34 + 5 summary cols*22
+    var tableW = 92 + dates.length * 34 + 5 * 22;
 
-    var html = '<table><thead><tr><th class="col-name" style="text-align:left">Employee</th>';
+    var html = '<table style="width:' + tableW + 'px"><thead><tr><th class="col-name" style="text-align:left">Employee</th>';
     dates.forEach(function(d) {
       var bg = d.isSun ? 'background:#555' : (d.isHol ? 'background:#2e7d32' : '');
       html += '<th class="col-day" style="' + bg + '">' + parseInt(d.dayNum,10) + '</th>';
