@@ -1,5 +1,4 @@
 <?php
-ini_set('display_errors', '1'); error_reporting(E_ALL); // DEBUG — remove after fix
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
@@ -9,9 +8,17 @@ $db   = getDb();
 $user = currentUser();
 $msg  = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 
-if (isset($_GET['delete']) && $user['role'] === 'superadmin') {
+if (isset($_GET['delete']) && $user['role'] !== 'user') {
     $id = (int)$_GET['delete'];
-    $db->prepare("DELETE FROM tblEmployee WHERE id=?")->execute([$id]);
+    if ($user['role'] === 'superadmin') {
+        $db->prepare("DELETE FROM tblEmployee WHERE id=?")->execute([$id]);
+    } else {
+        $db->prepare(
+            "DELETE e FROM tblEmployee e
+             JOIN tblCompany c ON c.id = e.CompanyId AND c.AdminId = ?
+             WHERE e.id = ?"
+        )->execute([$user['id'], $id]);
+    }
     $_SESSION['flash'] = 'Employee deleted.';
     header('Location: index.php?' . http_build_query(array_filter($_GET, fn($k) => $k !== 'delete', ARRAY_FILTER_USE_KEY)));
     exit;
@@ -218,13 +225,11 @@ require_once __DIR__ . '/../../includes/header.php';
              title="<?= $e['Status']==='active'?'Deactivate':'Activate' ?>">
             <i class="bi bi-<?= $e['Status']==='active'?'pause-circle':'play-circle' ?>"></i>
           </a>
-          <?php if ($user['role'] === 'superadmin'): ?>
           <a href="index.php?delete=<?= $e['id'] ?>&<?= htmlspecialchars(http_build_query(array_filter($_GET, fn($k) => $k !== 'delete', ARRAY_FILTER_USE_KEY))) ?>"
              class="btn btn-sm btn-outline-danger" title="Delete Employee"
              onclick="return confirm('Permanently delete <?= htmlspecialchars(addslashes($e['Name'])) ?>? This cannot be undone.')">
             <i class="bi bi-trash"></i>
           </a>
-          <?php endif; ?>
           <?php else: ?>
           <span class="text-muted small">View only</span>
           <?php endif; ?>
