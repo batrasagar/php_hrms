@@ -73,6 +73,7 @@ body {
 
 /* ── Print area ── */
 .print-area { padding: 8mm; }
+.report-page + .report-page { page-break-before: always; break-before: page; margin-top: 26px; }
 .report-title { text-align: center; margin-bottom: 6px; }
 .report-title h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
 .report-title p  { font-size: 9px; color: #444; margin-top: 2px; }
@@ -183,46 +184,26 @@ td.col-sum { font-weight: 700; font-size: 9px; }
     return ['col-day', ''];
   }
 
-  function render(data) {
-    var dates = data.dates;
-    var emps  = data.employees;
-    var cols  = DAYS_IN_MONTH + 6;
+  function legendHtml() {
+    return '<div class="legend">'
+         + '<strong>Legend:</strong>'
+         + '<span><span class="l-box" style="background:#d4edda"></span>P = Present (In/Out)</span>'
+         + '<span><span class="l-box" style="background:#cce5ff"></span>HP = Half Present</span>'
+         + '<span><span class="l-box" style="background:#ffcdd2"></span>A = Absent</span>'
+         + '<span><span class="l-box" style="background:#ffcccc"></span>L = Leave</span>'
+         + '<span><span class="l-box" style="background:#fff3cd"></span>HL = Half Leave</span>'
+         + '<span><span class="l-box" style="background:#f0f0f0"></span>H = Holiday</span>'
+         + '<span><span class="l-box" style="background:#e0e0e0"></span>S = Sunday</span>'
+         + '</div>';
+  }
 
-    var monthLabel = '';
-    try {
-      var p = data.fFrom.slice(0,7).split('-');
-      monthLabel = new Date(+p[0], +p[1]-1, 1).toLocaleString('default', {month:'long', year:'numeric'});
-    } catch(e) { monthLabel = data.fFrom.slice(0,7); }
+  // Build one table for a slice of days. The P/HP/A/L/HL columns show the
+  // FULL-month totals (emp.summary), so each half-page stays meaningful.
+  function buildTable(data, dates) {
+    var emps = data.employees;
+    var cols = dates.length + 6;
 
-    var html = '';
-
-    // toolbar
-    html += '<div class="toolbar">'
-          + '<button class="primary" onclick="window.print()">&#128438; Print</button>'
-          + '<a href="' + esc(BACK_URL) + '">&#8592; Back</a>'
-          + '<span>' + esc(data.companyName||'') + ' &mdash; ' + monthLabel
-          + (data.fDept       ? ' &mdash; ' + esc(data.fDept)       : '')
-          + (data.fContractor ? ' &mdash; ' + esc(data.fContractor) : '')
-          + '</span></div>';
-
-    html += '<div class="print-area">';
-
-    // title
-    html += '<div class="report-title">'
-          + '<h2>Department-wise Swipe Report</h2>'
-          + '<p>' + esc(data.companyName||'') + ' &nbsp;|&nbsp; ' + monthLabel;
-    if (data.fDept)       html += ' &nbsp;|&nbsp; ' + esc(data.fDept);
-    if (data.fContractor) html += ' &nbsp;|&nbsp; ' + esc(data.fContractor);
-    html += ' &nbsp;|&nbsp; Printed: ' + PRINTED_AT + '</p></div>';
-
-    if (!emps || !emps.length) {
-      html += '<p style="text-align:center;padding:20px;color:#666">No active employees found.</p></div>';
-      document.getElementById('pg-content').innerHTML = html;
-      show(); return;
-    }
-
-    // table
-    html += '<table><thead><tr><th class="col-name" style="min-width:110px;text-align:left">Employee</th>';
+    var html = '<table><thead><tr><th class="col-name" style="text-align:left">Employee</th>';
     dates.forEach(function(d) {
       var bg = d.isSun ? 'background:#555' : (d.isHol ? 'background:#2e7d32' : '');
       html += '<th class="col-day" style="' + bg + '">' + parseInt(d.dayNum,10) + '</th>';
@@ -248,19 +229,13 @@ td.col-sum { font-weight: 700; font-size: 9px; }
               + esc(emp.department || 'No Department') + '</td></tr>';
       }
 
-      var cntP = 0, cntHP = 0, cntA = 0, cntL = 0, cntHL = 0;
       var dayCells = '';
       dates.forEach(function(d) {
-        var c = emp.days[d.date] || {type:''};
-        if      (c.type === 'P')  cntP++;
-        else if (c.type === 'HP') cntHP++;
-        else if (c.type === 'A')  cntA++;
-        else if (c.type === 'L')  cntL++;
-        else if (c.type === 'HL') cntHL++;
-        var r = renderCell(c);
+        var r = renderCell(emp.days[d.date] || {type:''});
         dayCells += '<td class="' + r[0] + '">' + r[1] + '</td>';
       });
 
+      var s = emp.summary || {};
       html += '<tr>'
             + '<td class="col-name">'
             + '<strong>' + esc(emp.code||'') + '</strong>'
@@ -268,27 +243,76 @@ td.col-sum { font-weight: 700; font-size: 9px; }
             + (emp.shiftNo ? ' <span style="color:#666;font-size:7px">S'+esc(emp.shiftNo)+'</span>' : '')
             + '</td>'
             + dayCells
-            + '<td class="col-sum sum-p">'  + (cntP  || '') + '</td>'
-            + '<td class="col-sum sum-hp">' + (cntHP || '') + '</td>'
-            + '<td class="col-sum sum-a">'  + (cntA  || '') + '</td>'
-            + '<td class="col-sum sum-l">'  + (cntL  || '') + '</td>'
-            + '<td class="col-sum sum-hl">' + (cntHL || '') + '</td>'
+            + '<td class="col-sum sum-p">'  + (s.P  || '') + '</td>'
+            + '<td class="col-sum sum-hp">' + (s.HP || '') + '</td>'
+            + '<td class="col-sum sum-a">'  + (s.A  || '') + '</td>'
+            + '<td class="col-sum sum-l">'  + (s.L  || '') + '</td>'
+            + '<td class="col-sum sum-hl">' + (s.HL || '') + '</td>'
             + '</tr>';
     });
 
     html += '</tbody></table>';
+    return html;
+  }
 
-    // legend
-    html += '<div class="legend">'
-          + '<strong>Legend:</strong>'
-          + '<span><span class="l-box" style="background:#d4edda"></span>P = Present (In/Out)</span>'
-          + '<span><span class="l-box" style="background:#cce5ff"></span>HP = Half Present</span>'
-          + '<span><span class="l-box" style="background:#ffcdd2"></span>A = Absent</span>'
-          + '<span><span class="l-box" style="background:#ffcccc"></span>L = Leave</span>'
-          + '<span><span class="l-box" style="background:#fff3cd"></span>HL = Half Leave</span>'
-          + '<span><span class="l-box" style="background:#f0f0f0"></span>H = Holiday</span>'
-          + '<span><span class="l-box" style="background:#e0e0e0"></span>S = Sunday</span>'
-          + '</div>';
+  // One printed page: repeated title (with day-range) + the sliced table.
+  function pageBlock(data, dates, rangeLabel, monthLabel, withLegend) {
+    var html = '<div class="report-page">';
+    html += '<div class="report-title">'
+          + '<h2>Department-wise Swipe Report</h2>'
+          + '<p>' + esc(data.companyName||'') + ' &nbsp;|&nbsp; ' + monthLabel;
+    if (data.fDept)       html += ' &nbsp;|&nbsp; ' + esc(data.fDept);
+    if (data.fContractor) html += ' &nbsp;|&nbsp; ' + esc(data.fContractor);
+    html += ' &nbsp;|&nbsp; ' + rangeLabel
+          + ' &nbsp;|&nbsp; Printed: ' + PRINTED_AT + '</p></div>';
+    html += buildTable(data, dates);
+    if (withLegend) html += legendHtml();
+    html += '</div>';
+    return html;
+  }
+
+  function render(data) {
+    var dates = data.dates;
+    var emps  = data.employees;
+
+    var monthLabel = '';
+    try {
+      var p = data.fFrom.slice(0,7).split('-');
+      monthLabel = new Date(+p[0], +p[1]-1, 1).toLocaleString('default', {month:'long', year:'numeric'});
+    } catch(e) { monthLabel = data.fFrom.slice(0,7); }
+
+    var html = '';
+
+    // toolbar
+    html += '<div class="toolbar">'
+          + '<button class="primary" onclick="window.print()">&#128438; Print</button>'
+          + '<a href="' + esc(BACK_URL) + '">&#8592; Back</a>'
+          + '<span>' + esc(data.companyName||'') + ' &mdash; ' + monthLabel
+          + (data.fDept       ? ' &mdash; ' + esc(data.fDept)       : '')
+          + (data.fContractor ? ' &mdash; ' + esc(data.fContractor) : '')
+          + '</span></div>';
+
+    html += '<div class="print-area">';
+
+    if (!emps || !emps.length) {
+      html += '<div class="report-title"><h2>Department-wise Swipe Report</h2>'
+            + '<p>' + esc(data.companyName||'') + ' &nbsp;|&nbsp; ' + monthLabel + '</p></div>'
+            + '<p style="text-align:center;padding:20px;color:#666">No active employees found.</p></div>';
+      document.getElementById('pg-content').innerHTML = html;
+      show(); return;
+    }
+
+    // Split the month into two printed pages: days 1–15 and 16–end.
+    var firstHalf  = dates.filter(function(d){ return parseInt(d.dayNum,10) <= 15; });
+    var secondHalf = dates.filter(function(d){ return parseInt(d.dayNum,10) >  15; });
+
+    if (secondHalf.length) {
+      var lastDay = parseInt(secondHalf[secondHalf.length-1].dayNum, 10);
+      html += pageBlock(data, firstHalf,  'Days 1&ndash;15', monthLabel, false);
+      html += pageBlock(data, secondHalf, 'Days 16&ndash;' + lastDay, monthLabel, true);
+    } else {
+      html += pageBlock(data, firstHalf, 'Days 1&ndash;' + (firstHalf.length ? parseInt(firstHalf[firstHalf.length-1].dayNum,10) : 15), monthLabel, true);
+    }
 
     html += '</div>';
 
