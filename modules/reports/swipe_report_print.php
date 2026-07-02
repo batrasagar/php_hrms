@@ -11,6 +11,7 @@ $fCompany    = $user['role'] === 'user' ? $user['company_id'] : (int)($_GET['com
 $fMonth      = trim($_GET['month']       ?? date('Y-m'));
 $fDept       = trim($_GET['dept']        ?? '');
 $fContractor = trim($_GET['contractor']  ?? '');
+$autoPrint   = !empty($_GET['autoprint']);
 
 if (!$fCompany) {
     echo '<!DOCTYPE html><html><body style="font-family:Arial;padding:20px">No company selected.</body></html>';
@@ -140,6 +141,7 @@ td.col-sum { width: 22px; min-width: 22px; font-weight: 700; font-size: 9px; }
   var BACK_URL      = '<?= htmlspecialchars($backUrl, ENT_QUOTES) ?>';
   var PRINTED_AT    = '<?= $printedAt ?>';
   var DAYS_IN_MONTH = <?= $daysInMonth ?>;
+  var AUTOPRINT     = <?= $autoPrint ? 'true' : 'false' ?>;
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -283,6 +285,7 @@ td.col-sum { width: 22px; min-width: 22px; font-weight: 700; font-size: 9px; }
   function show() {
     document.getElementById('pg-loader').style.display  = 'none';
     document.getElementById('pg-content').style.display = 'block';
+    if (AUTOPRINT) setTimeout(function(){ window.print(); }, 400);
   }
 
   $.getJSON(DATA_URL + '?' + QUERY)

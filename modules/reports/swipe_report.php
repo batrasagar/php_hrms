@@ -104,8 +104,11 @@ $autoload = $fCompany ? 1 : 0;
       </div>
       <div class="col-auto d-flex gap-1">
         <button id="btnSwipeLoad" type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search"></i> Load</button>
+        <button id="btnSwipeExcel" type="button" class="btn btn-outline-success btn-sm <?= $fCompany ? '' : 'd-none' ?>"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+        <a id="btnSwipePdf" href="swipe_report_print.php?<?= htmlspecialchars(http_build_query(array_filter(['company'=>$fCompany,'month'=>$fMonth,'dept'=>$fDept,'contractor'=>$fContractor,'autoprint'=>1]))) ?>"
+           target="_blank" class="btn btn-outline-danger btn-sm <?= $fCompany ? '' : 'd-none' ?>"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
         <a id="btnSwipePrint" href="swipe_report_print.php?<?= htmlspecialchars(http_build_query(array_filter(['company'=>$fCompany,'month'=>$fMonth,'dept'=>$fDept,'contractor'=>$fContractor]))) ?>"
-           target="_blank" class="btn btn-outline-success btn-sm <?= $fCompany ? '' : 'd-none' ?>"><i class="bi bi-printer"></i> Print</a>
+           target="_blank" class="btn btn-outline-secondary btn-sm <?= $fCompany ? '' : 'd-none' ?>"><i class="bi bi-printer"></i> Print</a>
       </div>
     </form>
   </div>
@@ -128,6 +131,7 @@ $extraJs = <<<JS
 (function () {
   var DATA_URL = '$dataUrl';
   var AUTOLOAD = $autoload;
+  var lastData = null;
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -155,9 +159,98 @@ $extraJs = <<<JS
     return ['sw-day', ''];
   }
 
+  function monthLabelOf(data) {
+    try {
+      var p = data.fFrom.slice(0,7).split('-');
+      return new Date(+p[0], +p[1]-1, 1).toLocaleString('default', {month:'long', year:'numeric'});
+    } catch(e) { return data.fFrom.slice(0,7); }
+  }
+
+  // Compact text for one day cell in the Excel export
+  function excelCell(c) {
+    switch (c.type) {
+      case 'P':
+      case 'HP':
+        var t;
+        if (c.punches && c.punches.length) {
+          t = c.punches[0] + (c.punches.length > 1 ? ' - ' + c.punches[c.punches.length-1] : '');
+        } else {
+          t = (c.in || '') + (c.out ? ' - ' + c.out : '');
+        }
+        if (c.tot) t += (t ? ' (' : '(') + c.tot + (c.ot ? ' +' + c.ot : '') + ')';
+        return { txt: t, sum: c.type };
+      case 'A':   return { txt: 'A',  sum: 'A' };
+      case 'L':   return { txt: 'L',  sum: 'L' };
+      case 'HL':  return { txt: 'HL' + (c.lvSub ? ' ' + c.lvSub : ''), sum: 'HL' };
+      case 'HOL': return { txt: 'H',  sum: '' };
+      case 'SUN': return { txt: 'S',  sum: '' };
+      default:    return { txt: '',   sum: '' };
+    }
+  }
+
+  function downloadExcel() {
+    var data = lastData;
+    if (!data || !data.employees || !data.employees.length) {
+      showToast('Load the report first.', 'warning');
+      return;
+    }
+    var dates = data.dates, emps = data.employees;
+    var cols  = dates.length + 6;
+    var s = '<table border="1">';
+    s += '<tr><td colspan="' + cols + '"><b>Department-wise Swipe Report &mdash; '
+       + esc(data.companyName || '') + ' &mdash; ' + esc(monthLabelOf(data))
+       + (data.fDept ? ' &mdash; ' + esc(data.fDept) : '')
+       + (data.fContractor ? ' &mdash; ' + esc(data.fContractor) : '')
+       + '</b></td></tr>';
+
+    // Header rows
+    s += '<tr><th>Employee</th>';
+    dates.forEach(function(d){ s += '<th>' + parseInt(d.dayNum,10) + '</th>'; });
+    s += '<th>P</th><th>HP</th><th>A</th><th>L</th><th>HL</th></tr>';
+    s += '<tr><th></th>';
+    dates.forEach(function(d){ s += '<th>' + esc(d.dayName) + '</th>'; });
+    s += '<th></th><th></th><th></th><th></th><th></th></tr>';
+
+    var prevDept = null;
+    emps.forEach(function(emp){
+      if (!data.fDept && emp.department !== prevDept) {
+        prevDept = emp.department;
+        s += '<tr><td colspan="' + cols + '"><b>' + esc(emp.department || 'No Department') + '</b></td></tr>';
+      }
+      var cntP=0,cntHP=0,cntA=0,cntL=0,cntHL=0, cells='';
+      dates.forEach(function(d){
+        var r = excelCell(emp.days[d.date] || {type:''});
+        if      (r.sum === 'P')  cntP++;
+        else if (r.sum === 'HP') cntHP++;
+        else if (r.sum === 'A')  cntA++;
+        else if (r.sum === 'L')  cntL++;
+        else if (r.sum === 'HL') cntHL++;
+        cells += '<td>' + esc(r.txt) + '</td>';
+      });
+      s += '<tr><td>' + esc((emp.code ? emp.code + ' ' : '') + emp.name) + '</td>' + cells
+         + '<td>' + (cntP||'') + '</td><td>' + (cntHP||'') + '</td><td>' + (cntA||'')
+         + '</td><td>' + (cntL||'') + '</td><td>' + (cntHL||'') + '</td></tr>';
+    });
+    s += '</table>';
+
+    var html = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>'
+             + s + '</body></html>';
+    var blob = new Blob(['\\ufeff' + html], { type: 'application/vnd.ms-excel' });
+    var fname = 'swipe_report_' + (data.fFrom || '').slice(0,7)
+              + (data.fDept ? '_' + data.fDept.replace(/[^\\w]+/g,'-') : '') + '.xls';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+  }
+
   function render(data) {
     var dates = data.dates;
     var emps  = data.employees;
+    lastData  = data;
 
     if (data.errors && data.errors.length) {
       data.errors.forEach(function(e) { showToast(e, 'warning'); });
@@ -280,6 +373,8 @@ $extraJs = <<<JS
                     + (dept ? '&dept='       + encodeURIComponent(dept) : '')
                     + (ct   ? '&contractor=' + encodeURIComponent(ct)   : '');
     \$('#btnSwipePrint').attr('href', 'swipe_report_print.php?' + printParams).removeClass('d-none');
+    \$('#btnSwipePdf').attr('href', 'swipe_report_print.php?' + printParams + '&autoprint=1').removeClass('d-none');
+    \$('#btnSwipeExcel').removeClass('d-none');
 
     var \$btn = \$('#btnSwipeLoad');
     \$btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Loading…');
@@ -305,6 +400,7 @@ $extraJs = <<<JS
 
   \$(function() {
     \$('#swipeForm').on('submit', function(e) { e.preventDefault(); load(); });
+    \$('#btnSwipeExcel').on('click', downloadExcel);
     if (AUTOLOAD) load();
   });
 })();
