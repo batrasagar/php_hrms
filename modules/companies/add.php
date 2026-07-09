@@ -106,7 +106,15 @@ $activePage = 'companies';
 require_once __DIR__ . '/../../includes/header.php';
 ?>
 <div class="card border-0 shadow-sm" style="max-width:600px">
-  <div class="card-header bg-white fw-semibold"><?= $editId ? 'Edit' : 'Add' ?> Company</div>
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+    <span><?= $editId ? 'Edit' : 'Add' ?> Company</span>
+    <?php if ($editId): ?>
+    <a href="<?= BASE_URL ?>/modules/devices/list.php?company=<?= urlencode($rec['Name']) ?>"
+       class="btn btn-sm btn-outline-secondary fw-normal">
+      <i class="bi bi-hdd-network"></i> Devices
+    </a>
+    <?php endif; ?>
+  </div>
   <div class="card-body">
     <?php foreach ($errors as $e): ?>
     <div class="alert alert-danger py-2"><?= htmlspecialchars($e) ?></div>

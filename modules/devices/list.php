@@ -38,20 +38,36 @@ if (isset($_GET['delete'])) {
     header('Location: list.php'); exit;
 }
 
+// ── Optional company filter (e.g. from the company edit page) ─────────────────
+$filterCompany = trim($_GET['company'] ?? '');
+
 // ── Load devices scoped to accessible companies ───────────────────────────────
 if ($accessibleNames === null) {
-    $devices = $db->query(
-        "SELECT id, Company, SerialNumber, LastPing, Stamp, CreatedAt FROM tblDevices ORDER BY id DESC"
-    )->fetchAll();
+    if ($filterCompany !== '') {
+        $stmt = $db->prepare(
+            "SELECT id, Company, SerialNumber, LastPing, Stamp, CreatedAt
+             FROM tblDevices WHERE Company=? ORDER BY id DESC"
+        );
+        $stmt->execute([$filterCompany]);
+        $devices = $stmt->fetchAll();
+    } else {
+        $devices = $db->query(
+            "SELECT id, Company, SerialNumber, LastPing, Stamp, CreatedAt FROM tblDevices ORDER BY id DESC"
+        )->fetchAll();
+    }
 } elseif (empty($accessibleNames)) {
     $devices = [];
 } else {
-    $ph   = implode(',', array_fill(0, count($accessibleNames), '?'));
+    // Narrow to the filtered company only if it's within the accessible set.
+    $names = ($filterCompany !== '' && in_array($filterCompany, $accessibleNames, true))
+        ? [$filterCompany]
+        : $accessibleNames;
+    $ph   = implode(',', array_fill(0, count($names), '?'));
     $stmt = $db->prepare(
         "SELECT id, Company, SerialNumber, LastPing, Stamp, CreatedAt
          FROM tblDevices WHERE Company IN ($ph) ORDER BY id DESC"
     );
-    $stmt->execute($accessibleNames);
+    $stmt->execute($names);
     $devices = $stmt->fetchAll();
 }
 
@@ -65,7 +81,13 @@ $canEdit = in_array($user['role'], ['superadmin', 'admin']);
 ?>
 <?php if ($msg): ?><div class="alert alert-success"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <span><?= count($devices) ?> device(s)</span>
+  <span>
+    <?= count($devices) ?> device(s)
+    <?php if ($filterCompany !== ''): ?>
+    <span class="badge bg-primary-subtle text-primary ms-1"><?= htmlspecialchars($filterCompany) ?></span>
+    <a href="list.php" class="small text-decoration-none ms-1">clear</a>
+    <?php endif; ?>
+  </span>
   <?php if ($canEdit): ?>
   <a href="add.php" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Add Device</a>
   <?php endif; ?>
