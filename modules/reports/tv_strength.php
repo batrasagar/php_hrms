@@ -62,6 +62,40 @@ $totAll    = (int)($status['a'] ?? 0) + (int)($status['i'] ?? 0) + (int)($status
 $deptCount = count(array_filter($byDept, fn($d) => $d['n'] !== '—'));
 $multiCo   = count($byCompany) > 1;
 
+// ── Today's attendance (from the processed shard) ─────────────────────────────
+$attDate = trim($_GET['date'] ?? date('Y-m-d'));
+$attnT   = 'tblAttendance_' . date('ym', strtotime($attDate));
+$att     = ['p'=>0,'ab'=>0,'hd'=>0,'lv'=>0,'co'=>0];
+$attByDept = [];
+try {
+    $q = $db->prepare(
+        "SELECT SUM(a.AttStatus='P') AS p, SUM(a.AttStatus='A') AS ab,
+                SUM(a.AttStatus='HD') AS hd, SUM(a.AttStatus IN ('L','SL')) AS lv,
+                SUM(a.AttStatus='CO') AS co
+         FROM `$attnT` a
+         JOIN tblEmployee e ON e.CompanyId=a.CompanyId AND e.EmployeeCode=a.EmpCode COLLATE utf8mb4_unicode_ci
+         JOIN tblCompany c ON c.id=e.CompanyId
+         WHERE a.tDate=? AND $scopeWhere"
+    );
+    $q->execute([$attDate]);
+    $r = $q->fetch(PDO::FETCH_ASSOC) ?: [];
+    foreach ($att as $k => $_) $att[$k] = (int)($r[$k] ?? 0);
+
+    $qd = $db->prepare(
+        "SELECT COALESCE(NULLIF(e.Department,''),'—') AS n,
+                SUM(a.AttStatus='P') AS p, SUM(a.AttStatus='A') AS ab
+         FROM `$attnT` a
+         JOIN tblEmployee e ON e.CompanyId=a.CompanyId AND e.EmployeeCode=a.EmpCode COLLATE utf8mb4_unicode_ci
+         JOIN tblCompany c ON c.id=e.CompanyId
+         WHERE a.tDate=? AND $scopeWhere
+         GROUP BY e.Department HAVING (p+ab) > 0 ORDER BY (p+ab) DESC LIMIT 10"
+    );
+    $qd->execute([$attDate]);
+    $attByDept = $qd->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) { /* attendance shard may not exist yet */ }
+
+$attMarked = $att['p'] + $att['ab'] + $att['hd'] + $att['lv'] + $att['co'];
+
 $refresh = max(20, (int)($_GET['refresh'] ?? 60));
 ?>
 <!DOCTYPE html>
@@ -97,24 +131,27 @@ $refresh = max(20, (int)($_GET['refresh'] ?? 60));
   .clock .t { font-size:clamp(20px,2.2vw,34px); font-weight:800; font-variant-numeric:tabular-nums; color:#e8eeff; }
   .clock .d { color:var(--muted); font-size:clamp(10px,.9vw,13px); }
 
-  .kpis { flex:0 0 auto; display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(8px,1vw,14px); }
+  .kpis { flex:0 0 auto; display:grid; grid-template-columns:repeat(6,1fr); gap:clamp(8px,.8vw,12px); }
   .kpi {
     border-radius:16px; padding:clamp(10px,1.3vw,18px) clamp(12px,1.4vw,20px);
     border:1px solid rgba(255,255,255,.14); position:relative; overflow:hidden;
     box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.12);
   }
   .kpi::after{ content:''; position:absolute; right:-30px; top:-30px; width:120px; height:120px; border-radius:50%; background:rgba(255,255,255,.12); }
-  .kpi .v { font-size:clamp(28px,4vw,54px); font-weight:900; line-height:1; text-shadow:0 2px 12px rgba(0,0,0,.35); }
-  .kpi .l { color:rgba(255,255,255,.9); font-size:clamp(10px,1vw,13px); margin-top:6px; text-transform:uppercase; letter-spacing:.07em; font-weight:600; }
-  .kpi.green { background:linear-gradient(135deg,#059669,#10b981 55%,#34d399); }
-  .kpi.blue  { background:linear-gradient(135deg,#2563eb,#3b82f6 55%,#60a5fa); }
-  .kpi.amber { background:linear-gradient(135deg,#d97706,#f59e0b 55%,#fbbf24); }
-  .kpi.pink  { background:linear-gradient(135deg,#db2777,#ec4899 55%,#f472b6); }
+  .kpi .v { font-size:clamp(22px,3vw,46px); font-weight:900; line-height:1; text-shadow:0 2px 12px rgba(0,0,0,.35); }
+  .kpi .l { color:rgba(255,255,255,.92); font-size:clamp(9px,.8vw,12px); margin-top:6px; text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
+  .kpi.green  { background:linear-gradient(135deg,#059669,#10b981 55%,#34d399); }
+  .kpi.blue   { background:linear-gradient(135deg,#2563eb,#3b82f6 55%,#60a5fa); }
+  .kpi.red    { background:linear-gradient(135deg,#dc2626,#ef4444 55%,#fb7185); }
+  .kpi.amber  { background:linear-gradient(135deg,#d97706,#f59e0b 55%,#fbbf24); }
+  .kpi.violet { background:linear-gradient(135deg,#7c3aed,#8b5cf6 55%,#a78bfa); }
+  .kpi.pink   { background:linear-gradient(135deg,#db2777,#ec4899 55%,#f472b6); }
 
   .grid {
     flex:1 1 auto; min-height:0; display:grid;
-    grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:clamp(8px,1vw,14px);
+    grid-template-columns:repeat(3,1fr); grid-template-rows:1fr 1fr; gap:clamp(8px,1vw,14px);
   }
+  .panel.wide { grid-column:1 / -1; }
   .panel {
     min-height:0; display:flex; flex-direction:column;
     border-radius:16px; padding:clamp(8px,1vw,15px) clamp(10px,1.1vw,16px);
@@ -128,31 +165,38 @@ $refresh = max(20, (int)($_GET['refresh'] ?? 60));
 
   @media (max-width:900px){
     body{ height:auto; overflow:auto; }
-    .kpis{ grid-template-columns:repeat(2,1fr) }
+    .kpis{ grid-template-columns:repeat(3,1fr) }
     .grid{ grid-template-columns:1fr; grid-template-rows:none; grid-auto-rows:46vw }
+    .panel.wide{ grid-column:auto; }
   }
 </style>
 </head>
 <body>
 <div class="top">
   <div>
-    <h1><i></i>Employee Strength &mdash; <?= htmlspecialchars($scopeName) ?></h1>
-    <div class="sub">Live headcount overview &middot; auto-refresh every <?= $refresh ?>s</div>
+    <h1>Strength &amp; Attendance &mdash; <?= htmlspecialchars($scopeName) ?></h1>
+    <div class="sub">Attendance for <?= htmlspecialchars(date('D, d M Y', strtotime($attDate))) ?> &middot; auto-refresh every <?= $refresh ?>s</div>
   </div>
   <div class="clock"><div class="t" id="clk">--:--</div><div class="d" id="clkd"></div></div>
 </div>
 
 <div class="kpis">
   <div class="kpi green"><div class="v"><?= number_format($totActive) ?></div><div class="l">Active Strength</div></div>
-  <div class="kpi blue"><div class="v"><?= number_format($totAll) ?></div><div class="l">Total Headcount</div></div>
-  <div class="kpi amber"><div class="v"><?= number_format($deptCount) ?></div><div class="l">Departments</div></div>
+  <div class="kpi blue"><div class="v"><?= number_format($att['p']) ?></div><div class="l">Present Today</div></div>
+  <div class="kpi red"><div class="v"><?= number_format($att['ab']) ?></div><div class="l">Absent Today</div></div>
+  <div class="kpi amber"><div class="v"><?= number_format($att['lv'] + $att['co']) ?><?php if ($att['hd']): ?><span style="font-size:.5em;color:rgba(255,255,255,.85)"> +<?= (int)$att['hd'] ?>HD</span><?php endif; ?></div><div class="l">On Leave / Off</div></div>
+  <div class="kpi violet"><div class="v"><?= number_format($deptCount) ?></div><div class="l">Departments</div></div>
   <div class="kpi pink"><div class="v"><?= number_format((int)($gender['Female'] ?? 0)) ?><span style="font-size:.5em;color:rgba(255,255,255,.8)"> / <?= number_format((int)($gender['Male'] ?? 0)) ?></span></div><div class="l">Female / Male</div></div>
 </div>
 
 <div class="grid">
+  <div class="panel wide">
+    <h2>Department-wise Present vs Absent<?= $attMarked ? '' : ' — <span style="color:#fca5a5;font-weight:500">no processed attendance for this date</span>' ?></h2>
+    <div class="chart-wrap"><canvas id="chDeptAtt"></canvas></div>
+  </div>
   <div class="panel">
-    <h2><?= $multiCo ? 'Active by Company' : 'Active by Department' ?></h2>
-    <div class="chart-wrap"><canvas id="chBar"></canvas></div>
+    <h2>Attendance Today</h2>
+    <div class="chart-wrap"><canvas id="chAtt"></canvas></div>
   </div>
   <div class="panel">
     <h2>Gender Split (Active)</h2>
@@ -162,47 +206,48 @@ $refresh = max(20, (int)($_GET['refresh'] ?? 60));
     <h2>Status Breakdown</h2>
     <div class="chart-wrap"><canvas id="chStatus"></canvas></div>
   </div>
-  <div class="panel">
-    <h2>Top Departments</h2>
-    <div class="chart-wrap"><canvas id="chDept"></canvas></div>
-  </div>
 </div>
 
 <script>
-const BAR = <?= json_encode($multiCo ? $byCompany : $byDept) ?>;
-const DEPT = <?= json_encode($byDept) ?>;
+const ATTDEPT = <?= json_encode($attByDept) ?>;
+const ATT    = <?= json_encode(['P'=>$att['p'],'A'=>$att['ab'],'HD'=>$att['hd'],'Leave'=>$att['lv']+$att['co']]) ?>;
 const GENDER = <?= json_encode(['Male'=>(int)($gender['Male']??0),'Female'=>(int)($gender['Female']??0),'Other'=>(int)($gender['Other']??0)]) ?>;
 const STATUS = <?= json_encode(['Active'=>(int)($status['a']??0),'Inactive'=>(int)($status['i']??0),'Terminated'=>(int)($status['t']??0)]) ?>;
 
 Chart.defaults.color = '#cdd9f5';
 Chart.defaults.font.size = 13;
 const grid = { color:'rgba(255,255,255,.08)' };
-const PALETTE = ['#60a5fa','#34d399','#fbbf24','#f472b6','#a78bfa','#f87171','#22d3ee','#facc15','#4ade80','#fb923c'];
+const donutOpts = { maintainAspectRatio:false, cutout:'60%', plugins:{legend:{position:'bottom', labels:{boxWidth:12, padding:10}}} };
 
-new Chart(document.getElementById('chBar'), {
+// Department-wise Present vs Absent (stacked)
+new Chart(document.getElementById('chDeptAtt'), {
   type:'bar',
-  data:{ labels:BAR.map(x=>x.n), datasets:[{ data:BAR.map(x=>+x.a), backgroundColor:BAR.map((_,i)=>PALETTE[i%PALETTE.length]), borderRadius:8, maxBarThickness:70 }] },
-  options:{ maintainAspectRatio:false, plugins:{legend:{display:false}},
-    scales:{ x:{grid:{display:false}}, y:{grid, beginAtZero:true, ticks:{precision:0}} } }
+  data:{ labels:ATTDEPT.map(x=>x.n), datasets:[
+    { label:'Present', data:ATTDEPT.map(x=>+x.p),  backgroundColor:'#34d399', borderRadius:5, maxBarThickness:60 },
+    { label:'Absent',  data:ATTDEPT.map(x=>+x.ab), backgroundColor:'#f87171', borderRadius:5, maxBarThickness:60 }
+  ]},
+  options:{ maintainAspectRatio:false,
+    plugins:{ legend:{ position:'top', labels:{boxWidth:14} } },
+    scales:{ x:{ stacked:true, grid:{display:false} }, y:{ stacked:true, grid, beginAtZero:true, ticks:{precision:0} } } }
+});
+
+// Attendance today doughnut
+new Chart(document.getElementById('chAtt'), {
+  type:'doughnut',
+  data:{ labels:['Present','Absent','Half-Day','Leave/Off'], datasets:[{ data:[ATT.P,ATT.A,ATT.HD,ATT.Leave], backgroundColor:['#34d399','#f87171','#60a5fa','#fbbf24'], borderColor:'#0d1730', borderWidth:3 }] },
+  options:donutOpts
 });
 
 new Chart(document.getElementById('chGender'), {
   type:'doughnut',
-  data:{ labels:['Male','Female','Other'], datasets:[{ data:[GENDER.Male,GENDER.Female,GENDER.Other], backgroundColor:['#60a5fa','#f472b6','#94a3b8'], borderColor:'#131c2e', borderWidth:3 }] },
-  options:{ maintainAspectRatio:false, cutout:'62%', plugins:{legend:{position:'bottom'}} }
+  data:{ labels:['Male','Female','Other'], datasets:[{ data:[GENDER.Male,GENDER.Female,GENDER.Other], backgroundColor:['#60a5fa','#f472b6','#94a3b8'], borderColor:'#0d1730', borderWidth:3 }] },
+  options:donutOpts
 });
 
 new Chart(document.getElementById('chStatus'), {
   type:'doughnut',
-  data:{ labels:['Active','Inactive','Terminated'], datasets:[{ data:[STATUS.Active,STATUS.Inactive,STATUS.Terminated], backgroundColor:['#34d399','#fbbf24','#f87171'], borderColor:'#131c2e', borderWidth:3 }] },
-  options:{ maintainAspectRatio:false, cutout:'62%', plugins:{legend:{position:'bottom'}} }
-});
-
-new Chart(document.getElementById('chDept'), {
-  type:'bar',
-  data:{ labels:DEPT.map(x=>x.n), datasets:[{ data:DEPT.map(x=>+x.a), backgroundColor:DEPT.map((_,i)=>PALETTE[i%PALETTE.length]), borderRadius:6 }] },
-  options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false}},
-    scales:{ x:{grid, beginAtZero:true, ticks:{precision:0}}, y:{grid:{display:false}} } }
+  data:{ labels:['Active','Inactive','Terminated'], datasets:[{ data:[STATUS.Active,STATUS.Inactive,STATUS.Terminated], backgroundColor:['#34d399','#fbbf24','#f87171'], borderColor:'#0d1730', borderWidth:3 }] },
+  options:donutOpts
 });
 
 function tick(){
