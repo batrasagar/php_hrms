@@ -50,6 +50,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
             }
         }
 
+    } elseif ($action === 'bulk_add') {
+        $ids    = $_POST['emp_ids'] ?? [];
+        $from   = trim($_POST['from_date'] ?? '');
+        $to     = trim($_POST['to_date'] ?? '');
+        $reason = trim($_POST['reason'] ?? '');
+        $idsInt = array_values(array_filter(array_map('intval', (array)$ids)));
+
+        if (!$idsInt || !$from) {
+            $msg = 'Select at least one employee and a date.'; $msgType = 'danger';
+        } else {
+            if (!$to || $to < $from) $to = $from;
+            // Build capped date list (guards against a huge range)
+            $dates = [];
+            for ($cur = strtotime($from), $end = strtotime($to); $cur <= $end && count($dates) < 60; $cur = strtotime('+1 day', $cur)) {
+                $dates[] = date('Y-m-d', $cur);
+            }
+            // Keep only employees that belong to this company
+            $ph = implode(',', array_fill(0, count($idsInt), '?'));
+            $vs = $db->prepare("SELECT id FROM tblEmployee WHERE CompanyId=? AND id IN ($ph)");
+            $vs->execute(array_merge([$fCompany], $idsInt));
+            $valid = array_column($vs->fetchAll(), 'id');
+
+            $exists = $db->prepare("SELECT 1 FROM tblCompOff WHERE CompanyId=? AND EmployeeId=? AND WorkedOn=? LIMIT 1");
+            $ins    = $db->prepare("INSERT INTO tblCompOff (CompanyId, EmployeeId, WorkedOn, Reason) VALUES (?,?,?,?)");
+            $added = 0; $skipped = 0;
+            foreach ($valid as $eid) {
+                foreach ($dates as $d) {
+                    $exists->execute([$fCompany, (int)$eid, $d]);
+                    if ($exists->fetch()) { $skipped++; continue; }
+                    $ins->execute([$fCompany, (int)$eid, $d, $reason ?: null]);
+                    $added++;
+                }
+            }
+            $msg = "Comp off added: $added" . ($skipped ? " ($skipped already existed, skipped)." : '.');
+        }
+
     } elseif ($action === 'approve') {
         $id = (int)$_POST['id'];
         $db->prepare("UPDATE tblCompOff SET Status='approved', ApprovedBy=?, UpdatedAt=NOW() WHERE id=? AND CompanyId=?")
@@ -66,14 +102,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
         $id          = (int)$_POST['id'];
         $compOffDate = trim($_POST['comp_off_date'] ?? '');
         if ($compOffDate) {
-            $db->prepare("UPDATE tblCompOff SET Status='redeemed', CompOffDate=?, UpdatedAt=NOW() WHERE id=? AND CompanyId=? AND Status='approved'")
-               ->execute([$compOffDate, $id, $fCompany]);
+            $upd = $db->prepare("UPDATE tblCompOff SET Status='redeemed', CompOffDate=?, UpdatedAt=NOW() WHERE id=? AND CompanyId=? AND Status='approved'");
+            $upd->execute([$compOffDate, $id, $fCompany]);
+            if ($upd->rowCount() > 0) {
+                // Auto-credit: mark the redeemed day as a full-day off in attendance.
+                // LeaveTypeId=NULL so it never touches EL/CL/SL balances; shows as 'L'.
+                $eid = $db->prepare("SELECT EmployeeId FROM tblCompOff WHERE id=? AND CompanyId=?");
+                $eid->execute([$id, $fCompany]);
+                $empId = (int)$eid->fetchColumn();
+                if ($empId) {
+                    $db->prepare(
+                        "INSERT INTO tblLeave (CompanyId, EmployeeId, LeaveDate, LeaveType, LeaveTypeId, LeaveCode, Reason, CreatedBy)
+                         VALUES (?,?,?, 'full_day', NULL, 'CO', 'Comp off redeemed', ?)
+                         ON DUPLICATE KEY UPDATE LeaveType='full_day', LeaveTypeId=NULL, LeaveCode='CO', Reason='Comp off redeemed'"
+                    )->execute([$fCompany, $empId, $compOffDate, $user['id']]);
+                }
+            }
             $msg = 'Marked as redeemed.';
         }
 
     } elseif ($action === 'delete' && $user['role'] === 'superadmin') {
-        $id = (int)$_POST['id'];
+        $id  = (int)$_POST['id'];
+        $rec = $db->prepare("SELECT EmployeeId, CompOffDate, Status FROM tblCompOff WHERE id=? AND CompanyId=?");
+        $rec->execute([$id, $fCompany]);
+        $r = $rec->fetch();
         $db->prepare("DELETE FROM tblCompOff WHERE id=? AND CompanyId=?")->execute([$id, $fCompany]);
+        // Remove the auto-credited off day, if this record had been redeemed
+        if ($r && $r['Status'] === 'redeemed' && $r['CompOffDate']) {
+            $db->prepare("DELETE FROM tblLeave WHERE CompanyId=? AND EmployeeId=? AND LeaveDate=? AND LeaveCode='CO'")
+               ->execute([$fCompany, $r['EmployeeId'], $r['CompOffDate']]);
+        }
         $msg = 'Deleted.';
     }
 
@@ -159,9 +217,14 @@ require_once __DIR__ . '/../../includes/header.php';
     <input type="hidden" name="status" value="<?= htmlspecialchars($fStatus) ?>">
   </form>
   <?php if ($fCompany && $employees): ?>
-  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-    <i class="bi bi-plus-lg me-1"></i>Add Comp Off
-  </button>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#bulkModal">
+      <i class="bi bi-people me-1"></i>Bulk Add
+    </button>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
+      <i class="bi bi-plus-lg me-1"></i>Add Comp Off
+    </button>
+  </div>
   <?php endif; ?>
 </div>
 
@@ -314,5 +377,68 @@ require_once __DIR__ . '/../../includes/header.php';
     </div>
   </div>
 </div>
+
+<!-- ── Bulk Add Comp Off Modal ──────────────────────────────────────────────── -->
+<div class="modal fade" id="bulkModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="POST" action="compoff.php?company=<?= $fCompany ?>&status=<?= htmlspecialchars($fStatus) ?>" data-ajax>
+        <input type="hidden" name="action" value="bulk_add">
+        <input type="hidden" name="company" value="<?= $fCompany ?>">
+        <div class="modal-header"><h5 class="modal-title">Bulk Add Comp Off</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="row g-3 mb-3">
+            <div class="col-sm-4">
+              <label class="form-label">Worked On — From <span class="text-danger">*</span></label>
+              <input type="date" name="from_date" class="form-control" required value="<?= date('Y-m-d') ?>">
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label">To <small class="text-muted">(optional)</small></label>
+              <input type="date" name="to_date" class="form-control">
+              <div class="form-text">Leave blank for a single day. Max 60 days.</div>
+            </div>
+            <div class="col-sm-4">
+              <label class="form-label">Reason</label>
+              <input type="text" name="reason" class="form-control" placeholder="Optional note">
+            </div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="form-label mb-0 fw-semibold">Employees</label>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="bulkChkAll">
+              <label class="form-check-label small" for="bulkChkAll">Select all</label>
+            </div>
+          </div>
+          <div class="border rounded p-2" style="max-height:280px;overflow-y:auto">
+            <?php
+            $prevD = null;
+            foreach ($employees as $emp):
+                if ($emp['Department'] !== $prevD):
+                    $prevD = $emp['Department'];
+            ?>
+            <div class="small fw-semibold text-muted mt-2 mb-1"><?= htmlspecialchars($emp['Department'] ?: 'No Dept') ?></div>
+            <?php endif; ?>
+            <div class="form-check">
+              <input class="form-check-input bulk-emp" type="checkbox" name="emp_ids[]" value="<?= $emp['id'] ?>" id="bemp<?= $emp['id'] ?>">
+              <label class="form-check-label" for="bemp<?= $emp['id'] ?>">
+                <?= htmlspecialchars($emp['Name']) ?> <span class="text-muted small">(<?= htmlspecialchars($emp['EmployeeCode'] ?: '—') ?>)</span>
+              </label>
+            </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add Comp Off</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+document.getElementById('bulkChkAll')?.addEventListener('change', function(){
+  document.querySelectorAll('.bulk-emp').forEach(c => c.checked = this.checked);
+});
+</script>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

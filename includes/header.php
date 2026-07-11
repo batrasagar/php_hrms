@@ -619,7 +619,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
   $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','print']) ? 'show' : '';
   $shiftOpen   = in_array($ap, ['shifts','shift_defaults','shift_assign','shift_cyclic','compoff']) ? 'show' : '';
   $masterOpen  = in_array($ap, ['holidays']) ? 'show' : '';
-  $attnOpen    = in_array($ap, ['overtime','leaves','leave_types','leave_policy','leave_assign','leave_register']) ? 'show' : '';
+  $attnOpen    = in_array($ap, ['overtime','leaves','leave_range','leave_types','leave_policy','leave_assign','leave_register']) ? 'show' : '';
   $rptOpen     = in_array($ap, ['report_active','report_attendance','report_monthly','report_swipe','report_strength','report_ot','report_leave']) ? 'show' : '';
   $settingsUrl = BASE_URL . '/modules/settings/index.php';
   $punchOpen   = in_array($ap, ['punchlog','punch_correction','punch_sync']) ? 'show' : '';
@@ -737,6 +737,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             </a>
             <a class="sb-sub-item <?= $ap==='leaves'?'active':'' ?>" href="<?= BASE_URL ?>/modules/leaves/index.php">
               <i class="bi bi-calendar-x"></i> Mark Leaves
+            </a>
+            <a class="sb-sub-item <?= $ap==='leave_range'?'active':'' ?>" href="<?= BASE_URL ?>/modules/leaves/mark_range.php">
+              <i class="bi bi-calendar-range"></i> Mark Leave (Range)
             </a>
             <a class="sb-sub-item <?= $ap==='leave_types'?'active':'' ?>" href="<?= BASE_URL ?>/modules/leaves/types.php">
               <i class="bi bi-tags"></i> Leave Types

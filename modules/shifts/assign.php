@@ -137,7 +137,19 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-semibold">Shift &amp; Week Off Assignment</span>
-    <div class="d-flex gap-2 align-items-center">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <?php if (!empty($employees)): ?>
+      <div class="input-group input-group-sm" style="width:auto">
+        <span class="input-group-text">Set WO for selected</span>
+        <select id="bulkWO" class="form-select form-select-sm" style="max-width:130px">
+          <option value="">— None —</option>
+          <?php foreach ($weekdayLabels as $val => $label): ?>
+          <option value="<?= $val ?>"><?= $label ?></option>
+          <?php endforeach; ?>
+        </select>
+        <button type="button" id="applyWO" class="btn btn-outline-primary">Apply</button>
+      </div>
+      <?php endif; ?>
       <a href="cyclic.php?company=<?= $fCompany ?>" class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-arrow-repeat me-1"></i>Cyclic Shifts
       </a>
@@ -162,6 +174,7 @@ require_once __DIR__ . '/../../includes/header.php';
     <table id="tblAssign" class="table table-sm table-bordered mb-0" style="min-width:650px">
       <thead class="table-light">
         <tr>
+          <th style="width:34px" class="text-center"><input type="checkbox" id="chkAll" class="form-check-input"></th>
           <th style="min-width:130px">Name</th>
           <th style="min-width:90px">Code</th>
           <th style="min-width:100px">Department</th>
@@ -177,13 +190,14 @@ require_once __DIR__ . '/../../includes/header.php';
               $prevDept = $e['Department'];
       ?>
       <tr class="table-light">
-        <td colspan="5" class="small fw-semibold text-muted py-1 px-2">
+        <td colspan="6" class="small fw-semibold text-muted py-1 px-2">
           <?= htmlspecialchars($e['Department'] ?? '— No Department —') ?>
         </td>
       </tr>
       <?php endif; ?>
       <tr>
         <input type="hidden" name="emp_ids[]" value="<?= $e['id'] ?>">
+        <td class="text-center"><input type="checkbox" class="form-check-input row-chk"></td>
         <td class="fw-semibold">
           <?= htmlspecialchars($e['Name']) ?>
           <?php if ($e['CycleName']): ?>
@@ -222,4 +236,17 @@ require_once __DIR__ . '/../../includes/header.php';
     </form>
   </div>
 </div>
+<script>
+$(function(){
+  $('#chkAll').on('change', function(){ $('.row-chk').prop('checked', this.checked); });
+  $('#applyWO').on('click', function(){
+    var wo = $('#bulkWO').val(), n = 0;
+    $('.row-chk:checked').each(function(){
+      $(this).closest('tr').find('select[name="weekday[]"]').val(wo);
+      n++;
+    });
+    if (!n) { alert('Tick at least one employee first.'); return; }
+  });
+});
+</script>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>
