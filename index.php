@@ -52,56 +52,6 @@ $activePage = 'dashboard';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<?php /* ── KPI TILES ─────────────────────────────────────────────────────── */ ?>
-<?php if ($role === 'superadmin'): ?>
-<?php
-$tiles = [
-    ['label'=>'Active Companies',  'val'=>safeCount($db,"SELECT COUNT(*) FROM tblCompany WHERE IsActive=1"),          'icon'=>'bi-buildings',       'href'=>'modules/companies/index.php',  'accent'=>'#2563eb'],
-    ['label'=>'Active Employees',  'val'=>safeCount($db,"SELECT COUNT(*) FROM tblEmployee WHERE Status='active'"),    'icon'=>'bi-people',          'href'=>'modules/employees/index.php',  'accent'=>'#16a34a'],
-    ['label'=>'Present Today',     'val'=>safeCount($db,"SELECT COUNT(*) FROM `{$attnT}` WHERE tDate=? AND AttStatus='P'",[$today]), 'icon'=>'bi-person-check','href'=>'modules/reports/attendance.php','accent'=>'#0891b2'],
-    ['label'=>'Pending Approvals', 'val'=>safeCount($db,"SELECT COUNT(*) FROM tblUser WHERE Status='pending'"),       'icon'=>'bi-hourglass-split', 'href'=>'modules/approvals/index.php',  'accent'=>'#d97706'],
-];
-?>
-<?php elseif ($role === 'admin'): ?>
-<?php
-$cids = $db->prepare("SELECT id FROM tblCompany WHERE AdminId=? AND IsActive=1"); $cids->execute([$uid]);
-$inList = implode(',', array_column($cids->fetchAll(PDO::FETCH_ASSOC),'id') ?: [0]);
-$tiles = [
-    ['label'=>'Active Employees', 'val'=>safeCount($db,"SELECT COUNT(*) FROM tblEmployee WHERE CompanyId IN ($inList) AND Status='active'"),                           'icon'=>'bi-people',          'href'=>'modules/employees/index.php',   'accent'=>'#2563eb'],
-    ['label'=>'Present Today',    'val'=>safeCount($db,"SELECT COUNT(*) FROM `{$attnT}` WHERE CompanyId IN ($inList) AND tDate=? AND AttStatus='P'",[$today]),         'icon'=>'bi-person-check',    'href'=>'modules/reports/attendance.php', 'accent'=>'#16a34a'],
-    ['label'=>'Absent Today',     'val'=>safeCount($db,"SELECT COUNT(*) FROM `{$attnT}` WHERE CompanyId IN ($inList) AND tDate=? AND AttStatus='A'",[$today]),         'icon'=>'bi-person-x',        'href'=>'modules/reports/attendance.php', 'accent'=>'#dc2626'],
-    ['label'=>'On Leave Today',   'val'=>safeCount($db,"SELECT COUNT(*) FROM `{$attnT}` WHERE CompanyId IN ($inList) AND tDate=? AND AttStatus IN ('L','SL')",[$today]),'icon'=>'bi-calendar-x',    'href'=>'modules/leaves/index.php',      'accent'=>'#d97706'],
-];
-?>
-<?php else: ?>
-<?php
-$cid   = (int)$user['company_id'];
-$tiles = [
-    ['label'=>'Active Employees', 'val'=>$cid ? safeCount($db,"SELECT COUNT(*) FROM tblEmployee WHERE CompanyId=? AND Status='active'",[$cid]) : 0,                              'icon'=>'bi-people',       'href'=>'modules/employees/index.php',   'accent'=>'#2563eb'],
-    ['label'=>'Present Today',    'val'=>$cid ? safeCount($db,"SELECT COUNT(*) FROM `{$attnT}` WHERE CompanyId=? AND tDate=? AND AttStatus='P'",[$cid,$today]) : 0,              'icon'=>'bi-person-check', 'href'=>'modules/reports/attendance.php', 'accent'=>'#16a34a'],
-    ['label'=>'Absent Today',     'val'=>$cid ? safeCount($db,"SELECT COUNT(*) FROM `{$attnT}` WHERE CompanyId=? AND tDate=? AND AttStatus='A'",[$cid,$today]) : 0,              'icon'=>'bi-person-x',     'href'=>'modules/reports/attendance.php', 'accent'=>'#dc2626'],
-    ['label'=>'On Leave Today',   'val'=>$cid ? safeCount($db,"SELECT COUNT(*) FROM `{$attnT}` WHERE CompanyId=? AND tDate=? AND AttStatus IN ('L','SL')",[$cid,$today]) : 0,   'icon'=>'bi-calendar-x',   'href'=>'modules/leaves/index.php',      'accent'=>'#d97706'],
-];
-?>
-<?php endif; ?>
-
-<div class="row g-3 mb-4">
-  <?php foreach ($tiles as $t): ?>
-  <div class="col-6 col-xl-3">
-    <a href="<?= BASE_URL ?>/<?= $t['href'] ?>" class="text-decoration-none">
-      <div class="kpi-tile" style="--accent:<?= $t['accent'] ?>">
-        <div class="kpi-tile-top">
-          <span class="kpi-tile-label"><?= $t['label'] ?></span>
-          <i class="bi <?= $t['icon'] ?> kpi-tile-icon"></i>
-        </div>
-        <div class="kpi-tile-value"><?= number_format($t['val']) ?></div>
-        <div class="kpi-tile-date"><?= date('d M Y') ?></div>
-      </div>
-    </a>
-  </div>
-  <?php endforeach; ?>
-</div>
-
 <?php /* ── LIVE ATTENDANCE SUMMARY ───────────────────────────────────────── */ ?>
 <div class="card border-0 shadow-sm mb-4">
   <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">

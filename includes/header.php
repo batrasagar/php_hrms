@@ -798,6 +798,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             <a class="sb-sub-item <?= $ap==='report_joinleft'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/joinleft_report.php">
               <i class="bi bi-box-arrow-in-right"></i> Joining / Exit
             </a>
+            <a class="sb-sub-item" href="<?= BASE_URL ?>/modules/reports/tv_strength.php" target="_blank">
+              <i class="bi bi-tv"></i> TV Dashboard
+            </a>
           </div>
         </div>
       </li>
@@ -946,6 +949,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             </a>
             <a class="sb-sub-item <?= $ap==='report_joinleft'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/joinleft_report.php">
               <i class="bi bi-box-arrow-in-right"></i> Joining / Exit
+            </a>
+            <a class="sb-sub-item" href="<?= BASE_URL ?>/modules/reports/tv_strength.php" target="_blank">
+              <i class="bi bi-tv"></i> TV Dashboard
             </a>
           </div>
         </div>
