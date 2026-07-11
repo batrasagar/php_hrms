@@ -619,11 +619,11 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
 
 <?php if (in_array($user['role'], ['superadmin','admin'])): ?>
 <?php
-  $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','print']) ? 'show' : '';
+  $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','emp_left','print']) ? 'show' : '';
   $shiftOpen   = in_array($ap, ['shifts','shift_defaults','shift_assign','shift_cyclic','compoff']) ? 'show' : '';
   $masterOpen  = in_array($ap, ['holidays']) ? 'show' : '';
   $attnOpen    = in_array($ap, ['overtime','leaves','leave_range','leave_types','leave_policy','leave_assign','leave_register']) ? 'show' : '';
-  $rptOpen     = in_array($ap, ['report_active','report_attendance','report_monthly','report_swipe','report_strength','report_ot','report_leave']) ? 'show' : '';
+  $rptOpen     = in_array($ap, ['report_active','report_attendance','report_monthly','report_swipe','report_strength','report_ot','report_leave','report_joinleft']) ? 'show' : '';
   $settingsUrl = BASE_URL . '/modules/settings/index.php';
   $punchOpen   = in_array($ap, ['punchlog','punch_correction','punch_sync']) ? 'show' : '';
   $devOpen     = in_array($ap, ['devices','device_enrollment']) ? 'show' : '';
@@ -662,6 +662,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             </a>
             <a class="sb-sub-item <?= $ap==='emp_bulk'?'active':'' ?>" href="<?= BASE_URL ?>/modules/employees/bulk_edit.php">
               <i class="bi bi-table"></i> Bulk Edit
+            </a>
+            <a class="sb-sub-item <?= $ap==='emp_left'?'active':'' ?>" href="<?= BASE_URL ?>/modules/employees/bulk_left.php">
+              <i class="bi bi-box-arrow-right"></i> Mark Left (Bulk)
             </a>
             <a class="sb-sub-item <?= $ap==='print'?'active':'' ?>" href="<?= BASE_URL ?>/modules/print/index.php">
               <i class="bi bi-printer"></i> Print / iCard
@@ -791,6 +794,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             </a>
             <a class="sb-sub-item <?= $ap==='report_leave'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/leave_report.php">
               <i class="bi bi-file-earmark-x"></i> Leave Report
+            </a>
+            <a class="sb-sub-item <?= $ap==='report_joinleft'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/joinleft_report.php">
+              <i class="bi bi-box-arrow-in-right"></i> Joining / Exit
             </a>
           </div>
         </div>
@@ -937,6 +943,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             </a>
             <a class="sb-sub-item <?= $ap==='report_leave'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/leave_report.php">
               <i class="bi bi-file-earmark-x"></i> Leave Report
+            </a>
+            <a class="sb-sub-item <?= $ap==='report_joinleft'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/joinleft_report.php">
+              <i class="bi bi-box-arrow-in-right"></i> Joining / Exit
             </a>
           </div>
         </div>

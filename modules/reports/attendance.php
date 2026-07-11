@@ -199,8 +199,13 @@ document.addEventListener('DOMContentLoaded', function(){
     $('#aa_title').text('Edit — ' + d.name);
     $('#aa_sub').html('<code>'+(d.code||'—')+'</code> &middot; '+d.date+(d.type ? ' &middot; currently <b>'+d.type+'</b>' : ''));
     var lts = (window.__attLastData && window.__attLastData.leaveTypes) || [];
+    var bals = (window.__attLastData && window.__attLastData.leaveBalances && window.__attLastData.leaveBalances[d.emp]) || {};
     var opts = '';
-    lts.forEach(function(lt){ opts += '<option value="'+lt.Code+'">'+lt.Code+' — '+lt.Name+'</option>'; });
+    lts.forEach(function(lt){
+      var b = bals[lt.Code];
+      var bl = (b === undefined || b === null) ? '' : ' (bal ' + (Number.isInteger(b) ? b : b.toFixed(1)) + ')';
+      opts += '<option value="'+lt.Code+'">'+lt.Code+' — '+lt.Name+bl+'</option>';
+    });
     $('#aa_leave_code').html(opts || '<option value="">(no leave types defined)</option>');
     var wd = new Date(d.date + 'T00:00:00').getDay();
     $('#aa_wo_weekday').val(String(wd));

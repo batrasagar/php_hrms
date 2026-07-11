@@ -366,10 +366,23 @@ $pctA        = $maxPossible > 0 ? round($grand['A'] / $maxPossible * 100) : 0;
 
 // Leave types for this company (for the grid's quick-action leave dropdown)
 $leaveTypesOut = [];
+$leaveBalances = [];
 try {
     $ltStmt = $db->prepare("SELECT Code, Name FROM tblLeaveType WHERE CompanyId=? AND IsActive=1 ORDER BY Code");
     $ltStmt->execute([$fCompany]);
     $leaveTypesOut = $ltStmt->fetchAll();
+
+    // Per-employee remaining balance by leave code (for the dropdown ledger hint)
+    $balYear = (int)substr($fFrom, 0, 4);
+    $bStmt = $db->prepare(
+        "SELECT b.EmployeeId, lt.Code, (b.Allocated + b.Adjusted - b.Used) AS Bal
+         FROM tblLeaveBalance b JOIN tblLeaveType lt ON lt.id = b.LeaveTypeId
+         WHERE b.CompanyId=? AND b.Year=?"
+    );
+    $bStmt->execute([$fCompany, $balYear]);
+    foreach ($bStmt->fetchAll() as $r) {
+        $leaveBalances[(int)$r['EmployeeId']][$r['Code']] = (float)$r['Bal'];
+    }
 } catch (Exception $e) {}
 
 echo json_encode([
@@ -386,6 +399,7 @@ echo json_encode([
     'dayTotals'    => $dayTotals,
     'grand'        => $grand,
     'leaveTypes'   => $leaveTypesOut,
+    'leaveBalances'=> $leaveBalances,
     'totalEmps'    => $totalEmps,
     'workingDays'  => $workingDays,
     'holidayCount' => count($holidayDates),
