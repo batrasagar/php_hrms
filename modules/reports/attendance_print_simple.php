@@ -60,7 +60,7 @@ while (@ob_get_level()) @ob_end_clean();
 echo str_pad('', 4096);
 flush();
 
-$employees = $leaveDates = $holidayDates = $punchMap = [];
+$employees = $leaveDates = $leaveCodes = $holidayDates = $punchMap = [];
 
 $where  = ['e.CompanyId = ?'];
 $params = [$fCompany];
@@ -76,8 +76,9 @@ $employees = $estmt->fetchAll();
 if (!empty($employees)) {
     $ids = implode(',', array_column($employees, 'id'));
 
-    foreach ($db->query("SELECT EmployeeId, LeaveDate, LeaveType FROM tblLeave WHERE EmployeeId IN ($ids) AND LeaveDate BETWEEN '$fFrom' AND '$fTo'")->fetchAll() as $lv) {
+    foreach ($db->query("SELECT EmployeeId, LeaveDate, LeaveType, LeaveCode FROM tblLeave WHERE EmployeeId IN ($ids) AND LeaveDate BETWEEN '$fFrom' AND '$fTo'")->fetchAll() as $lv) {
         $leaveDates[$lv['EmployeeId']][$lv['LeaveDate']] = $lv['LeaveType'];
+        $leaveCodes[$lv['EmployeeId']][$lv['LeaveDate']] = $lv['LeaveCode'];
     }
     $hStmt = $db->prepare("SELECT HolidayDate, Name FROM tblHoliday WHERE CompanyId=? AND HolidayDate BETWEEN ? AND ?");
     $hStmt->execute([$fCompany, $fFrom, $fTo]);
@@ -139,8 +140,8 @@ if (count($dates) > 31) $dates = array_slice($dates, 0, 31);
 $today = date('Y-m-d');
 
 $dayTotals = [];
-foreach ($dates as $dt) $dayTotals[$dt] = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0];
-$grand = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0];
+foreach ($dates as $dt) $dayTotals[$dt] = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
+$grand = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
 ?>
 <style>
   .no-print { margin: 10px; }
@@ -159,6 +160,7 @@ $grand = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0];
   td.c-hp { background: #cce5ff; }
   td.c-a  { background: #fff0f0; }
   td.c-l  { background: #ffcccc; }
+  td.c-co { background: #cff4fc; }
   td.c-hl { background: #fff3cd; }
   td.c-h  { background: #f0f0f0; }
   td.c-s  { background: #e0e0e0; }
@@ -209,6 +211,7 @@ function exportExcel() {
   <b>P</b> Present &nbsp;
   <b>A</b> Absent &nbsp;
   <b>L</b> Leave &nbsp;
+  <b>CO</b> Comp Off &nbsp;
   <b>HL</b> Half-Leave (AM/PM) &nbsp;
   <b>H</b> Holiday &nbsp;
   <b>S</b> Sunday
@@ -234,12 +237,13 @@ function exportExcel() {
       <th style="min-width:18px">HP</th>
       <th style="min-width:18px">A</th>
       <th style="min-width:18px">L</th>
+      <th style="min-width:18px">CO</th>
       <th style="min-width:18px">HL</th>
     </tr>
   </thead>
   <tbody>
   <?php foreach ($employees as $e):
-    $presentDays = 0; $hpDays = 0; $absentDays = 0; $fullLv = 0; $halfLv = 0;
+    $presentDays = 0; $hpDays = 0; $absentDays = 0; $fullLv = 0; $halfLv = 0; $compOff = 0;
   ?>
   <tr>
     <td class="col-emp">
@@ -256,6 +260,7 @@ function exportExcel() {
       $isHol  = isset($holidayDates[$dt]);
       $isFut  = ($dt > $today);
       $lvType = $leaveDates[$e['id']][$dt] ?? null;
+      $lvCode = $leaveCodes[$e['id']][$dt] ?? null;
       $present = isset($punchMap[$e['EmployeeCode']][$dt]);
 
       $cls = 'dt'; $label = '';
@@ -264,6 +269,9 @@ function exportExcel() {
           $cls .= ' c-s'; $label = 'S';
       } elseif ($isHol) {
           $cls .= ' c-h'; $label = 'H';
+      } elseif ($lvType === 'full_day' && $lvCode === 'CO') {
+          $compOff++; $dayTotals[$dt]['CO']++;
+          $cls .= ' c-co'; $label = 'CO';
       } elseif ($lvType === 'full_day') {
           $fullLv++; $dayTotals[$dt]['L']++;
           $cls .= ' c-l'; $label = 'L';
@@ -286,11 +294,13 @@ function exportExcel() {
     <td class="sum" style="color:#004085"><?= $hpDays ?: '—' ?></td>
     <td class="sum" style="color:#b71c1c"><?= $absentDays ?></td>
     <td class="sum" style="color:#e65100"><?= $fullLv ?: '—' ?></td>
+    <td class="sum" style="color:#087990"><?= $compOff ?: '—' ?></td>
     <td class="sum" style="color:#856404"><?= $halfLv ?: '—' ?></td>
   </tr>
   <?php
     $grand['P']  += $presentDays; $grand['HP'] += $hpDays;
     $grand['A']  += $absentDays;  $grand['L']  += $fullLv; $grand['HL'] += $halfLv;
+    $grand['CO'] += $compOff;
   endforeach; ?>
   </tbody>
   <tfoot>
@@ -309,6 +319,7 @@ function exportExcel() {
           <?php if ($tot['P'])  echo '<div style="color:#a5d6a7">P:'.$tot['P'].'</div>'; ?>
           <?php if ($tot['A'])  echo '<div style="color:#ef9a9a">A:'.$tot['A'].'</div>'; ?>
           <?php if ($tot['L'])  echo '<div style="color:#ef9a9a">L:'.$tot['L'].'</div>'; ?>
+          <?php if ($tot['CO']) echo '<div style="color:#4dd0e1">CO:'.$tot['CO'].'</div>'; ?>
           <?php if ($tot['HL']) echo '<div style="color:#ffe082">HL:'.$tot['HL'].'</div>'; ?>
         <?php endif; ?>
       </td>
@@ -317,6 +328,7 @@ function exportExcel() {
       <td style="color:#90caf9;font-weight:bold"><?= $grand['HP'] ?: '—' ?></td>
       <td style="color:#ef9a9a;font-weight:bold"><?= $grand['A'] ?></td>
       <td style="color:#ef9a9a;font-weight:bold"><?= $grand['L'] ?: '—' ?></td>
+      <td style="color:#4dd0e1;font-weight:bold"><?= $grand['CO'] ?: '—' ?></td>
       <td style="color:#ffe082;font-weight:bold"><?= $grand['HL'] ?: '—' ?></td>
     </tr>
   </tfoot>
@@ -336,6 +348,7 @@ function exportExcel() {
       <th>Present (P)</th>
       <th>Absent (A)</th>
       <th>Full Leave (L)</th>
+      <th>Comp Off (CO)</th>
       <th>Half Leave (HL)</th>
       <th>Holidays</th>
       <th>Attendance %</th>
@@ -348,6 +361,7 @@ function exportExcel() {
       <td style="color:#1b5e20"><?= $grand['P'] ?></td>
       <td style="color:#b71c1c"><?= $grand['A'] ?></td>
       <td style="color:#e65100"><?= $grand['L'] ?></td>
+      <td style="color:#087990"><?= $grand['CO'] ?></td>
       <td style="color:#856404"><?= $grand['HL'] ?></td>
       <td><?= count($holidayDates) ?></td>
       <td><?= $pctP ?>% P &nbsp; <?= $pctA ?>% A</td>

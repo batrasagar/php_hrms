@@ -50,7 +50,9 @@ $stmt = $db->prepare(
 $stmt->execute($params);
 $records = $stmt->fetchAll();
 
-$fullDay  = count(array_filter($records, fn($r) => $r['LeaveType']==='full_day'));
+$isCompOff = fn($r) => ($r['LeaveCode'] ?? '') === 'CO';
+$compOff  = count(array_filter($records, $isCompOff));
+$fullDay  = count(array_filter($records, fn($r) => $r['LeaveType']==='full_day' && !$isCompOff($r)));
 $halfAm   = count(array_filter($records, fn($r) => $r['LeaveType']==='half_am'));
 $halfPm   = count(array_filter($records, fn($r) => $r['LeaveType']==='half_pm'));
 
@@ -118,6 +120,12 @@ $typeBadges  = ['full_day' => 'bg-danger', 'half_am' => 'bg-warning text-dark', 
   </div>
   <div class="col-6 col-md-3">
     <div class="card text-center p-3">
+      <div class="fs-4 fw-bold" style="color:#087990"><?= $compOff ?></div>
+      <div class="text-muted small">Comp Off</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center p-3">
       <div class="fs-4 fw-bold"><?= count($records) ?></div>
       <div class="text-muted small">Total Entries</div>
     </div>
@@ -147,7 +155,13 @@ $typeBadges  = ['full_day' => 'bg-danger', 'half_am' => 'bg-warning text-dark', 
         <td class="small"><?= htmlspecialchars($r['Department'] ?? '—') ?></td>
         <td class="small"><?= htmlspecialchars($r['Contractor'] ?? '—') ?></td>
         <td class="small"><?= htmlspecialchars($r['CompanyName']) ?></td>
-        <td><span class="badge <?= $typeBadges[$r['LeaveType']] ?? 'bg-secondary' ?>"><?= $typeLabels[$r['LeaveType']] ?? $r['LeaveType'] ?></span></td>
+        <td>
+          <?php if (($r['LeaveCode'] ?? '') === 'CO'): ?>
+          <span class="badge" style="background:#0dcaf0;color:#053d47">Comp Off</span>
+          <?php else: ?>
+          <span class="badge <?= $typeBadges[$r['LeaveType']] ?? 'bg-secondary' ?>"><?= $typeLabels[$r['LeaveType']] ?? $r['LeaveType'] ?></span>
+          <?php endif; ?>
+        </td>
         <td class="small"><?= htmlspecialchars($r['Reason'] ?? '') ?></td>
       </tr>
       <?php endforeach; ?>
