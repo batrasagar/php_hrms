@@ -61,46 +61,88 @@ if ($doSync && $fSN) {
     $lastSyncedAt = $row->fetchColumn() ?: null;
 }
 
-// ── Read punch logs from shards ───────────────────────────────────────────────
-$logs    = [];
-$fetched = false;
+// ── Read punch logs directly from the ADMS API (same source as CSV export) ────
+// This shows raw device punches regardless of whether the enroll IDs have been
+// mapped to employees; where a mapping exists, the row is enriched with the
+// employee name/code, otherwise those columns are left blank.
+$logs       = [];
+$fetched    = false;
 $fetchError = null;
 if ($fSN) {
+    $cred = null;
     try {
-        $sm     = new ShardManager($db);
-        $months = [];
-        $ts     = strtotime(date('Y-m-01', strtotime($fFrom)));
-        $tsEnd  = strtotime($fTo);
-        while ($ts <= $tsEnd) {
-            $months[] = ShardManager::ym((int)date('Y', $ts), (int)date('n', $ts));
-            $ts = strtotime('+1 month', $ts);
+        $cred = $db->query("SELECT * FROM tblAdmsCredentials WHERE IsActive=1 ORDER BY id LIMIT 1")->fetch();
+    } catch (Exception $e) { /* handled below */ }
+
+    if (!$cred) {
+        $fetchError = 'No active ADMS credential configured.';
+    } else {
+        $url = rtrim($cred['Endpoint'], '/') . '/api/punchlog.php?SerialNumber=' . urlencode($fSN);
+        $ch  = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => ['X-Api-Key: ' . $cred['ApiKey']],
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlErr) {
+            $fetchError = $curlErr;
+        } elseif ($httpCode !== 200) {
+            $fetchError = "ADMS API returned HTTP {$httpCode}.";
+        } else {
+            $data = json_decode($response, true);
+            if (!$data || empty($data['success'])) {
+                $fetchError = 'ADMS API error: ' . ($data['error'] ?? $data['message'] ?? 'Unknown');
+            } else {
+                $fromDt = $fFrom . ' 00:00:00';
+                $toDt   = $fTo   . ' 23:59:59';
+
+                // Enrollment map for this device → enrich rows with employee where known
+                $enrollMap = [];
+                $em = $db->prepare(
+                    "SELECT de.EnrollId, de.EmpCode, e.Name AS EmpName
+                     FROM tblDeviceEnrollment de
+                     LEFT JOIN tblEmployee e ON e.CompanyId = de.CompanyId AND e.EmployeeCode = de.EmpCode
+                     WHERE de.DeviceSerial = ?"
+                );
+                $em->execute([$fSN]);
+                foreach ($em->fetchAll() as $r) {
+                    $enrollMap[(string)$r['EnrollId']] = ['EmpCode' => $r['EmpCode'], 'EmpName' => $r['EmpName']];
+                }
+
+                $modeToType = fn($mode) => match (strtolower((string)$mode)) {
+                    '0', 'in',  'checkin'  => 1,
+                    '1', 'out', 'checkout' => 2,
+                    default                => 0,
+                };
+
+                foreach ($data['data'] ?? [] as $r) {
+                    $pdt = $r['PunchDateTime'] ?? '';
+                    if ($pdt < $fromDt || $pdt > $toDt) continue;
+                    $eid = (string)($r['EnrollId'] ?? '');
+                    if ($fEId !== '' && $eid !== $fEId) continue;
+
+                    $map = $enrollMap[$eid] ?? null;
+                    $logs[] = [
+                        'DeviceSerial' => $r['SerialNumber'] ?? $fSN,
+                        'EnrollId'     => $eid,
+                        'EmpCode'      => $map['EmpCode'] ?? '',
+                        'EmpName'      => $map['EmpName'] ?? '',
+                        'PunchTime'    => $pdt,
+                        'PunchType'    => $modeToType($r['Mode'] ?? ''),
+                    ];
+                }
+
+                usort($logs, fn($a, $b) => strcmp($b['PunchTime'], $a['PunchTime']));
+                $logs    = array_slice($logs, 0, 5000);
+                $fetched = true;
+            }
         }
-
-        $fromDt = $fFrom . ' 00:00:00';
-        $toDt   = $fTo   . ' 23:59:59';
-
-        foreach ($months as $ym) {
-            $tbl    = $sm->tbl('PunchLog', $ym);
-            $where  = ['DeviceSerial=?', 'PunchTime >= ?', 'PunchTime <= ?'];
-            $params = [$fSN, $fromDt, $toDt];
-            if ($fEId !== '') { $where[] = 'EnrollId=?'; $params[] = $fEId; }
-
-            $stmt = $db->prepare(
-                "SELECT p.EmpCode, p.EnrollId, p.PunchTime, p.PunchType, p.DeviceSerial,
-                        e.Name AS EmpName
-                 FROM `{$tbl}` p
-                 LEFT JOIN tblEmployee e ON e.EmployeeCode = p.EmpCode COLLATE utf8mb4_unicode_ci AND e.CompanyId = p.CompanyId
-                 WHERE " . implode(' AND ', array_map(fn($w) => "p.$w", $where)) . " ORDER BY p.PunchTime DESC"
-            );
-            $stmt->execute($params);
-            $logs = array_merge($logs, $stmt->fetchAll());
-        }
-
-        usort($logs, fn($a, $b) => strcmp($b['PunchTime'], $a['PunchTime']));
-        $logs    = array_slice($logs, 0, 5000);
-        $fetched = true;
-    } catch (PDOException $e) {
-        $fetchError = $e->getMessage();
     }
 }
 
@@ -197,10 +239,7 @@ $syncUrl = '?' . http_build_query(['sn' => $fSN, 'eid' => $fEId, 'from' => $fFro
     <?php if (empty($logs)): ?>
     <div class="p-4 text-center text-muted">
       <i class="bi bi-inbox fs-3 d-block mb-2"></i>
-      No punch records in database for this period.
-      <a href="<?= htmlspecialchars($syncUrl) ?>" class="d-block mt-2">
-        <i class="bi bi-arrow-repeat me-1"></i>Sync from API to fetch latest data
-      </a>
+      No punch records for this period on this device.
     </div>
     <?php else: ?>
     <table class="table table-hover table-sm mb-0" id="tblLog">

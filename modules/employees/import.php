@@ -204,6 +204,7 @@ require_once __DIR__ . '/../../includes/header.php';
       <a href="?template=1">Download the template</a> to get started.
     </div>
     <form method="POST" enctype="multipart/form-data">
+      <?= csrf_field() ?>
       <input type="hidden" name="action" value="preview">
       <div class="mb-3">
         <label class="form-label">Company <span class="text-danger">*</span></label>
@@ -255,6 +256,7 @@ require_once __DIR__ . '/../../includes/header.php';
   </div>
 </div>
 <form method="POST" class="d-flex gap-3 align-items-center" data-ajax>
+  <?= csrf_field() ?>
   <input type="hidden" name="action" value="import">
   <div class="form-check">
     <input class="form-check-input" type="checkbox" name="skip_existing" id="skipExisting"
