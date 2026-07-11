@@ -74,25 +74,63 @@ $refresh = max(20, (int)($_GET['refresh'] ?? 60));
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
-  :root { --bg:#0b1220; --panel:#131c2e; --line:#22304a; --muted:#8ea3c0; --text:#eaf1ff; }
+  :root { --muted:#a9bde0; --text:#f3f7ff; }
   html,body { height:100%; }
-  body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,Arial,sans-serif; padding:18px; overflow-x:hidden; }
-  .top { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-  .top h1 { font-size:26px; font-weight:700; letter-spacing:.3px; }
-  .top .sub { color:var(--muted); font-size:14px; margin-top:2px; }
+  body {
+    color:var(--text); font-family:'Segoe UI',system-ui,Arial,sans-serif;
+    height:100vh; overflow:hidden; padding:clamp(10px,1.4vw,20px);
+    display:flex; flex-direction:column; gap:clamp(8px,1vw,14px);
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(99,102,241,.28), transparent 60%),
+      radial-gradient(1000px 500px at 100% 0%, rgba(236,72,153,.22), transparent 55%),
+      radial-gradient(900px 700px at 50% 120%, rgba(16,185,129,.18), transparent 55%),
+      linear-gradient(160deg,#0a1020,#0d1730 55%,#101a36);
+  }
+  .top { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .top h1 {
+    font-size:clamp(18px,2vw,30px); font-weight:800; letter-spacing:.3px;
+    background:linear-gradient(90deg,#7dd3fc,#a78bfa,#f472b6);
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  }
+  .top .sub { color:var(--muted); font-size:clamp(11px,1vw,14px); margin-top:2px; }
   .clock { text-align:right; }
-  .clock .t { font-size:30px; font-weight:700; font-variant-numeric:tabular-nums; }
-  .clock .d { color:var(--muted); font-size:13px; }
-  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:14px; }
-  .kpi { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
-  .kpi .v { font-size:48px; font-weight:800; line-height:1; }
-  .kpi .l { color:var(--muted); font-size:13px; margin-top:8px; text-transform:uppercase; letter-spacing:.06em; }
-  .kpi.green .v{color:#34d399} .kpi.blue .v{color:#60a5fa} .kpi.amber .v{color:#fbbf24} .kpi.pink .v{color:#f472b6}
-  .grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px; }
-  .panel h2 { font-size:15px; font-weight:600; color:#cfe0ff; margin-bottom:10px; }
-  .chart-wrap { position:relative; height:300px; }
-  @media (max-width:900px){ .kpis{grid-template-columns:repeat(2,1fr)} .grid{grid-template-columns:1fr} }
+  .clock .t { font-size:clamp(20px,2.2vw,34px); font-weight:800; font-variant-numeric:tabular-nums; color:#e8eeff; }
+  .clock .d { color:var(--muted); font-size:clamp(10px,.9vw,13px); }
+
+  .kpis { flex:0 0 auto; display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(8px,1vw,14px); }
+  .kpi {
+    border-radius:16px; padding:clamp(10px,1.3vw,18px) clamp(12px,1.4vw,20px);
+    border:1px solid rgba(255,255,255,.14); position:relative; overflow:hidden;
+    box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  .kpi::after{ content:''; position:absolute; right:-30px; top:-30px; width:120px; height:120px; border-radius:50%; background:rgba(255,255,255,.12); }
+  .kpi .v { font-size:clamp(28px,4vw,54px); font-weight:900; line-height:1; text-shadow:0 2px 12px rgba(0,0,0,.35); }
+  .kpi .l { color:rgba(255,255,255,.9); font-size:clamp(10px,1vw,13px); margin-top:6px; text-transform:uppercase; letter-spacing:.07em; font-weight:600; }
+  .kpi.green { background:linear-gradient(135deg,#059669,#10b981 55%,#34d399); }
+  .kpi.blue  { background:linear-gradient(135deg,#2563eb,#3b82f6 55%,#60a5fa); }
+  .kpi.amber { background:linear-gradient(135deg,#d97706,#f59e0b 55%,#fbbf24); }
+  .kpi.pink  { background:linear-gradient(135deg,#db2777,#ec4899 55%,#f472b6); }
+
+  .grid {
+    flex:1 1 auto; min-height:0; display:grid;
+    grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:clamp(8px,1vw,14px);
+  }
+  .panel {
+    min-height:0; display:flex; flex-direction:column;
+    border-radius:16px; padding:clamp(8px,1vw,15px) clamp(10px,1.1vw,16px);
+    background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.10);
+    backdrop-filter:blur(6px); box-shadow:0 8px 24px rgba(0,0,0,.28);
+  }
+  .panel h2 { flex:0 0 auto; font-size:clamp(12px,1.1vw,16px); font-weight:700; color:#dbe6ff; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+  .panel h2::before{ content:''; width:9px; height:9px; border-radius:50%; background:linear-gradient(135deg,#7dd3fc,#f472b6); box-shadow:0 0 10px rgba(125,211,252,.8); }
+  .chart-wrap { position:relative; flex:1 1 auto; min-height:0; }
+  .chart-wrap canvas { position:absolute !important; inset:0; }
+
+  @media (max-width:900px){
+    body{ height:auto; overflow:auto; }
+    .kpis{ grid-template-columns:repeat(2,1fr) }
+    .grid{ grid-template-columns:1fr; grid-template-rows:none; grid-auto-rows:46vw }
+  }
 </style>
 </head>
 <body>
@@ -108,7 +146,7 @@ $refresh = max(20, (int)($_GET['refresh'] ?? 60));
   <div class="kpi green"><div class="v"><?= number_format($totActive) ?></div><div class="l">Active Strength</div></div>
   <div class="kpi blue"><div class="v"><?= number_format($totAll) ?></div><div class="l">Total Headcount</div></div>
   <div class="kpi amber"><div class="v"><?= number_format($deptCount) ?></div><div class="l">Departments</div></div>
-  <div class="kpi pink"><div class="v"><?= number_format((int)($gender['Female'] ?? 0)) ?><span style="font-size:22px;color:var(--muted)"> / <?= number_format((int)($gender['Male'] ?? 0)) ?></span></div><div class="l">Female / Male</div></div>
+  <div class="kpi pink"><div class="v"><?= number_format((int)($gender['Female'] ?? 0)) ?><span style="font-size:.5em;color:rgba(255,255,255,.8)"> / <?= number_format((int)($gender['Male'] ?? 0)) ?></span></div><div class="l">Female / Male</div></div>
 </div>
 
 <div class="grid">
@@ -136,14 +174,14 @@ const DEPT = <?= json_encode($byDept) ?>;
 const GENDER = <?= json_encode(['Male'=>(int)($gender['Male']??0),'Female'=>(int)($gender['Female']??0),'Other'=>(int)($gender['Other']??0)]) ?>;
 const STATUS = <?= json_encode(['Active'=>(int)($status['a']??0),'Inactive'=>(int)($status['i']??0),'Terminated'=>(int)($status['t']??0)]) ?>;
 
-Chart.defaults.color = '#8ea3c0';
+Chart.defaults.color = '#cdd9f5';
 Chart.defaults.font.size = 13;
-const grid = { color:'#22304a' };
+const grid = { color:'rgba(255,255,255,.08)' };
 const PALETTE = ['#60a5fa','#34d399','#fbbf24','#f472b6','#a78bfa','#f87171','#22d3ee','#facc15','#4ade80','#fb923c'];
 
 new Chart(document.getElementById('chBar'), {
   type:'bar',
-  data:{ labels:BAR.map(x=>x.n), datasets:[{ data:BAR.map(x=>+x.a), backgroundColor:'#60a5fa', borderRadius:6 }] },
+  data:{ labels:BAR.map(x=>x.n), datasets:[{ data:BAR.map(x=>+x.a), backgroundColor:BAR.map((_,i)=>PALETTE[i%PALETTE.length]), borderRadius:8, maxBarThickness:70 }] },
   options:{ maintainAspectRatio:false, plugins:{legend:{display:false}},
     scales:{ x:{grid:{display:false}}, y:{grid, beginAtZero:true, ticks:{precision:0}} } }
 });
