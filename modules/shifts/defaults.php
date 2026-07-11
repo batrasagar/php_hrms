@@ -86,6 +86,7 @@ require_once __DIR__ . '/../../includes/header.php';
       exists are skipped, so this is safe to run more than once. You can edit any shift afterwards.
     </p>
     <form method="POST">
+      <?= csrf_field() ?>
       <div class="mb-3" style="max-width:340px">
         <label class="form-label">Company <span class="text-danger">*</span></label>
         <select name="company_id" class="form-select" required>
