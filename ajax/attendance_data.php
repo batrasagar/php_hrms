@@ -77,6 +77,7 @@ foreach ($sftStmt->fetchAll() as $sr) $shiftMap[(int)$sr['id']] = $sr;
 // ── Leaves, holidays, punches ─────────────────────────────────────────────────
 $leaveDates   = [];
 $leaveCodes   = [];
+$corrMap      = [];
 $holidayDates = [];
 $punchMap     = [];
 $fetchErrors  = [];
@@ -90,6 +91,13 @@ if (!empty($employees)) {
     )->fetchAll() as $lv) {
         $leaveDates[$lv['EmployeeId']][$lv['LeaveDate']] = $lv['LeaveType'];
         $leaveCodes[$lv['EmployeeId']][$lv['LeaveDate']] = $lv['LeaveCode'];
+    }
+
+    // Manual corrections (override punches / force a status)
+    $corrStmt = $db->prepare("SELECT EmpCode, tDate, InTime, OutTime, AttStatus FROM tblPunchLogCorrection WHERE CompanyId=? AND tDate BETWEEN ? AND ?");
+    $corrStmt->execute([$fCompany, $fFrom, $fTo]);
+    foreach ($corrStmt->fetchAll() as $cr) {
+        $corrMap[$cr['EmpCode']][$cr['tDate']] = $cr;
     }
 
     $hStmt = $db->prepare("SELECT HolidayDate, Name FROM tblHoliday WHERE CompanyId=? AND HolidayDate BETWEEN ? AND ?");
@@ -243,6 +251,39 @@ foreach ($employees as $e) {
             $days[$dt] = $cell; continue;
         }
 
+        // Manual correction: In/Out override the punch; AttStatus forces the cell.
+        $corr = $corrMap[$e['EmployeeCode']][$dt] ?? null;
+        if ($corr && ($corr['InTime'] || $corr['OutTime'])) {
+            $ci = $corr['InTime']  ? substr($corr['InTime'],  0, 5) : null;
+            $co = $corr['OutTime'] ? substr($corr['OutTime'], 0, 5) : null;
+            $pk = array_values(array_filter([$ci, $co]));
+            $punch = ['in' => ($ci ?: $co), 'out' => ($co ?: $ci), 'count' => count($pk), 'punches' => $pk];
+        }
+        if ($corr && !empty($corr['AttStatus'])) {
+            $fmap = ['P'=>'P','OD'=>'P','A'=>'A','HD'=>'HP','L'=>'L','SL'=>'L','CO'=>'CO','PH'=>'HOL','WO'=>'WO','WOP'=>'WO'];
+            $ft = $fmap[$corr['AttStatus']] ?? 'A';
+            $cell['type'] = $ft;
+            $cell['corr'] = true;
+            switch ($ft) {
+                case 'P':   $presentDays++; $dayTotals[$dt]['P']++;  break;
+                case 'HP':  $hpDays++;      $dayTotals[$dt]['HP']++; break;
+                case 'A':   $absentDays++;  $dayTotals[$dt]['A']++;  break;
+                case 'L':   $fullLv++;      $dayTotals[$dt]['L']++;  break;
+                case 'CO':  $compOff++;     $dayTotals[$dt]['CO']++; break;
+                case 'HOL': $cell['holName'] = $holidayDates[$dt] ?? 'Holiday'; break;
+            }
+            if (($ft === 'P' || $ft === 'HP') && $punch) {
+                $inMins  = (int)substr($punch['in'], 0, 2) * 60 + (int)substr($punch['in'], 3);
+                $outMins = (int)substr($punch['out'],0, 2) * 60 + (int)substr($punch['out'],3);
+                $totMins = ($punch['count'] > 1) ? max(0, $outMins - $inMins) : 0;
+                $cell['in']  = $punch['in'];
+                $cell['out'] = $punch['count'] > 1 ? $punch['out'] : null;
+                $cell['tot'] = attendMinsToHm($totMins);
+                $sorted = $punch['punches']; sort($sorted); $cell['punches'] = $sorted;
+            }
+            $days[$dt] = $cell; continue;
+        }
+
         if ($isSun && !($showWoPunch && $punch)) {
             $cell['type'] = 'SUN';
         } elseif ($isHol && !($showHolPunch && $punch)) {
@@ -292,6 +333,7 @@ foreach ($employees as $e) {
             $cell['type'] = 'FUT';
         }
 
+        if ($corr) $cell['corr'] = true;
         $days[$dt] = $cell;
     }
 
@@ -321,6 +363,14 @@ $maxPossible = $totalEmps * $workingDays;
 $pctP        = $maxPossible > 0 ? round(($grand['P'] + $grand['HP'] * 0.5) / $maxPossible * 100) : 0;
 $pctA        = $maxPossible > 0 ? round($grand['A'] / $maxPossible * 100) : 0;
 
+// Leave types for this company (for the grid's quick-action leave dropdown)
+$leaveTypesOut = [];
+try {
+    $ltStmt = $db->prepare("SELECT Code, Name FROM tblLeaveType WHERE CompanyId=? AND IsActive=1 ORDER BY Code");
+    $ltStmt->execute([$fCompany]);
+    $leaveTypesOut = $ltStmt->fetchAll();
+} catch (Exception $e) {}
+
 echo json_encode([
     'success'      => true,
     'notice'       => $notice,
@@ -334,6 +384,7 @@ echo json_encode([
     'employees'    => $employeeRows,
     'dayTotals'    => $dayTotals,
     'grand'        => $grand,
+    'leaveTypes'   => $leaveTypesOut,
     'totalEmps'    => $totalEmps,
     'workingDays'  => $workingDays,
     'holidayCount' => count($holidayDates),

@@ -78,6 +78,7 @@ $printedAt  = date('d-m-Y H:i');
   td.c-a  { background: #fff0f0; }
   td.c-l  { background: #ffcccc; }
   td.c-co { background: #cff4fc; }
+  td.c-wo { background: #e2e3e5; }
   td.c-hl { background: #fff3cd; }
   td.sum  { font-weight: bold; font-size: 10px; }
   td.sum-p  { color: #1b5e20; }
@@ -115,7 +116,7 @@ $printedAt  = date('d-m-Y H:i');
 <script>
 (function () {
   var DATA_URL   = '<?= $dataUrl ?>';
-  var QUERY      = '<?= htmlspecialchars($queryStr, ENT_QUOTES) ?>';
+  var QUERY      = <?= json_encode($queryStr, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
   var SIMPLE_URL = '<?= htmlspecialchars($simpleUrl, ENT_QUOTES) ?>';
   var EXPORT     = '<?= htmlspecialchars($exportFile, ENT_QUOTES) ?>';
   var PRINTED_AT = '<?= $printedAt ?>';
@@ -130,6 +131,7 @@ $printedAt  = date('d-m-Y H:i');
     if (c.type === 'HOL') return ['dt c-h', '<span title="' + esc(c.holName || '') + '">H</span>'];
     if (c.type === 'L')   return ['dt c-l', '<b>L</b>'];
     if (c.type === 'CO')  return ['dt c-co', '<b>CO</b>'];
+    if (c.type === 'WO')  return ['dt c-wo', '<b>WO</b>'];
     if (c.type === 'HL')  return ['dt c-hl', '<b>HL</b><div>' + esc(c.lvSub || '') + '</div>'];
     if (c.type === 'A')   return ['dt c-a', '<span>A</span>'];
     if (c.type === 'P' || c.type === 'HP') {

@@ -32,8 +32,10 @@ $scopeJoin   = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id=
 $depts       = array_filter(array_column($db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(), 'Department'));
 $contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor FROM tblEmployee e $scopeJoin ORDER BY Contractor")->fetchAll(), 'Contractor'));
 
-$dataUrl  = BASE_URL . '/ajax/attendance_data.php';
-$autoload = (int)$fCompany;
+$dataUrl   = BASE_URL . '/ajax/attendance_data.php';
+$actionUrl = BASE_URL . '/ajax/attendance_action.php';
+$autoload  = (int)$fCompany;
+$canEdit   = in_array($user['role'], ['admin','superadmin'], true) ? 1 : 0;
 
 require_once __DIR__ . '/../../includes/header.php';
 ?>
@@ -87,6 +89,164 @@ require_once __DIR__ . '/../../includes/header.php';
   <div class="alert alert-info">Select a company and date range, then click <strong>Load</strong>.</div>
 </div>
 
+<?php if ($canEdit): ?>
+<!-- ── Cell action modal ─────────────────────────────────────────────────────── -->
+<div class="modal fade" id="attActionModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="aa_title">Edit day</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2" id="aa_sub"></div>
+
+        <div class="btn-group btn-group-sm w-100 mb-3" role="group">
+          <input type="radio" class="btn-check" name="aa_act" id="aa_act_leave" value="leave" checked>
+          <label class="btn btn-outline-primary" for="aa_act_leave">Leave</label>
+          <input type="radio" class="btn-check" name="aa_act" id="aa_act_manual" value="manual_time">
+          <label class="btn btn-outline-primary" for="aa_act_manual">Time</label>
+          <input type="radio" class="btn-check" name="aa_act" id="aa_act_comp" value="comp_off">
+          <label class="btn btn-outline-primary" for="aa_act_comp">Comp Off</label>
+          <input type="radio" class="btn-check" name="aa_act" id="aa_act_wo" value="week_off">
+          <label class="btn btn-outline-primary" for="aa_act_wo">Week Off</label>
+        </div>
+
+        <!-- Leave -->
+        <div class="aa-pane" data-pane="leave">
+          <div class="mb-2">
+            <label class="form-label small mb-1">Leave Code</label>
+            <select id="aa_leave_code" class="form-select form-select-sm"></select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Day Type</label>
+            <select id="aa_leave_daytype" class="form-select form-select-sm">
+              <option value="full_day">Full Day</option>
+              <option value="half_am">Half AM</option>
+              <option value="half_pm">Half PM</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Manual time -->
+        <div class="aa-pane" data-pane="manual_time" hidden>
+          <div class="row g-2 mb-2">
+            <div class="col-4"><label class="form-label small mb-1">In</label>
+              <input type="time" id="aa_in" class="form-control form-control-sm"></div>
+            <div class="col-4"><label class="form-label small mb-1">Out</label>
+              <input type="time" id="aa_out" class="form-control form-control-sm"></div>
+            <div class="col-4"><label class="form-label small mb-1">Force</label>
+              <select id="aa_force" class="form-select form-select-sm" title="Leave as Auto to compute from In/Out">
+                <option value="">Auto</option>
+                <?php foreach (['P','A','HD','WO','PH','OD'] as $s): ?>
+                <option value="<?= $s ?>"><?= $s ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+          <div class="form-text">Set In/Out times, or force a status. Reflects in this grid immediately.</div>
+        </div>
+
+        <!-- Comp off -->
+        <div class="aa-pane" data-pane="comp_off" hidden>
+          <div class="small">Mark this day as a <span class="badge" style="background:#0dcaf0;color:#053d47">Comp Off</span> taken (shows CO in the grid).</div>
+        </div>
+
+        <!-- Week off -->
+        <div class="aa-pane" data-pane="week_off" hidden>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="aa_wo_mode" id="aa_wo_date" value="date" checked>
+            <label class="form-check-label small" for="aa_wo_date">Mark <strong id="aa_wo_dateLbl">this date</strong> as week-off (one-time)</label>
+          </div>
+          <div class="form-check d-flex align-items-center gap-2">
+            <input class="form-check-input" type="radio" name="aa_wo_mode" id="aa_wo_recurring" value="recurring">
+            <label class="form-check-label small" for="aa_wo_recurring">Change weekly off to</label>
+            <select id="aa_wo_weekday" class="form-select form-select-sm" style="width:auto">
+              <?php foreach (['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'] as $i => $wn): ?>
+              <option value="<?= $i ?>"><?= $wn ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-2">
+          <input type="text" id="aa_reason" class="form-control form-control-sm" placeholder="Reason (optional)">
+        </div>
+      </div>
+      <div class="modal-footer py-2 d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-danger btn-sm" id="aa_clear"><i class="bi bi-eraser"></i> Clear cell</button>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" id="aa_save">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var ACTION_URL = '<?= $actionUrl ?>';
+  var ctx = {};
+  function coVal(){ return $('#attForm').find('[name=company]').val() || ''; }
+  function modal(){ return bootstrap.Modal.getOrCreateInstance(document.getElementById('attActionModal')); }
+  function showPane(which){
+    document.querySelectorAll('#attActionModal .aa-pane').forEach(function(p){ p.hidden = (p.dataset.pane !== which); });
+  }
+
+  $(document).on('click', '#tblAttendance td.att-cell.editable', function(){
+    var d = this.dataset;
+    ctx = { emp:d.emp, code:d.code, name:d.name, date:d.date, type:d.type };
+    $('#aa_title').text('Edit — ' + d.name);
+    $('#aa_sub').html('<code>'+(d.code||'—')+'</code> &middot; '+d.date+(d.type ? ' &middot; currently <b>'+d.type+'</b>' : ''));
+    var lts = (window.__attLastData && window.__attLastData.leaveTypes) || [];
+    var opts = '';
+    lts.forEach(function(lt){ opts += '<option value="'+lt.Code+'">'+lt.Code+' — '+lt.Name+'</option>'; });
+    $('#aa_leave_code').html(opts || '<option value="">(no leave types defined)</option>');
+    var wd = new Date(d.date + 'T00:00:00').getDay();
+    $('#aa_wo_weekday').val(String(wd));
+    $('#aa_wo_dateLbl').text(d.date);
+    $('#aa_reason').val(''); $('#aa_in').val(''); $('#aa_out').val(''); $('#aa_force').val('');
+    $('input[name=aa_act][value=leave]').prop('checked', true);
+    $('input[name=aa_wo_mode][value=date]').prop('checked', true);
+    showPane('leave');
+    modal().show();
+  });
+
+  $('input[name=aa_act]').on('change', function(){ showPane(this.value); });
+
+  function post(data){
+    data.company = coVal(); data.emp_id = ctx.emp; data.date = ctx.date; data.reason = $('#aa_reason').val();
+    $('#aa_save,#aa_clear').prop('disabled', true);
+    $.post(ACTION_URL, data)
+      .done(function(resp){
+        if (resp && resp.success){
+          showToast(resp.message || 'Saved.', 'success');
+          modal().hide();
+          if (window.__attReload) window.__attReload();
+        } else {
+          showToast((resp && resp.errors && resp.errors[0]) || 'Failed.', 'danger');
+        }
+      })
+      .fail(function(){ showToast('Server error.', 'danger'); })
+      .always(function(){ $('#aa_save,#aa_clear').prop('disabled', false); });
+  }
+
+  $('#aa_save').on('click', function(){
+    var act = $('input[name=aa_act]:checked').val();
+    if (act === 'leave')            post({ action:'leave', code:$('#aa_leave_code').val(), day_type:$('#aa_leave_daytype').val() });
+    else if (act === 'manual_time') post({ action:'manual_time', in_time:$('#aa_in').val(), out_time:$('#aa_out').val(), force_status:$('#aa_force').val() });
+    else if (act === 'comp_off')    post({ action:'comp_off' });
+    else if (act === 'week_off'){
+      var mode = $('input[name=aa_wo_mode]:checked').val();
+      if (mode === 'recurring') post({ action:'week_off_recurring', weekday:$('#aa_wo_weekday').val() });
+      else                      post({ action:'week_off_date' });
+    }
+  });
+  $('#aa_clear').on('click', function(){ post({ action:'clear' }); });
+})();
+</script>
+<?php endif; ?>
+
 <?php $extraJs = <<<JS
 <style>
 #att-loader {
@@ -102,7 +262,10 @@ require_once __DIR__ . '/../../includes/header.php';
 }
 #att-loader p { font-size:14px; color:#555; margin:0; }
 @keyframes attSpin { to { transform:rotate(360deg); } }
-#tblAttendance td.att-cell { padding:2px 0 !important; vertical-align:middle; }
+#tblAttendance td.att-cell { padding:2px 0 !important; vertical-align:middle; position:relative; }
+#tblAttendance td.att-cell.editable { cursor:pointer; }
+#tblAttendance td.att-cell.editable:hover { outline:2px solid #0d6efd; outline-offset:-2px; }
+.aa-dot { position:absolute; top:0; right:1px; color:#fd7e14; font-size:8px; line-height:1; }
 #tblAttendance tfoot td    { font-size:10px; padding:2px 3px !important; }
 </style>
 <div id="att-loader"><div class="sp"></div><p>Loading attendance data&hellip;</p></div>
@@ -110,6 +273,8 @@ require_once __DIR__ . '/../../includes/header.php';
 (function () {
   var DATA_URL  = '$dataUrl';
   var AUTOLOAD  = $autoload;
+  var CAN_EDIT  = $canEdit;
+  var lastData  = null;
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -122,6 +287,7 @@ require_once __DIR__ . '/../../includes/header.php';
       case 'HOL': return ['<span style="font-size:9px" title="'+esc(c.holName)+'">H</span>', '#e8f5e9', 'text-success'];
       case 'L':   return ['<span style="font-size:9px;font-weight:700">L</span>', '#ffcccc', 'text-danger'];
       case 'CO':  return ['<span style="font-size:9px;font-weight:700">CO</span>', '#cff4fc', 'text-info'];
+      case 'WO':  return ['<span style="font-size:9px">WO</span>', '#e2e3e5', 'text-muted'];
       case 'HL':
         return ['<span style="font-size:9px;font-weight:700">HL</span><div style="font-size:7px;color:#856404">'+(c.lvSub||'')+'</div>',
                 '#fff3cd', 'text-warning'];
@@ -148,6 +314,7 @@ require_once __DIR__ . '/../../includes/header.php';
 
   function render(data) {
     var html = '';
+    lastData = data; window.__attLastData = data;
 
     if (data.notice) html += '<div class="alert alert-warning py-2 small">'+esc(data.notice)+'</div>';
     (data.errors||[]).forEach(function(e){ html += '<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>'+esc(e)+'</div>'; });
@@ -165,6 +332,7 @@ require_once __DIR__ . '/../../includes/header.php';
           + '<span class="badge bg-danger">A</span> Absent &nbsp;'
           + '<span class="badge" style="background:#dc3545">L</span> Full Leave &nbsp;'
           + '<span class="badge text-dark" style="background:#6edff6">CO</span> Comp Off &nbsp;'
+          + '<span class="badge text-dark" style="background:#e2e3e5">WO</span> Week Off &nbsp;'
           + '<span class="badge bg-warning text-dark">HL</span> Half Leave &nbsp;'
           + '<span class="badge bg-light text-muted border">H</span> Holiday &nbsp;'
           + '<span class="badge bg-secondary">S</span> Sunday &nbsp;'
@@ -196,8 +364,12 @@ require_once __DIR__ . '/../../includes/header.php';
     data.employees.forEach(function(emp){
       html += '<tr><td class="small"><code>'+esc(emp.code||'—')+'</code></td><td class="small">'+esc(emp.name)+'</td>';
       data.dates.forEach(function(d){
-        var r = renderCell(emp.days[d.date]||{type:''});
-        html += '<td class="text-center att-cell '+r[2]+'" style="background:'+r[1]+'">'+r[0]+'</td>';
+        var cd = emp.days[d.date]||{type:''};
+        var r  = renderCell(cd);
+        var mark = cd.corr ? '<span class="aa-dot" title="Manually edited">&#9679;</span>' : '';
+        var cls  = 'text-center att-cell ' + r[2] + (CAN_EDIT ? ' editable' : '');
+        var attrs = CAN_EDIT ? (' data-emp="'+emp.id+'" data-code="'+esc(emp.code||'')+'" data-name="'+esc(emp.name)+'" data-date="'+d.date+'" data-type="'+esc(cd.type||'')+'"') : '';
+        html += '<td class="'+cls+'" style="background:'+r[1]+'"'+attrs+'>'+r[0]+mark+'</td>';
       });
       var s = emp.summary;
       html += '<td class="text-center fw-semibold text-success">'+s.P+'</td>'
@@ -287,6 +459,7 @@ require_once __DIR__ . '/../../includes/header.php';
       });
   }
 
+  window.__attReload = load;
   $(function() {
     $('#attForm').on('submit', function(e) { e.preventDefault(); load(); });
     if (AUTOLOAD) load();

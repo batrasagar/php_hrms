@@ -113,6 +113,7 @@ th { background: #e8e8e8; font-weight: 700; }
 .ab-a  { background: #ffcdd2; color: #7f0000; }
 .ab-l  { background: #ff9800; color: #fff; }
 .ab-co { background: #0dcaf0; color: #053d47; }
+.ab-wo { background: #e2e3e5; color: #555; }
 .ab-hl { background: #fff3cd; color: #856404; }
 .ab-h  { background: #f0f0f0; color: #6c757d; }
 .ab-s  { background: #eeeeee; color: #9e9e9e; }
@@ -149,7 +150,7 @@ th { background: #e8e8e8; font-weight: 700; }
 <script>
 (function () {
   var DATA_URL      = '<?= $dataUrl ?>';
-  var QUERY         = '<?= htmlspecialchars($queryStr, ENT_QUOTES) ?>';
+  var QUERY         = <?= json_encode($queryStr, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?>;
   var BACK_URL      = '<?= htmlspecialchars($backUrl, ENT_QUOTES) ?>';
   var PRINTED_AT    = '<?= $printedAt ?>';
   var DAYS_IN_MONTH = <?= $daysInMonth ?>;
@@ -164,6 +165,7 @@ th { background: #e8e8e8; font-weight: 700; }
     if (type === 'HOL') return '<span class="att-badge ab-h">H</span>';
     if (type === 'L')   return '<span class="att-badge ab-l">L</span>';
     if (type === 'CO')  return '<span class="att-badge ab-co">CO</span>';
+    if (type === 'WO')  return '<span class="att-badge ab-wo">WO</span>';
     if (type === 'HL')  return '<span class="att-badge ab-hl">HL</span>';
     if (type === 'P')   return '<span class="att-badge ab-p">P</span>';
     if (type === 'HP')  return '<span class="att-badge ab-hp">HP</span>';

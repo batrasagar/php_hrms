@@ -100,6 +100,7 @@ td.bg-hp { background: #cce5ff; }
 td.bg-a  { background: #ffcdd2; }
 td.bg-l  { background: #ffcccc; }
 td.bg-co { background: #cff4fc; }
+td.bg-wo { background: #e2e3e5; }
 td.bg-hl { background: #fff3cd; }
 td.bg-h  { background: #f0f0f0; }
 td.bg-s  { background: #e0e0e0; }
@@ -108,6 +109,7 @@ td.bg-s  { background: #e0e0e0; }
 .sw-badge-a  { color: #7f0000; }
 .sw-badge-l  { color: #7b1a00; }
 .sw-badge-co { color: #053d47; }
+.sw-badge-wo { color: #555; }
 .sw-badge-hl { color: #856404; }
 .sw-badge-h  { color: #5a6268; }
 .sw-badge-s  { color: #9e9e9e; }
@@ -174,6 +176,7 @@ td.col-sum { font-weight: 700; font-size: 9px; }
     if (c.type === 'HOL') return ['col-day bg-h', '<span class="sw-badge sw-badge-h" title="'+esc(c.holName||'')+'">H</span>'];
     if (c.type === 'L')   return ['col-day bg-l', '<span class="sw-badge sw-badge-l">L</span>'];
     if (c.type === 'CO')  return ['col-day bg-co', '<span class="sw-badge sw-badge-co">CO</span>'];
+    if (c.type === 'WO')  return ['col-day bg-wo', '<span class="sw-badge sw-badge-wo">WO</span>'];
     if (c.type === 'HL')  return ['col-day bg-hl','<span class="sw-badge sw-badge-hl">HL</span>'+(c.lvSub?'<div style="font-size:6.5px">'+esc(c.lvSub)+'</div>':'')];
     if (c.type === 'A')   return ['col-day bg-a', '<span class="sw-badge sw-badge-a">A</span>'];
     if (c.type === 'P' || c.type === 'HP') {
