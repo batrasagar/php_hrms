@@ -35,6 +35,18 @@ $myLinks = $db->prepare("SELECT id, Title, URL FROM tblDashboardLinks WHERE User
 $myLinks->execute([$uid]);
 $myLinks = $myLinks->fetchAll(PDO::FETCH_ASSOC);
 
+// ── Companies for the live attendance-summary panel ───────────────────────────
+if ($role === 'superadmin') {
+    $dashCos = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll(PDO::FETCH_ASSOC);
+} elseif ($role === 'admin') {
+    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
+    $s->execute([$uid]); $dashCos = $s->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $dashCos = [];
+}
+$dashCid  = $role === 'user' ? (int)$user['company_id'] : (int)($dashCos[0]['id'] ?? 0);
+$dataUrl  = BASE_URL . '/ajax/attendance_data.php';
+
 $pageTitle  = 'Dashboard';
 $activePage = 'dashboard';
 require_once __DIR__ . '/includes/header.php';
@@ -88,6 +100,29 @@ $tiles = [
     </a>
   </div>
   <?php endforeach; ?>
+</div>
+
+<?php /* ── LIVE ATTENDANCE SUMMARY ───────────────────────────────────────── */ ?>
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span class="fw-semibold" style="font-size:13px"><i class="bi bi-calendar2-week me-1"></i>Attendance Summary</span>
+    <div class="d-flex gap-2 align-items-center">
+      <?php if ($role !== 'user' && $dashCos): ?>
+      <select id="asCompany" class="form-select form-select-sm" style="max-width:200px">
+        <?php foreach ($dashCos as $c): ?>
+        <option value="<?= $c['id'] ?>" <?= $dashCid==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <?php endif; ?>
+      <input type="date" id="asDate" class="form-control form-control-sm" style="max-width:150px" value="<?= $today ?>">
+      <a id="asFull" class="btn btn-outline-secondary btn-sm" href="<?= BASE_URL ?>/modules/reports/attendance.php"><i class="bi bi-box-arrow-up-right"></i></a>
+    </div>
+  </div>
+  <div class="card-body">
+    <div id="asTiles" class="row g-3">
+      <div class="col-12 text-center text-muted py-3"><span class="spinner-border spinner-border-sm me-1"></span>Loading…</div>
+    </div>
+  </div>
 </div>
 
 <?php if ($role === 'superadmin' && safeCount($db,"SELECT COUNT(*) FROM tblUser WHERE Status='pending'") > 0): ?>
@@ -149,5 +184,51 @@ $tiles = [
 @media (min-width: 576px) and (max-width: 991.98px) { .quick-link-item { width: calc(50% - 4px); } }
 </style>
 
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  var DATA_URL = '<?= $dataUrl ?>';
+  var BASE     = '<?= BASE_URL ?>';
+  var elCo    = document.getElementById('asCompany');
+  var elDate  = document.getElementById('asDate');
+  var elTiles = document.getElementById('asTiles');
+  var elFull  = document.getElementById('asFull');
+  var DEFAULT_CID = '<?= $dashCid ?>';
+
+  function tile(val, label, sub, cls){
+    return '<div class="col-6 col-md-4 col-xl-2">'
+      + '<div class="card text-center py-2 h-100">'
+      + '<div class="fs-3 fw-bold '+(cls||'')+'">'+val+'</div>'
+      + '<div class="small text-muted">'+label+(sub?' <span class="badge bg-light text-muted border">'+sub+'</span>':'')+'</div>'
+      + '</div></div>';
+  }
+  function load(){
+    var cid = elCo ? elCo.value : DEFAULT_CID;
+    var d = elDate.value;
+    if (!cid || !d){ elTiles.innerHTML = '<div class="col-12 text-muted small py-2">Select a company.</div>'; return; }
+    elTiles.innerHTML = '<div class="col-12 text-center text-muted py-3"><span class="spinner-border spinner-border-sm me-1"></span>Loading…</div>';
+    var qs = 'company='+encodeURIComponent(cid)+'&from='+encodeURIComponent(d)+'&to='+encodeURIComponent(d);
+    if (elFull) elFull.href = BASE + '/modules/reports/attendance.php?' + qs;
+    fetch(DATA_URL + '?' + qs, {credentials:'same-origin'})
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (!data || !data.success){ elTiles.innerHTML = '<div class="col-12 text-danger small">'+((data&&data.errors&&data.errors[0])||'Failed to load.')+'</div>'; return; }
+        var g = data.grand||{};
+        var html = '';
+        html += tile(data.totalEmps||0, 'Employees', '', 'text-secondary');
+        html += tile(data.workingDays||0, 'Working Days', '', 'text-muted');
+        html += tile((g.P||0)+(g.HP?' <small class="text-primary">+'+g.HP+'HP</small>':''), 'Present', (data.pctP||0)+'%', 'text-success');
+        html += tile(g.A||0, 'Absent', (data.pctA||0)+'%', 'text-danger');
+        html += tile((g.L||0)+(g.HL?' <small class="text-warning">+'+g.HL+'HL</small>':''), 'On Leave', '', 'text-danger');
+        html += tile(data.holidayCount||0, 'Holidays', '', 'text-info');
+        elTiles.innerHTML = html;
+      })
+      .catch(function(){ elTiles.innerHTML = '<div class="col-12 text-danger small">Failed to load attendance.</div>'; });
+  }
+  if (elCo) elCo.addEventListener('change', load);
+  elDate.addEventListener('change', load);
+  load();
+});
+</script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

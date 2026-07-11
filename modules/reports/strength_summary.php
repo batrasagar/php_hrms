@@ -62,6 +62,21 @@ $byContractor = $db->query(
 
 $totalActive = array_sum(array_column($byCompany, 'Active'));
 $totalAll    = array_sum(array_column($byCompany, 'Total'));
+
+// Active headcount split by gender (first letter m/f, else Other)
+$gender = $db->query(
+    "SELECT
+        SUM(CASE WHEN LOWER(LEFT(TRIM(e.Gender),1))='m' THEN 1 ELSE 0 END) AS Male,
+        SUM(CASE WHEN LOWER(LEFT(TRIM(e.Gender),1))='f' THEN 1 ELSE 0 END) AS Female,
+        SUM(CASE WHEN e.Gender IS NULL OR TRIM(e.Gender)='' OR LOWER(LEFT(TRIM(e.Gender),1)) NOT IN ('m','f') THEN 1 ELSE 0 END) AS Other
+     FROM tblEmployee e JOIN tblCompany c ON c.id=e.CompanyId
+     WHERE $scopeWhere $coFilter AND e.Status='active'"
+)->fetch();
+$gMale   = (int)($gender['Male']   ?? 0);
+$gFemale = (int)($gender['Female'] ?? 0);
+$gOther  = (int)($gender['Other']  ?? 0);
+$gTotal  = $gMale + $gFemale + $gOther;
+$pct = fn($n) => $gTotal > 0 ? round($n / $gTotal * 100) : 0;
 ?>
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2">
@@ -125,6 +140,39 @@ $totalAll    = array_sum(array_column($byCompany, 'Total'));
           <?php endforeach; ?>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mt-3">
+      <div class="card-header bg-white fw-semibold">By Gender <small class="text-muted fw-normal">(Active)</small></div>
+      <div class="card-body">
+        <div class="row g-2 text-center">
+          <div class="col-4">
+            <div class="border rounded py-2" style="background:#eaf2ff">
+              <div class="fs-3 fw-bold text-primary"><?= $gMale ?></div>
+              <div class="small text-muted"><i class="bi bi-gender-male"></i> Male <span class="badge bg-primary-subtle text-primary"><?= $pct($gMale) ?>%</span></div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="border rounded py-2" style="background:#ffeef5">
+              <div class="fs-3 fw-bold" style="color:#d63384"><?= $gFemale ?></div>
+              <div class="small text-muted"><i class="bi bi-gender-female"></i> Female <span class="badge" style="background:#f8d7ea;color:#d63384"><?= $pct($gFemale) ?>%</span></div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="border rounded py-2 bg-light">
+              <div class="fs-3 fw-bold text-secondary"><?= $gOther ?></div>
+              <div class="small text-muted">Other / N-A <span class="badge bg-secondary-subtle text-secondary"><?= $pct($gOther) ?>%</span></div>
+            </div>
+          </div>
+        </div>
+        <?php if ($gTotal > 0): ?>
+        <div class="progress mt-3" style="height:10px" role="progressbar" title="Male <?= $gMale ?> / Female <?= $gFemale ?> / Other <?= $gOther ?>">
+          <div class="progress-bar bg-primary" style="width:<?= $pct($gMale) ?>%"></div>
+          <div class="progress-bar" style="width:<?= $pct($gFemale) ?>%;background:#d63384"></div>
+          <div class="progress-bar bg-secondary" style="width:<?= $pct($gOther) ?>%"></div>
+        </div>
+        <?php endif; ?>
       </div>
     </div>
   </div>
