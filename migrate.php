@@ -865,7 +865,7 @@ $migrations = [
     [
         'id'    => 'M017',
         'desc'  => 'Shift lunch break — HasLunch, LunchOutTime, LunchInTime on tblShift',
-        'check' => "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tblShift' AND COLUMN_NAME='HasLunch' LIMIT 1",
+        'check' => "SELECT `HasLunch` FROM `tblShift` LIMIT 1",
         'stmts' => [
             "ALTER TABLE `tblShift`
                 ADD COLUMN `HasLunch`     TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Shift includes a lunch break' AFTER `HrsHlf`,
