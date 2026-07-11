@@ -617,7 +617,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
 <?php if (in_array($user['role'], ['superadmin','admin'])): ?>
 <?php
   $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','print']) ? 'show' : '';
-  $shiftOpen   = in_array($ap, ['shifts','shift_assign','shift_cyclic','compoff']) ? 'show' : '';
+  $shiftOpen   = in_array($ap, ['shifts','shift_defaults','shift_assign','shift_cyclic','compoff']) ? 'show' : '';
   $masterOpen  = in_array($ap, ['holidays']) ? 'show' : '';
   $attnOpen    = in_array($ap, ['overtime','leaves','leave_types','leave_policy','leave_assign','leave_register']) ? 'show' : '';
   $rptOpen     = in_array($ap, ['report_active','report_attendance','report_monthly','report_swipe','report_strength','report_ot','report_leave']) ? 'show' : '';
@@ -704,6 +704,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <div class="sb-sub">
             <a class="sb-sub-item <?= $ap==='shifts'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/index.php">
               <i class="bi bi-clock"></i> Shift Master
+            </a>
+            <a class="sb-sub-item <?= $ap==='shift_defaults'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/defaults.php">
+              <i class="bi bi-magic"></i> Default Shifts
             </a>
             <a class="sb-sub-item <?= $ap==='shift_assign'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/assign.php">
               <i class="bi bi-person-gear"></i> Shift Assignment

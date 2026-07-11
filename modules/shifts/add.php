@@ -19,6 +19,9 @@ $rec = [
     'MaxDepartureTime'=> '',
     'HrsP'            => '8.00',
     'HrsHlf'          => '4.00',
+    'HasLunch'        => 0,
+    'LunchOutTime'    => '',
+    'LunchInTime'     => '',
     'IsActive'        => 1,
 ];
 
@@ -60,7 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $maxDepartureTime = trim($_POST['max_departure_time'] ?? '');
     $hrsP             = (float)($_POST['hrs_p']           ?? 8);
     $hrsHlf           = (float)($_POST['hrs_hlf']         ?? 4);
+    $hasLunch         = isset($_POST['has_lunch']) ? 1 : 0;
+    $lunchOutTime     = trim($_POST['lunch_out_time']     ?? '');
+    $lunchInTime      = trim($_POST['lunch_in_time']      ?? '');
     $isActive         = isset($_POST['is_active']) ? 1 : 0;
+    if (!$hasLunch) { $lunchOutTime = $lunchInTime = ''; }
 
     if (!$shiftName)    $errors[] = 'Shift name is required.';
     if (!$companyId)    $errors[] = 'Please select a company.';
@@ -77,20 +84,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $vals = [
             $companyId, $shiftName, $arrivalTime, $departureTime,
             $minArrivalTime ?: null, $maxArrivalTime ?: null, $maxDepartureTime ?: null,
-            $hrsP, $hrsHlf, $isActive,
+            $hrsP, $hrsHlf, $hasLunch, $lunchOutTime ?: null, $lunchInTime ?: null, $isActive,
         ];
         if ($editId) {
             $db->prepare(
                 "UPDATE tblShift SET CompanyId=?, ShiftName=?, ArrivalTime=?, DepartureTime=?,
-                 MinArrivalTime=?, MaxArrivalTime=?, MaxDepartureTime=?, HrsP=?, HrsHlf=?, IsActive=?, UpdatedAt=NOW()
+                 MinArrivalTime=?, MaxArrivalTime=?, MaxDepartureTime=?, HrsP=?, HrsHlf=?,
+                 HasLunch=?, LunchOutTime=?, LunchInTime=?, IsActive=?, UpdatedAt=NOW()
                  WHERE id=?"
             )->execute(array_merge($vals, [$editId]));
             $_SESSION['flash'] = 'Shift updated.';
         } else {
             $db->prepare(
                 "INSERT INTO tblShift (CompanyId, ShiftName, ArrivalTime, DepartureTime,
-                 MinArrivalTime, MaxArrivalTime, MaxDepartureTime, HrsP, HrsHlf, IsActive)
-                 VALUES (?,?,?,?,?,?,?,?,?,?)"
+                 MinArrivalTime, MaxArrivalTime, MaxDepartureTime, HrsP, HrsHlf,
+                 HasLunch, LunchOutTime, LunchInTime, IsActive)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
             )->execute($vals);
             $_SESSION['flash'] = 'Shift added.';
         }
@@ -103,7 +112,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'ArrivalTime'      => $arrivalTime,      'DepartureTime'    => $departureTime,
         'MinArrivalTime'   => $minArrivalTime,   'MaxArrivalTime'   => $maxArrivalTime,
         'MaxDepartureTime' => $maxDepartureTime, 'HrsP'             => $hrsP,
-        'HrsHlf'           => $hrsHlf,           'IsActive'         => $isActive,
+        'HrsHlf'           => $hrsHlf,           'HasLunch'         => $hasLunch,
+        'LunchOutTime'     => $lunchOutTime,     'LunchInTime'      => $lunchInTime,
+        'IsActive'         => $isActive,
     ]);
 }
 $pageTitle  = 'Shift Master';
@@ -189,6 +200,29 @@ require_once __DIR__ . '/../../includes/header.php';
                  value="<?= htmlspecialchars($rec['HrsHlf']) ?>">
           <div class="form-text">Min hours for half-day present</div>
         </div>
+
+        <div class="col-12"><hr class="my-1"><small class="text-muted fw-semibold">Lunch Break</small></div>
+
+        <div class="col-12">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="has_lunch" id="hasLunch"
+                   <?= !empty($rec['HasLunch']) ? 'checked' : '' ?>>
+            <label class="form-check-label" for="hasLunch">This shift has a lunch break</label>
+          </div>
+          <div class="form-text">Turn off for continuous / 3-shift rotation (24 hrs) shifts.</div>
+        </div>
+        <div class="col-sm-6 lunch-field" <?= empty($rec['HasLunch']) ? 'style="display:none"' : '' ?>>
+          <label class="form-label">Lunch Out</label>
+          <input type="time" name="lunch_out_time" class="form-control"
+                 value="<?= htmlspecialchars(substr($rec['LunchOutTime']??'',0,5)) ?>">
+          <div class="form-text">Break starts (punch out)</div>
+        </div>
+        <div class="col-sm-6 lunch-field" <?= empty($rec['HasLunch']) ? 'style="display:none"' : '' ?>>
+          <label class="form-label">Lunch In</label>
+          <input type="time" name="lunch_in_time" class="form-control"
+                 value="<?= htmlspecialchars(substr($rec['LunchInTime']??'',0,5)) ?>">
+          <div class="form-text">Break ends (punch back in)</div>
+        </div>
       </div>
       <hr class="my-4">
       <div class="d-flex gap-2">
@@ -198,4 +232,12 @@ require_once __DIR__ . '/../../includes/header.php';
     </form>
   </div>
 </div>
+<script>
+$(function(){
+  $('#hasLunch').on('change', function(){
+    $('.lunch-field').toggle(this.checked);
+    if (!this.checked) $('.lunch-field input').val('');
+  });
+});
+</script>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

@@ -44,7 +44,10 @@ require_once __DIR__ . '/../../includes/header.php';
 <?php endif; ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
   <span class="text-muted"><?= count($shifts) ?> shift(s)</span>
-  <a href="add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Shift</a>
+  <div class="d-flex gap-2">
+    <a href="defaults.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-magic"></i> Add Default Shifts</a>
+    <a href="add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Shift</a>
+  </div>
 </div>
 <div class="card border-0 shadow-sm">
   <div class="card-body p-0">
@@ -60,6 +63,7 @@ require_once __DIR__ . '/../../includes/header.php';
           <th>Max Depart</th>
           <th>Hrs/Full</th>
           <th>Hrs/Half</th>
+          <th>Lunch</th>
           <th>Status</th>
           <th>Action</th>
         </tr>
@@ -76,6 +80,9 @@ require_once __DIR__ . '/../../includes/header.php';
         <td><?= $s['MaxDepartureTime'] ? substr($s['MaxDepartureTime'],0,5) : '—' ?></td>
         <td><?= number_format($s['HrsP'],2) ?></td>
         <td><?= number_format($s['HrsHlf'],2) ?></td>
+        <td class="small"><?= !empty($s['HasLunch'])
+              ? (($s['LunchOutTime'] ? substr($s['LunchOutTime'],0,5) : '?') . '–' . ($s['LunchInTime'] ? substr($s['LunchInTime'],0,5) : '?'))
+              : '<span class="text-muted">None</span>' ?></td>
         <td><?= $s['IsActive'] ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>' ?></td>
         <td>
           <a href="add.php?id=<?= $s['id'] ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>

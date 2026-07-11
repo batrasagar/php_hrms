@@ -862,6 +862,17 @@ $migrations = [
                 ADD COLUMN `EmpLimit`      INT NOT NULL DEFAULT 100 COMMENT '-1 = unlimited' AFTER `MachinesLimit`",
         ],
     ],
+    [
+        'id'    => 'M017',
+        'desc'  => 'Shift lunch break — HasLunch, LunchOutTime, LunchInTime on tblShift',
+        'check' => "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tblShift' AND COLUMN_NAME='HasLunch' LIMIT 1",
+        'stmts' => [
+            "ALTER TABLE `tblShift`
+                ADD COLUMN `HasLunch`     TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Shift includes a lunch break' AFTER `HrsHlf`,
+                ADD COLUMN `LunchOutTime` TIME NULL DEFAULT NULL COMMENT 'Lunch start — employee punches out' AFTER `HasLunch`,
+                ADD COLUMN `LunchInTime`  TIME NULL DEFAULT NULL COMMENT 'Lunch end — employee punches back in' AFTER `LunchOutTime`",
+        ],
+    ],
 ];
 
 // ── DB connection ─────────────────────────────────────────────────────────────
