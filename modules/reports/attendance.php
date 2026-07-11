@@ -184,7 +184,7 @@ require_once __DIR__ . '/../../includes/header.php';
   </div>
 </div>
 <script>
-(function(){
+document.addEventListener('DOMContentLoaded', function(){
   var ACTION_URL = '<?= $actionUrl ?>';
   var ctx = {};
   function coVal(){ return $('#attForm').find('[name=company]').val() || ''; }
@@ -243,7 +243,7 @@ require_once __DIR__ . '/../../includes/header.php';
     }
   });
   $('#aa_clear').on('click', function(){ post({ action:'clear' }); });
-})();
+});
 </script>
 <?php endif; ?>
 
