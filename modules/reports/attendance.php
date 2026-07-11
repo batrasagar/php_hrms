@@ -187,6 +187,7 @@ require_once __DIR__ . '/../../includes/header.php';
           + '<th class="text-center" style="min-width:28px" title="Half Present">HP</th>'
           + '<th class="text-center" style="min-width:28px" title="Absent">A</th>'
           + '<th class="text-center" style="min-width:28px" title="Full Leave">L</th>'
+          + '<th class="text-center" style="min-width:28px" title="Comp Off">CO</th>'
           + '<th class="text-center" style="min-width:28px" title="Half Leave">HL</th>'
           + '</tr></thead>';
 
@@ -203,6 +204,7 @@ require_once __DIR__ . '/../../includes/header.php';
             + '<td class="text-center fw-semibold text-primary">'+(s.HP||'—')+'</td>'
             + '<td class="text-center fw-semibold text-danger">'+s.A+'</td>'
             + '<td class="text-center fw-semibold" style="color:#c0392b">'+(s.L||'—')+'</td>'
+            + '<td class="text-center fw-semibold text-info">'+(s.CO||'—')+'</td>'
             + '<td class="text-center fw-semibold text-warning">'+(s.HL||'—')+'</td></tr>';
     });
     html += '</tbody>';
@@ -210,7 +212,7 @@ require_once __DIR__ . '/../../includes/header.php';
     // tfoot
     html += '<tfoot><tr class="table-dark"><td colspan="2" class="fw-semibold text-center">Daily Total</td>';
     data.dates.forEach(function(d){
-      var dt = data.dayTotals[d.date]||{P:0,HP:0,A:0,L:0,HL:0};
+      var dt = data.dayTotals[d.date]||{P:0,HP:0,A:0,L:0,HL:0,CO:0};
       var bg = d.isSun ? 'background:#444' : (d.isHol ? 'background:#2e7d32' : '');
       html += '<td class="text-center" style="'+bg+'">';
       if      (d.isSun) html += '<span style="color:#aaa;font-size:9px">S</span>';
@@ -221,6 +223,7 @@ require_once __DIR__ . '/../../includes/header.php';
         if (dt.HP) html += '<div style="color:#90caf9;font-size:9px;line-height:1.1">HP:'+dt.HP+'</div>';
         if (dt.A)  html += '<div style="color:#ef9a9a;font-size:9px;line-height:1.1">A:'+dt.A+'</div>';
         if (dt.L)  html += '<div style="color:#ef9a9a;font-size:9px;line-height:1.1">L:'+dt.L+'</div>';
+        if (dt.CO) html += '<div style="color:#4dd0e1;font-size:9px;line-height:1.1">CO:'+dt.CO+'</div>';
         if (dt.HL) html += '<div style="color:#ffe082;font-size:9px;line-height:1.1">HL:'+dt.HL+'</div>';
       }
       html += '</td>';
@@ -230,6 +233,7 @@ require_once __DIR__ . '/../../includes/header.php';
           + '<td class="text-center text-primary fw-bold">'+(g.HP||'—')+'</td>'
           + '<td class="text-center text-danger fw-bold">'+g.A+'</td>'
           + '<td class="text-center fw-bold" style="color:#ef9a9a">'+(g.L||'—')+'</td>'
+          + '<td class="text-center fw-bold" style="color:#4dd0e1">'+(g.CO||'—')+'</td>'
           + '<td class="text-center text-warning fw-bold">'+(g.HL||'—')+'</td>'
           + '</tr></tfoot></table></div>';
 

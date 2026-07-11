@@ -121,6 +121,7 @@ th { background: #e8e8e8; font-weight: 700; }
 .sum-hp { color: #004085; font-weight: 700; }
 .sum-a  { color: #7f0000; font-weight: 700; }
 .sum-l  { color: #7b1a00; font-weight: 700; }
+.sum-co { color: #087990; font-weight: 700; }
 .sum-hs { color: #555; }
 
 .legend { margin-top: 6px; font-size: 8px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
@@ -173,7 +174,7 @@ th { background: #e8e8e8; font-weight: 700; }
   function render(data) {
     var dates = data.dates;
     var emps  = data.employees;
-    var cols  = DAYS_IN_MONTH + 6;
+    var cols  = DAYS_IN_MONTH + 7;
 
     var monthLabel = '';
     try {
@@ -220,12 +221,13 @@ th { background: #e8e8e8; font-weight: 700; }
           + '<th class="col-sum" title="Half Day">HP</th>'
           + '<th class="col-sum" title="Absent">A</th>'
           + '<th class="col-sum" title="Leave">L</th>'
+          + '<th class="col-sum" title="Comp Off">CO</th>'
           + '<th class="col-sum" title="Holiday+Sunday">H+S</th>'
           + '</tr><tr class="dow-row"><th class="col-name"></th>';
     dates.forEach(function (d) {
       html += '<th class="col-day' + (d.isSun ? ' sun-col' : '') + '">' + esc(d.dayName) + '</th>';
     });
-    html += '<th colspan="5"></th></tr></thead><tbody>';
+    html += '<th colspan="6"></th></tr></thead><tbody>';
 
     var prevDept = null;
     emps.forEach(function (emp) {
@@ -236,7 +238,7 @@ th { background: #e8e8e8; font-weight: 700; }
               + esc(emp.department || 'No Department') + '</td></tr>';
       }
 
-      var cntP = 0, cntHP = 0, cntA = 0, cntL = 0, cntHS = 0;
+      var cntP = 0, cntHP = 0, cntA = 0, cntL = 0, cntCO = 0, cntHS = 0;
       var dayCells = '';
       dates.forEach(function (d) {
         var c = emp.days[d.date] || { type: '' };
@@ -244,6 +246,7 @@ th { background: #e8e8e8; font-weight: 700; }
         else if (c.type === 'HOL') cntHS++;
         else if (c.type === 'L')   cntL++;
         else if (c.type === 'HL')  cntL += 0.5;
+        else if (c.type === 'CO')  cntCO++;
         else if (c.type === 'P')   cntP++;
         else if (c.type === 'HP')  cntHP++;
         else if (c.type === 'A')   cntA++;
@@ -260,6 +263,7 @@ th { background: #e8e8e8; font-weight: 700; }
             + '<td class="col-sum sum-hp">' + (cntHP || '') + '</td>'
             + '<td class="col-sum sum-a">'  + (cntA  || '') + '</td>'
             + '<td class="col-sum sum-l">'  + (cntL > 0 ? (Number.isInteger(cntL) ? cntL : cntL.toFixed(1)) : '') + '</td>'
+            + '<td class="col-sum sum-co">' + (cntCO || '') + '</td>'
             + '<td class="col-sum sum-hs">' + (cntHS || '') + '</td></tr>';
     });
 

@@ -46,6 +46,7 @@ $autoload = $fCompany ? 1 : 0;
 .s-hp { color:#004085; font-weight:600; }
 .s-a  { color:#721c24; font-weight:600; }
 .s-l  { color:#7b1a00; font-weight:600; }
+.s-co { color:#087990; font-weight:600; }
 .s-hl { color:#856404; font-weight:600; }
 .s-h  { color:#6c757d; }
 .s-s  { color:#adb5bd; }
@@ -191,6 +192,7 @@ $extraJs = <<<JS
           + '<th class="text-center" style="min-width:30px" title="Half Day">HP</th>'
           + '<th class="text-center" style="min-width:30px" title="Absent">A</th>'
           + '<th class="text-center" style="min-width:30px" title="Leave">L</th>'
+          + '<th class="text-center" style="min-width:30px" title="Comp Off">CO</th>'
           + '<th class="text-center" style="min-width:30px" title="Holiday / Sunday">H+S</th>'
           + '</tr><tr class="table-light"><th></th>';
 
@@ -200,10 +202,10 @@ $extraJs = <<<JS
       html += '<th class="text-center dc" style="font-size:9px;' + (d.isSun ? 'background:#f0f0f0' : '') + '">'
             + DAY_NAMES[dayIdx] + '</th>';
     });
-    html += '<th colspan="5"></th></tr></thead><tbody>';
+    html += '<th colspan="6"></th></tr></thead><tbody>';
 
     emps.forEach(function (emp) {
-      var cntP = 0, cntHP = 0, cntA = 0, cntL = 0, cntHS = 0;
+      var cntP = 0, cntHP = 0, cntA = 0, cntL = 0, cntCO = 0, cntHS = 0;
       var dayCells = '';
       dates.forEach(function (d) {
         var c = emp.days[d.date] || { type: '' };
@@ -211,6 +213,7 @@ $extraJs = <<<JS
         else if (c.type === 'HOL') cntHS++;
         else if (c.type === 'L')   cntL++;
         else if (c.type === 'HL')  cntL += 0.5;
+        else if (c.type === 'CO')  cntCO++;
         else if (c.type === 'P')   cntP++;
         else if (c.type === 'HP')  cntHP++;
         else if (c.type === 'A')   cntA++;
@@ -223,6 +226,7 @@ $extraJs = <<<JS
             + '<td class="text-center fw-semibold s-hp">' + (cntHP || '') + '</td>'
             + '<td class="text-center fw-semibold s-a">'  + (cntA  || '') + '</td>'
             + '<td class="text-center fw-semibold s-l">'  + (cntL  ? (Number.isInteger(cntL) ? cntL : cntL.toFixed(1)) : '') + '</td>'
+            + '<td class="text-center fw-semibold s-co">' + (cntCO || '') + '</td>'
             + '<td class="text-center s-h">'              + (cntHS || '') + '</td></tr>';
     });
 

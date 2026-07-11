@@ -84,6 +84,7 @@ $printedAt  = date('d-m-Y H:i');
   td.sum-hp { color: #004085; }
   td.sum-a  { color: #b71c1c; }
   td.sum-l  { color: #e65100; }
+  td.sum-co { color: #087990; }
   td.sum-hl { color: #856404; }
   .summary-box { margin-top: 8px; border-collapse: collapse; width: auto; }
   .summary-box th { background: #222; color: #fff; font-size: 8px; padding: 3px 6px; text-align: center; }
@@ -194,7 +195,7 @@ $printedAt  = date('d-m-Y H:i');
     });
     html += '<th style="min-width:20px">P</th><th style="min-width:20px">HP</th>'
           + '<th style="min-width:20px">A</th><th style="min-width:20px">L</th>'
-          + '<th style="min-width:20px">HL</th></tr></thead>';
+          + '<th style="min-width:20px">CO</th><th style="min-width:20px">HL</th></tr></thead>';
 
     html += '<tbody>';
     emps.forEach(function (emp) {
@@ -216,6 +217,7 @@ $printedAt  = date('d-m-Y H:i');
             + '<td class="sum sum-hp">' + (s.HP || '&mdash;') + '</td>'
             + '<td class="sum sum-a">'  + s.A  + '</td>'
             + '<td class="sum sum-l">'  + (s.L  || '&mdash;') + '</td>'
+            + '<td class="sum sum-co">' + (s.CO || '&mdash;') + '</td>'
             + '<td class="sum sum-hl">' + (s.HL || '&mdash;') + '</td></tr>';
     });
     html += '</tbody>';
@@ -223,7 +225,7 @@ $printedAt  = date('d-m-Y H:i');
     html += '<tfoot><tr style="background:#222;color:#fff">';
     html += '<td class="col-name" style="text-align:left;font-weight:bold;font-size:8px">Daily Total</td>';
     dates.forEach(function (d) {
-      var dt = totals[d.date] || { P: 0, HP: 0, A: 0, L: 0, HL: 0 };
+      var dt = totals[d.date] || { P: 0, HP: 0, A: 0, L: 0, HL: 0, CO: 0 };
       var bg = d.isSun ? '#444' : (d.isHol ? '#2e7d32' : '#222');
       html += '<td style="background:' + bg + ';font-size:8px;line-height:1.2;padding:1px 2px">';
       if      (d.isSun) html += '<span style="color:#aaa">S</span>';
@@ -234,6 +236,7 @@ $printedAt  = date('d-m-Y H:i');
         if (dt.HP) html += '<div style="color:#90caf9">HP:' + dt.HP + '</div>';
         if (dt.A)  html += '<div style="color:#ef9a9a">A:'  + dt.A  + '</div>';
         if (dt.L)  html += '<div style="color:#ef9a9a">L:'  + dt.L  + '</div>';
+        if (dt.CO) html += '<div style="color:#4dd0e1">CO:' + dt.CO + '</div>';
         if (dt.HL) html += '<div style="color:#ffe082">HL:' + dt.HL + '</div>';
       }
       html += '</td>';
@@ -242,13 +245,14 @@ $printedAt  = date('d-m-Y H:i');
           + '<td style="color:#90caf9;font-weight:bold">' + (grand.HP || '&mdash;') + '</td>'
           + '<td style="color:#ef9a9a;font-weight:bold">' + grand.A  + '</td>'
           + '<td style="color:#ef9a9a;font-weight:bold">' + (grand.L  || '&mdash;') + '</td>'
+          + '<td style="color:#4dd0e1;font-weight:bold">' + (grand.CO || '&mdash;') + '</td>'
           + '<td style="color:#ffe082;font-weight:bold">' + (grand.HL || '&mdash;') + '</td>'
           + '</tr></tfoot></table>';
 
     html += '<table class="summary-box" style="margin-top:8px"><thead><tr>'
           + '<th>Employees</th><th>Working Days</th><th>Present (P)</th>'
           + '<th>Half-Present (HP)</th><th>Absent (A)</th><th>Full Leave (L)</th>'
-          + '<th>Half Leave (HL)</th><th>Holidays</th><th>Attendance %</th>'
+          + '<th>Comp Off (CO)</th><th>Half Leave (HL)</th><th>Holidays</th><th>Attendance %</th>'
           + '</tr></thead><tbody><tr>'
           + '<td>' + data.totalEmps   + '</td>'
           + '<td>' + data.workingDays + '</td>'
@@ -256,6 +260,7 @@ $printedAt  = date('d-m-Y H:i');
           + '<td style="color:#004085">' + grand.HP + '</td>'
           + '<td style="color:#b71c1c">' + grand.A  + '</td>'
           + '<td style="color:#e65100">' + grand.L  + '</td>'
+          + '<td style="color:#087990">' + grand.CO + '</td>'
           + '<td style="color:#856404">' + grand.HL + '</td>'
           + '<td>' + data.holidayCount + '</td>'
           + '<td>' + data.pctP + '% P &nbsp; ' + data.pctA + '% A</td>'

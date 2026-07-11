@@ -225,8 +225,10 @@ require_once __DIR__ . '/../../includes/header.php';
     </div>
     <div class="col-lg-8">
       <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center gap-2 flex-wrap">
           <span class="fw-semibold">Employees <span class="badge bg-secondary"><?= count($employees) ?></span></span>
+          <input type="text" id="empSearch" class="form-control form-control-sm" style="max-width:220px"
+                 placeholder="Search code / name…" autocomplete="off">
           <div class="form-check mb-0">
             <input class="form-check-input" type="checkbox" id="chkAll">
             <label class="form-check-label small" for="chkAll">Select all</label>
@@ -239,9 +241,9 @@ require_once __DIR__ . '/../../includes/header.php';
               if ($e['Department'] !== $prevD):
                   $prevD = $e['Department'];
           ?>
-          <div class="small fw-semibold text-muted mt-2 mb-1 border-bottom pb-1"><?= htmlspecialchars($e['Department'] ?: '— No Department —') ?></div>
+          <div class="small fw-semibold text-muted mt-2 mb-1 border-bottom pb-1 dept-hdr"><?= htmlspecialchars($e['Department'] ?: '— No Department —') ?></div>
           <?php endif; ?>
-          <div class="form-check">
+          <div class="form-check emp-row" data-search="<?= htmlspecialchars(strtolower($e['Name'] . ' ' . ($e['EmployeeCode'] ?: ''))) ?>">
             <input class="form-check-input emp-chk" type="checkbox" name="emp_ids[]" value="<?= $e['id'] ?>" id="e<?= $e['id'] ?>">
             <label class="form-check-label" for="e<?= $e['id'] ?>">
               <?= htmlspecialchars($e['Name']) ?> <span class="text-muted small">(<?= htmlspecialchars($e['EmployeeCode'] ?: '—') ?>)</span>
@@ -254,8 +256,28 @@ require_once __DIR__ . '/../../includes/header.php';
   </div>
 </form>
 <script>
+// Select all — only affects rows currently visible (respects the search filter)
 document.getElementById('chkAll')?.addEventListener('change', function(){
-  document.querySelectorAll('.emp-chk').forEach(c => c.checked = this.checked);
+  var on = this.checked;
+  document.querySelectorAll('.emp-row').forEach(function(row){
+    if (row.style.display !== 'none') { var c = row.querySelector('.emp-chk'); if (c) c.checked = on; }
+  });
+});
+// Live search by code / name
+document.getElementById('empSearch')?.addEventListener('input', function(){
+  var q = this.value.trim().toLowerCase();
+  document.querySelectorAll('.emp-row').forEach(function(row){
+    row.style.display = (!q || (row.dataset.search || '').indexOf(q) !== -1) ? '' : 'none';
+  });
+  // Hide department headers that have no visible members
+  document.querySelectorAll('.dept-hdr').forEach(function(hdr){
+    var vis = false, n = hdr.nextElementSibling;
+    while (n && !n.classList.contains('dept-hdr')) {
+      if (n.classList.contains('emp-row') && n.style.display !== 'none') { vis = true; break; }
+      n = n.nextElementSibling;
+    }
+    hdr.style.display = vis ? '' : 'none';
+  });
 });
 </script>
 <?php elseif ($fCompany): ?>

@@ -61,6 +61,7 @@ $autoload = $fCompany ? 1 : 0;
 .sw-sum-hp { color: #004085; }
 .sw-sum-a  { color: #7f0000; }
 .sw-sum-l  { color: #7b1a00; }
+.sw-sum-co { color: #087990; }
 .sw-sum-hl { color: #856404; }
 </style>
 
@@ -183,7 +184,7 @@ $extraJs = <<<JS
         return { txt: t, sum: c.type };
       case 'A':   return { txt: 'A',  sum: 'A' };
       case 'L':   return { txt: 'L',  sum: 'L' };
-      case 'CO':  return { txt: 'CO', sum: '' };
+      case 'CO':  return { txt: 'CO', sum: 'CO' };
       case 'HL':  return { txt: 'HL' + (c.lvSub ? ' ' + c.lvSub : ''), sum: 'HL' };
       case 'HOL': return { txt: 'H',  sum: '' };
       case 'SUN': return { txt: 'S',  sum: '' };
@@ -198,7 +199,7 @@ $extraJs = <<<JS
       return;
     }
     var dates = data.dates, emps = data.employees;
-    var cols  = dates.length + 6;
+    var cols  = dates.length + 7;
     var s = '<table border="1">';
     s += '<tr><td colspan="' + cols + '"><b>Department-wise Swipe Report &mdash; '
        + esc(data.companyName || '') + ' &mdash; ' + esc(monthLabelOf(data))
@@ -209,10 +210,10 @@ $extraJs = <<<JS
     // Header rows
     s += '<tr><th>Employee</th>';
     dates.forEach(function(d){ s += '<th>' + parseInt(d.dayNum,10) + '</th>'; });
-    s += '<th>P</th><th>HP</th><th>A</th><th>L</th><th>HL</th></tr>';
+    s += '<th>P</th><th>HP</th><th>A</th><th>L</th><th>CO</th><th>HL</th></tr>';
     s += '<tr><th></th>';
     dates.forEach(function(d){ s += '<th>' + esc(d.dayName) + '</th>'; });
-    s += '<th></th><th></th><th></th><th></th><th></th></tr>';
+    s += '<th></th><th></th><th></th><th></th><th></th><th></th></tr>';
 
     var prevDept = null;
     emps.forEach(function(emp){
@@ -220,19 +221,20 @@ $extraJs = <<<JS
         prevDept = emp.department;
         s += '<tr><td colspan="' + cols + '"><b>' + esc(emp.department || 'No Department') + '</b></td></tr>';
       }
-      var cntP=0,cntHP=0,cntA=0,cntL=0,cntHL=0, cells='';
+      var cntP=0,cntHP=0,cntA=0,cntL=0,cntCO=0,cntHL=0, cells='';
       dates.forEach(function(d){
         var r = excelCell(emp.days[d.date] || {type:''});
         if      (r.sum === 'P')  cntP++;
         else if (r.sum === 'HP') cntHP++;
         else if (r.sum === 'A')  cntA++;
         else if (r.sum === 'L')  cntL++;
+        else if (r.sum === 'CO') cntCO++;
         else if (r.sum === 'HL') cntHL++;
         cells += '<td>' + esc(r.txt) + '</td>';
       });
       s += '<tr><td>' + esc((emp.code ? emp.code + ' ' : '') + emp.name) + '</td>' + cells
          + '<td>' + (cntP||'') + '</td><td>' + (cntHP||'') + '</td><td>' + (cntA||'')
-         + '</td><td>' + (cntL||'') + '</td><td>' + (cntHL||'') + '</td></tr>';
+         + '</td><td>' + (cntL||'') + '</td><td>' + (cntCO||'') + '</td><td>' + (cntHL||'') + '</td></tr>';
     });
     s += '</table>';
 
@@ -270,7 +272,7 @@ $extraJs = <<<JS
       monthLabel = new Date(+p[0], +p[1]-1, 1).toLocaleString('default', {month:'long', year:'numeric'});
     } catch(e) { monthLabel = data.fFrom.slice(0,7); }
 
-    var cols = dates.length + 6;
+    var cols = dates.length + 7;
 
     var html = '<div class="card border-0 shadow-sm">'
              + '<div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2 no-print">'
@@ -285,7 +287,7 @@ $extraJs = <<<JS
              + '<span class="me-2" style="color:#6c757d">&#9646; H</span>'
              + '</span></div>'
              + '<div class="card-body p-0" style="overflow-x:auto">'
-             + '<table class="table table-sm table-bordered mb-0" id="tblSwipe" style="min-width:'+(160+dates.length*44+5*28)+'px">'
+             + '<table class="table table-sm table-bordered mb-0" id="tblSwipe" style="min-width:'+(160+dates.length*44+6*28)+'px">'
              + '<thead class="table-dark"><tr>'
              + '<th style="min-width:160px;text-align:left">Employee</th>';
 
@@ -297,6 +299,7 @@ $extraJs = <<<JS
           + '<th class="sw-sum" title="Half Present">HP</th>'
           + '<th class="sw-sum" title="Absent">A</th>'
           + '<th class="sw-sum" title="Leave">L</th>'
+          + '<th class="sw-sum" title="Comp Off">CO</th>'
           + '<th class="sw-sum" title="Half Leave">HL</th>'
           + '</tr>'
           + '<tr class="table-secondary"><th></th>';
@@ -305,7 +308,7 @@ $extraJs = <<<JS
       var bg = d.isSun ? 'background:#555;color:#ccc' : (d.isHol ? 'background:#388e3c;color:#fff' : '');
       html += '<th class="sw-day text-center" style="font-size:8px;'+bg+'">' + esc(d.dayName) + '</th>';
     });
-    html += '<th colspan="5"></th></tr></thead><tbody>';
+    html += '<th colspan="6"></th></tr></thead><tbody>';
 
     var prevDept = null;
     emps.forEach(function(emp) {
@@ -316,7 +319,7 @@ $extraJs = <<<JS
               + '</td></tr>';
       }
 
-      var cntP = 0, cntHP = 0, cntA = 0, cntL = 0, cntHL = 0;
+      var cntP = 0, cntHP = 0, cntA = 0, cntL = 0, cntCO = 0, cntHL = 0;
       var dayCells = '';
       dates.forEach(function(d) {
         var c = emp.days[d.date] || {type:''};
@@ -324,6 +327,7 @@ $extraJs = <<<JS
         else if (c.type === 'HP')  cntHP++;
         else if (c.type === 'A')   cntA++;
         else if (c.type === 'L')   cntL++;
+        else if (c.type === 'CO')  cntCO++;
         else if (c.type === 'HL')  cntHL++;
         var r = renderCell(c);
         dayCells += '<td class="'+r[0]+'">'+r[1]+'</td>';
@@ -339,6 +343,7 @@ $extraJs = <<<JS
             + '<td class="sw-sum sw-sum-hp">' + (cntHP || '') + '</td>'
             + '<td class="sw-sum sw-sum-a">'  + (cntA  || '') + '</td>'
             + '<td class="sw-sum sw-sum-l">'  + (cntL  || '') + '</td>'
+            + '<td class="sw-sum sw-sum-co">' + (cntCO || '') + '</td>'
             + '<td class="sw-sum sw-sum-hl">' + (cntHL || '') + '</td>'
             + '</tr>';
     });

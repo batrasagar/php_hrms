@@ -118,6 +118,7 @@ td.col-sum { font-weight: 700; font-size: 9px; }
 .sum-hp { color: #004085; }
 .sum-a  { color: #7f0000; }
 .sum-l  { color: #7b1a00; }
+.sum-co { color: #087990; }
 .sum-hl { color: #856404; }
 
 .dept-row td { background: #ddd; font-weight: 700; font-size: 9px; text-align: left; padding: 2px 5px; }
@@ -208,9 +209,9 @@ td.col-sum { font-weight: 700; font-size: 9px; }
   // FULL-month totals (emp.summary), so each half-page stays meaningful.
   function buildTable(data, dates) {
     var emps = data.employees;
-    var cols = dates.length + 6;
-    // Exact table width = name(92) + days*34 + 5 summary cols*22
-    var tableW = 92 + dates.length * 34 + 5 * 22;
+    var cols = dates.length + 7;
+    // Exact table width = name(92) + days*34 + 6 summary cols*22
+    var tableW = 92 + dates.length * 34 + 6 * 22;
 
     var html = '<table style="width:' + tableW + 'px"><thead><tr><th class="col-name" style="text-align:left">Employee</th>';
     dates.forEach(function(d) {
@@ -221,6 +222,7 @@ td.col-sum { font-weight: 700; font-size: 9px; }
           + '<th class="col-sum" title="Half Present">HP</th>'
           + '<th class="col-sum" title="Absent">A</th>'
           + '<th class="col-sum" title="Leave">L</th>'
+          + '<th class="col-sum" title="Comp Off">CO</th>'
           + '<th class="col-sum" title="Half Leave">HL</th>'
           + '</tr>'
           + '<tr class="dow-row"><th class="col-name"></th>';
@@ -228,7 +230,7 @@ td.col-sum { font-weight: 700; font-size: 9px; }
       var bg = d.isSun ? 'background:#444' : (d.isHol ? 'background:#388e3c' : '');
       html += '<th class="col-day" style="' + bg + '">' + esc(d.dayName) + '</th>';
     });
-    html += '<th colspan="5"></th></tr></thead><tbody>';
+    html += '<th colspan="6"></th></tr></thead><tbody>';
 
     var prevDept = null;
     emps.forEach(function(emp) {
@@ -256,6 +258,7 @@ td.col-sum { font-weight: 700; font-size: 9px; }
             + '<td class="col-sum sum-hp">' + (s.HP || '') + '</td>'
             + '<td class="col-sum sum-a">'  + (s.A  || '') + '</td>'
             + '<td class="col-sum sum-l">'  + (s.L  || '') + '</td>'
+            + '<td class="col-sum sum-co">' + (s.CO || '') + '</td>'
             + '<td class="col-sum sum-hl">' + (s.HL || '') + '</td>'
             + '</tr>';
     });
