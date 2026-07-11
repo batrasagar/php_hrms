@@ -385,6 +385,9 @@ body.sb-collapsed .app-main { margin-left: var(--sidebar-c); }
 .btn-sm { border-radius: 7px !important; padding: 5px 12px !important; font-size: 12.5px !important; }
 .btn-outline-primary  { color: var(--blue) !important; border-color: var(--blue) !important; }
 .btn-outline-primary:hover  { background: var(--blue) !important; color: #fff !important; }
+.btn-check:checked + .btn-outline-primary,
+.btn-check:active  + .btn-outline-primary,
+.btn-outline-primary.active { background: var(--blue) !important; color: #fff !important; border-color: var(--blue) !important; }
 
 /* ── Form overrides ──────────────────────────────────────────────────── */
 .form-control, .form-select {
