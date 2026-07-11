@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     }
-    $keys = ['show_holiday_punches','show_leave_punches','show_weekoff_punches','show_before_doj','show_after_dol'];
+    $keys = ['show_holiday_punches','show_leave_punches','show_weekoff_punches','show_before_doj','show_after_dol','allow_negative_leave','show_ot_report'];
     $ins  = $db->prepare("INSERT INTO tblSettings (CompanyId,SettingKey,SettingValue) VALUES (?,?,?) ON DUPLICATE KEY UPDATE SettingValue=VALUES(SettingValue)");
     foreach ($keys as $k) {
         $ins->execute([$saveFor, $k, isset($_POST[$k]) ? '1' : '0']);
@@ -75,6 +75,11 @@ if ($fCompany) {
 }
 
 function checked(array $s, string $k): string {
+    return !empty($s[$k]) ? 'checked' : '';
+}
+// Checkbox default used when a setting has never been saved (preserves prior behaviour).
+function checkedDef(array $s, string $k, bool $default): string {
+    if (!array_key_exists($k, $s)) return $default ? 'checked' : '';
     return !empty($s[$k]) ? 'checked' : '';
 }
 
@@ -175,6 +180,42 @@ require_once __DIR__ . '/../../includes/header.php';
               </label>
               <div class="text-muted small mt-1">
                 When ON — if an employee swipes on a Sunday, show the actual punch times instead of the S badge.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="d-flex align-items-start gap-3 p-3 border rounded">
+            <div class="form-check form-switch mb-0 pt-1">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="show_ot_report" name="show_ot_report"
+                     <?= checkedDef($settings, 'show_ot_report', true) ?>>
+            </div>
+            <div>
+              <label class="form-check-label fw-semibold" for="show_ot_report">
+                Show OT (from punches) in Attendance Report
+              </label>
+              <div class="text-muted small mt-1">
+                When ON — the attendance grid shows overtime (worked minutes beyond the shift's full-day hours) under each present day. When OFF — the OT figure is hidden.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="d-flex align-items-start gap-3 p-3 border rounded">
+            <div class="form-check form-switch mb-0 pt-1">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="allow_negative_leave" name="allow_negative_leave"
+                     <?= checkedDef($settings, 'allow_negative_leave', true) ?>>
+            </div>
+            <div>
+              <label class="form-check-label fw-semibold" for="allow_negative_leave">
+                Allow Leave Negative Balance
+              </label>
+              <div class="text-muted small mt-1">
+                When ON — leaves can be marked even if the employee has no remaining balance (balance goes negative). When OFF — marking a leave that would exceed the available balance is blocked.
               </div>
             </div>
           </div>

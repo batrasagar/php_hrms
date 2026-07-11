@@ -54,6 +54,7 @@ $showLvPunch  = !empty($settings['show_leave_punches']);
 $showWoPunch  = !empty($settings['show_weekoff_punches']);
 $showBefDoj   = !empty($settings['show_before_doj']);
 $showAftDol   = !empty($settings['show_after_dol']);
+$showOt       = ($settings['show_ot_report'] ?? '1') !== '0';  // default: show
 
 // ── Employees ─────────────────────────────────────────────────────────────────
 $where  = ['e.CompanyId = ?'];
@@ -322,7 +323,7 @@ foreach ($employees as $e) {
             $cell['in']     = $punch['in'];
             $cell['out']    = $punch['count'] > 1 ? $punch['out'] : null;
             $cell['tot']    = attendMinsToHm($totMins);
-            $cell['ot']     = attendMinsToHm($otMins);
+            $cell['ot']     = $showOt ? attendMinsToHm($otMins) : '';
             $cell['shift']  = $e['ShiftNo'] ? 'S' . $e['ShiftNo'] : '';
             $sorted = $punch['punches']; sort($sorted);
             $cell['punches'] = $sorted;

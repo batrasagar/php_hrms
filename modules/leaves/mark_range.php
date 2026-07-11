@@ -2,6 +2,7 @@
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/hrms_settings.php';
 requireAdmin();
 
 $db   = getDb();
@@ -87,13 +88,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['do_mark'])) {
              ON DUPLICATE KEY UPDATE LeaveType=VALUES(LeaveType), LeaveTypeId=VALUES(LeaveTypeId),
                                      LeaveCode=VALUES(LeaveCode), Reason=VALUES(Reason)"
         );
-        $marked = 0; $skipped = 0;
+        $allowNeg = hrmsAllowNegativeLeave($db, $cid);
+        $dayVal   = $type === 'full_day' ? 1.0 : 0.5;
+        $balYear  = (int)substr($from, 0, 4);
+        $marked = 0; $skipped = 0; $balSkipped = 0;
         foreach ($empWo as $eid => $wo) {
+            // Dates this employee will actually get (after week-off/holiday skipping)
+            $md = [];
             foreach ($dates as $d) {
                 if ($skip) {
                     if (isset($holis[$d])) { $skipped++; continue; }
                     if ($wo !== null && (int)date('w', strtotime($d)) === (int)$wo) { $skipped++; continue; }
                 }
+                $md[] = $d;
+            }
+            if (!$md) continue;
+            // Negative-balance gate (only for a resolved leave type)
+            if ($ltId && !$allowNeg &&
+                hrmsLeaveBalanceAfter($db, $cid, $eid, (int)$ltId, $balYear, '1000-01-01', count($md) * $dayVal) < 0) {
+                $balSkipped++;
+                continue;
+            }
+            foreach ($md as $d) {
                 $ins->execute([$cid, $eid, $d, $type, $ltId, $code, $reason ?: null, $user['id']]);
                 $marked++;
             }
@@ -129,7 +145,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['do_mark'])) {
         }
 
         $msg = "Leave marked: $marked entr" . ($marked === 1 ? 'y' : 'ies') .
-               ($skipped ? " ($skipped week-off/holiday date(s) skipped)." : '.');
+               ($skipped ? " ($skipped week-off/holiday date(s) skipped)" : '') .
+               ($balSkipped ? " — $balSkipped employee(s) skipped for insufficient balance" : '') . '.';
+        if ($balSkipped && !$marked) $msgType = 'danger';
     }
 
     if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=> $msgType==='success','message'=>$msg,'errors'=>[$msg]]); exit; }

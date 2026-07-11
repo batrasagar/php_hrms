@@ -2,6 +2,7 @@
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/hrms_settings.php';
 requireAdmin();
 
 $db   = getDb();
@@ -51,8 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
     foreach ($s->fetchAll() as $lt) { $ltMap[$lt['Code']] = $lt['id']; }
 
     $year = (int)substr($leaveDate, 0, 4);
+    $allowNeg = hrmsAllowNegativeLeave($db, $companyId);
 
-    $saved = 0;
+    $saved = 0; $skipped = 0;
     foreach ($ids as $i => $eid) {
         $eid   = (int)$eid;
         $type  = $types[$i] ?? 'none';
@@ -62,6 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
 
         if ($type !== 'none') {
             $ltId = $code ? ($ltMap[$code] ?? null) : null;
+            if ($ltId && !$allowNeg) {
+                $add = $type === 'full_day' ? 1.0 : 0.5;
+                if (hrmsLeaveBalanceAfter($db, $companyId, $eid, (int)$ltId, $year, $leaveDate, $add) < 0) {
+                    $skipped++; continue;
+                }
+            }
             $db->prepare(
                 "INSERT INTO tblLeave (CompanyId, EmployeeId, LeaveDate, LeaveType, LeaveTypeId, LeaveCode, Reason, CreatedBy)
                  VALUES (?,?,?,?,?,?,?,?)
@@ -101,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
         }
     }
 
-    $successMsg = "Leave marked for $saved employee(s).";
+    $successMsg = "Leave marked for $saved employee(s)." . ($skipped ? " $skipped skipped — insufficient balance." : '');
     if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'message'=>$successMsg]); exit; }
     header("Location: index.php?company=$companyId&date=" . urlencode($leaveDate) . "&saved=$saved");
     exit;

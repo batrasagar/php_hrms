@@ -2,6 +2,7 @@
 define('BASE_URL', '..');
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/hrms_settings.php';
 requireAdmin();
 header('Content-Type: application/json');
 
@@ -77,6 +78,12 @@ switch ($action) {
         $lt->execute([$company, $code]);
         $ltId = $lt->fetchColumn();
         if (!$ltId) fail('Unknown leave code for this company.');
+
+        if (!hrmsAllowNegativeLeave($db, $company)) {
+            $add   = $dayType === 'full_day' ? 1.0 : 0.5;
+            $after = hrmsLeaveBalanceAfter($db, $company, $empId, (int)$ltId, $year, $date, $add);
+            if ($after < 0) fail("Insufficient $code balance — would go to " . rtrim(rtrim(number_format($after, 1), '0'), '.') . " day(s). Enable 'Allow Leave Negative Balance' in Settings to override.");
+        }
 
         $db->prepare(
             "INSERT INTO tblLeave (CompanyId, EmployeeId, LeaveDate, LeaveType, LeaveTypeId, LeaveCode, Reason, CreatedBy)
