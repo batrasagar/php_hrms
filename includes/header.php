@@ -868,6 +868,13 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <!-- Settings -->
       <div class="sb-section-label">Settings</div>
       <li>
+        <a class="sb-item <?= $ap==='settings'?'active':'' ?>"
+           href="<?= $settingsUrl ?>" data-tip="HRMS Settings">
+          <span class="sb-item-icon"><i class="bi bi-toggles"></i></span>
+          <span class="sb-item-label">HRMS Settings</span>
+        </a>
+      </li>
+      <li>
         <a class="sb-item <?= $ap==='notifications'?'active':'' ?>"
            href="<?= $notifUrl ?>" data-tip="Email Notifications">
           <span class="sb-item-icon"><i class="bi bi-envelope-check"></i></span>
