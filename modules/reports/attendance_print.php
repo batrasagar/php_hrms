@@ -77,6 +77,7 @@ $printedAt  = date('d-m-Y H:i');
   td.c-hp { background: #cce5ff; }
   td.c-a  { background: #fff0f0; }
   td.c-l  { background: #ffcccc; }
+  td.c-co { background: #cff4fc; }
   td.c-hl { background: #fff3cd; }
   td.sum  { font-weight: bold; font-size: 10px; }
   td.sum-p  { color: #1b5e20; }
@@ -127,6 +128,7 @@ $printedAt  = date('d-m-Y H:i');
     if (c.type === 'SUN') return ['dt c-s', '<span>S</span>'];
     if (c.type === 'HOL') return ['dt c-h', '<span title="' + esc(c.holName || '') + '">H</span>'];
     if (c.type === 'L')   return ['dt c-l', '<b>L</b>'];
+    if (c.type === 'CO')  return ['dt c-co', '<b>CO</b>'];
     if (c.type === 'HL')  return ['dt c-hl', '<b>HL</b><div>' + esc(c.lvSub || '') + '</div>'];
     if (c.type === 'A')   return ['dt c-a', '<span>A</span>'];
     if (c.type === 'P' || c.type === 'HP') {
@@ -170,6 +172,7 @@ $printedAt  = date('d-m-Y H:i');
           + '<span><span class="l-box" style="background:#cce5ff"></span>HP Half-Present</span>'
           + '<span><span class="l-box" style="background:#fff0f0"></span>A Absent</span>'
           + '<span><span class="l-box" style="background:#ffcccc"></span>L Leave</span>'
+          + '<span><span class="l-box" style="background:#cff4fc"></span>CO Comp Off</span>'
           + '<span><span class="l-box" style="background:#fff3cd"></span>HL Half-Leave</span>'
           + '<span><span class="l-box" style="background:#f0f0f0"></span>H Holiday</span>'
           + '<span><span class="l-box" style="background:#e0e0e0"></span>S Sunday</span>'

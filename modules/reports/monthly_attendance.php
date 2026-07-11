@@ -64,6 +64,7 @@ $autoload = $fCompany ? 1 : 0;
 .ab-hp { background:#cce5ff; color:#004085; }
 .ab-a  { background:#ffcdd2; color:#7f0000; }
 .ab-l  { background:#ff9800; color:#fff; }
+.ab-co { background:#0dcaf0; color:#053d47; }
 .ab-hl { background:#fff3cd; color:#856404; }
 .ab-h  { background:#f0f0f0; color:#6c757d; }
 .ab-s  { background:#eeeeee; color:#9e9e9e; }
@@ -141,6 +142,7 @@ $extraJs = <<<JS
     if (type === 'SUN') return '<span class="att-badge ab-s">S</span>';
     if (type === 'HOL') return '<span class="att-badge ab-h">H</span>';
     if (type === 'L')   return '<span class="att-badge ab-l">L</span>';
+    if (type === 'CO')  return '<span class="att-badge ab-co">CO</span>';
     if (type === 'HL')  return '<span class="att-badge ab-hl">HL</span>';
     if (type === 'P')   return '<span class="att-badge ab-p">P</span>';
     if (type === 'HP')  return '<span class="att-badge ab-hp">HP</span>';

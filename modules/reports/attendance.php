@@ -121,6 +121,7 @@ require_once __DIR__ . '/../../includes/header.php';
       case 'SUN': return ['<span style="font-size:9px">S</span>', '#f0f0f0', 'text-muted'];
       case 'HOL': return ['<span style="font-size:9px" title="'+esc(c.holName)+'">H</span>', '#e8f5e9', 'text-success'];
       case 'L':   return ['<span style="font-size:9px;font-weight:700">L</span>', '#ffcccc', 'text-danger'];
+      case 'CO':  return ['<span style="font-size:9px;font-weight:700">CO</span>', '#cff4fc', 'text-info'];
       case 'HL':
         return ['<span style="font-size:9px;font-weight:700">HL</span><div style="font-size:7px;color:#856404">'+(c.lvSub||'')+'</div>',
                 '#fff3cd', 'text-warning'];
@@ -163,6 +164,7 @@ require_once __DIR__ . '/../../includes/header.php';
           + '<span class="badge bg-primary">HP</span> Half-Present &nbsp;'
           + '<span class="badge bg-danger">A</span> Absent &nbsp;'
           + '<span class="badge" style="background:#dc3545">L</span> Full Leave &nbsp;'
+          + '<span class="badge text-dark" style="background:#6edff6">CO</span> Comp Off &nbsp;'
           + '<span class="badge bg-warning text-dark">HL</span> Half Leave &nbsp;'
           + '<span class="badge bg-light text-muted border">H</span> Holiday &nbsp;'
           + '<span class="badge bg-secondary">S</span> Sunday &nbsp;'

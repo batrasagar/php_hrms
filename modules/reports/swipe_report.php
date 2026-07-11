@@ -51,6 +51,7 @@ $autoload = $fCompany ? 1 : 0;
 .sw-hp { background: #cce5ff; }
 .sw-a  { background: #ffcdd2; color: #7f0000; }
 .sw-l  { background: #ffcccc; color: #7b1a00; }
+.sw-co { background: #cff4fc; color: #053d47; }
 .sw-hl { background: #fff3cd; color: #856404; }
 .sw-h  { background: #f0f0f0; color: #6c757d; }
 .sw-s  { background: #e0e0e0; color: #9e9e9e; }
@@ -142,6 +143,7 @@ $extraJs = <<<JS
     if (c.type === 'SUN') return ['sw-day sw-s', '<span class="sw-badge sw-s">S</span>'];
     if (c.type === 'HOL') return ['sw-day sw-h', '<span class="sw-badge sw-h" title="'+esc(c.holName||'')+'">H</span>'];
     if (c.type === 'L')   return ['sw-day sw-l', '<span class="sw-badge sw-l">L</span>'];
+    if (c.type === 'CO')  return ['sw-day sw-co', '<span class="sw-badge sw-co">CO</span>'];
     if (c.type === 'HL')  return ['sw-day sw-hl','<span class="sw-badge sw-hl">HL</span><div style="font-size:8px">'+esc(c.lvSub||'')+'</div>'];
     if (c.type === 'A')   return ['sw-day sw-a', '<span class="sw-badge sw-a">A</span>'];
     if (c.type === 'P' || c.type === 'HP') {
@@ -181,6 +183,7 @@ $extraJs = <<<JS
         return { txt: t, sum: c.type };
       case 'A':   return { txt: 'A',  sum: 'A' };
       case 'L':   return { txt: 'L',  sum: 'L' };
+      case 'CO':  return { txt: 'CO', sum: '' };
       case 'HL':  return { txt: 'HL' + (c.lvSub ? ' ' + c.lvSub : ''), sum: 'HL' };
       case 'HOL': return { txt: 'H',  sum: '' };
       case 'SUN': return { txt: 'S',  sum: '' };

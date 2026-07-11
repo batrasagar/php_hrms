@@ -76,6 +76,7 @@ foreach ($sftStmt->fetchAll() as $sr) $shiftMap[(int)$sr['id']] = $sr;
 
 // ── Leaves, holidays, punches ─────────────────────────────────────────────────
 $leaveDates   = [];
+$leaveCodes   = [];
 $holidayDates = [];
 $punchMap     = [];
 $fetchErrors  = [];
@@ -84,10 +85,11 @@ if (!empty($employees)) {
     $ids = implode(',', array_column($employees, 'id'));
 
     foreach ($db->query(
-        "SELECT EmployeeId, LeaveDate, LeaveType FROM tblLeave
+        "SELECT EmployeeId, LeaveDate, LeaveType, LeaveCode FROM tblLeave
          WHERE EmployeeId IN ($ids) AND LeaveDate BETWEEN '$fFrom' AND '$fTo'"
     )->fetchAll() as $lv) {
         $leaveDates[$lv['EmployeeId']][$lv['LeaveDate']] = $lv['LeaveType'];
+        $leaveCodes[$lv['EmployeeId']][$lv['LeaveDate']] = $lv['LeaveCode'];
     }
 
     $hStmt = $db->prepare("SELECT HolidayDate, Name FROM tblHoliday WHERE CompanyId=? AND HolidayDate BETWEEN ? AND ?");
@@ -213,12 +215,12 @@ foreach ($dates as $dt) {
 
 // ── Build employee rows & totals ──────────────────────────────────────────────
 $dayTotals    = [];
-foreach ($dates as $dt) $dayTotals[$dt] = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0];
-$grand        = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0];
+foreach ($dates as $dt) $dayTotals[$dt] = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
+$grand        = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
 $employeeRows = [];
 
 foreach ($employees as $e) {
-    $presentDays = 0; $hpDays = 0; $absentDays = 0; $fullLv = 0; $halfLv = 0;
+    $presentDays = 0; $hpDays = 0; $absentDays = 0; $fullLv = 0; $halfLv = 0; $compOff = 0;
     $days = [];
 
     foreach ($dates as $dt) {
@@ -227,6 +229,7 @@ foreach ($employees as $e) {
         $isHol  = isset($holidayDates[$dt]);
         $isFut  = ($dt > $today);
         $lvType = $leaveDates[$e['id']][$dt] ?? null;
+        $lvCode = $leaveCodes[$e['id']][$dt] ?? null;
         $punch  = $punchMap[$e['EmployeeCode']][$dt] ?? null;
         $cell   = ['type' => ''];
 
@@ -246,11 +249,19 @@ foreach ($employees as $e) {
             $cell['type']    = 'HOL';
             $cell['holName'] = $holidayDates[$dt];
         } elseif ($lvType === 'full_day' && !($showLvPunch && $punch)) {
-            $cell['type'] = 'L';
-            $fullLv++; $dayTotals[$dt]['L']++;
+            // Comp-off (code CO) renders as its own marker, tallied separately
+            if ($lvCode === 'CO') {
+                $cell['type'] = 'CO';
+                $compOff++; $dayTotals[$dt]['CO']++;
+            } else {
+                $cell['type']   = 'L';
+                $cell['lvCode'] = $lvCode;
+                $fullLv++; $dayTotals[$dt]['L']++;
+            }
         } elseif (($lvType === 'half_am' || $lvType === 'half_pm') && !($showLvPunch && $punch)) {
-            $cell['type']  = 'HL';
-            $cell['lvSub'] = $lvType === 'half_am' ? 'AM' : 'PM';
+            $cell['type']   = 'HL';
+            $cell['lvSub']  = $lvType === 'half_am' ? 'AM' : 'PM';
+            $cell['lvCode'] = $lvCode;
             $halfLv++; $dayTotals[$dt]['HL']++;
         } elseif ($punch) {
             $shiftRec  = $shiftMap[(int)($e['ShiftNo'] ?? 0)] ?? null;
@@ -289,6 +300,7 @@ foreach ($employees as $e) {
     $grand['A']  += $absentDays;
     $grand['L']  += $fullLv;
     $grand['HL'] += $halfLv;
+    $grand['CO'] += $compOff;
 
     $employeeRows[] = [
         'id'         => (int)$e['id'],
@@ -299,7 +311,7 @@ foreach ($employees as $e) {
         'department' => $e['Department'] ?? '',
         'shiftNo'    => $e['ShiftNo'] ?? '',
         'days'       => $days,
-        'summary'    => ['P'=>$presentDays,'HP'=>$hpDays,'A'=>$absentDays,'L'=>$fullLv,'HL'=>$halfLv],
+        'summary'    => ['P'=>$presentDays,'HP'=>$hpDays,'A'=>$absentDays,'L'=>$fullLv,'HL'=>$halfLv,'CO'=>$compOff],
     ];
 }
 
