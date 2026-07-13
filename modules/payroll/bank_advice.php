@@ -16,9 +16,9 @@ $s->execute([$runId]);
 $run = $s->fetch();
 if (!$run) { http_response_code(404); die('Run not found.'); }
 
-if ($user['role'] === 'admin') {
+if (in_array($user['role'], ['admin','operator'], true)) {
     $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$run['CompanyId'], $user['id']]);
+    $chk->execute([$run['CompanyId'], $user['scope_id']]);
     if (!$chk->fetch()) { http_response_code(403); die('Access denied.'); }
 } elseif ($user['role'] === 'user') {
     if ($run['CompanyId'] != $user['company_id']) { http_response_code(403); die('Access denied.'); }

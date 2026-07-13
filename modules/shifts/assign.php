@@ -12,7 +12,7 @@ if ($user['role'] === 'superadmin') {
     $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['id']]);
+    $s->execute([$user['scope_id']]);
     $companiesDd = $s->fetchAll();
 }
 
@@ -30,9 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
     foreach ($ids as $i => $id) {
         $id = (int)$id;
         if (!$id) continue;
-        if ($user['role'] === 'admin') {
+        if (in_array($user['role'], ['admin','operator'], true)) {
             $chk = $db->prepare("SELECT e.id FROM tblEmployee e JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=? WHERE e.id=?");
-            $chk->execute([$user['id'], $id]);
+            $chk->execute([$user['scope_id'], $id]);
             if (!$chk->fetch()) continue;
         }
         $shiftNo = ($shiftNos[$i] ?? '') !== '' ? (int)$shiftNos[$i] : null;
@@ -63,7 +63,7 @@ if ($fCompany) {
 
     $where  = ['e.CompanyId = ?'];
     $params = [$fCompany];
-    if ($user['role'] === 'admin') { $where[] = 'c.AdminId = ?'; $params[] = $user['id']; }
+    if (in_array($user['role'], ['admin','operator'], true)) { $where[] = 'c.AdminId = ?'; $params[] = $user['scope_id']; }
     if ($fDept) { $where[] = 'e.Department = ?'; $params[] = $fDept; }
     $wsql = 'WHERE ' . implode(' AND ', $where);
 
@@ -87,7 +87,7 @@ if ($fCompany) {
     $employees = $stmt->fetchAll();
 
     $cid = (int)$fCompany;
-    $scopeExtra = $user['role'] === 'admin' ? "AND c.AdminId={$user['id']}" : '';
+    $scopeExtra = in_array($user['role'], ['admin','operator'], true) ? "AND c.AdminId={$user['scope_id']}" : '';
     $depts = array_filter(array_column(
         $db->query("SELECT DISTINCT e.Department FROM tblEmployee e
                     JOIN tblCompany c ON c.id=e.CompanyId

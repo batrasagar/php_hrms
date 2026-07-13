@@ -11,7 +11,7 @@ if ($user['role'] === 'superadmin') {
     $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companiesDd = $stmt->fetchAll();
 }
 
@@ -21,7 +21,7 @@ $fYear    = (int)($_GET['year'] ?? date('Y'));
 function canAccess($db, $user, $cid) {
     if ($user['role'] === 'superadmin') return true;
     $s = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $s->execute([$cid, $user['id']]); return (bool)$s->fetch();
+    $s->execute([$cid, $user['scope_id']]); return (bool)$s->fetch();
 }
 
 $msg = ''; $err = '';

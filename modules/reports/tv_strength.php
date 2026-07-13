@@ -20,7 +20,7 @@ if ($role === 'user') {
     if ($fCompany) { $n = $db->prepare("SELECT Name FROM tblCompany WHERE id=?"); $n->execute([$fCompany]); $scopeName = $n->fetchColumn() ?: 'Company'; }
 } else {
     $fCompany   = (int)($_GET['company'] ?? 0);
-    $base       = 'c.AdminId = ' . (int)$user['id'];
+    $base       = 'c.AdminId = ' . (int)$user['scope_id'];
     $scopeWhere = $fCompany ? "$base AND e.CompanyId = $fCompany" : $base;
     $scopeName  = 'All Companies';
     if ($fCompany) { $n = $db->prepare("SELECT Name FROM tblCompany WHERE id=?"); $n->execute([$fCompany]); $scopeName = $n->fetchColumn() ?: 'Company'; }

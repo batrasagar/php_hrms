@@ -18,7 +18,7 @@ if ($user['role'] === 'user') {
     $fCompany    = (int)($_GET['company'] ?? 0);
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companiesDd = $stmt->fetchAll();
     $fCompany    = (int)($_GET['company'] ?? 0);
 }
@@ -26,7 +26,7 @@ if ($user['role'] === 'user') {
 $scopeWhere = match($user['role']) {
     'superadmin' => '1',
     'user'       => 'e.CompanyId = ' . (int)$fCompany,
-    default      => 'c.AdminId = ' . $user['id'],
+    default      => 'c.AdminId = ' . $user['scope_id'],
 };
 $coFilter   = ($fCompany && $user['role'] !== 'user') ? "AND e.CompanyId = $fCompany" : '';
 

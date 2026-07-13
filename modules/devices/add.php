@@ -16,7 +16,7 @@ if ($user['role'] === 'superadmin') {
     )->fetchAll();
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companies = $stmt->fetchAll();
 }
 

@@ -12,7 +12,7 @@ if ($user['role'] === 'superadmin') {
     $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companiesDd = $stmt->fetchAll();
 }
 
@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
         // Scope guard
         if ($user['role'] !== 'superadmin') {
             $chk = $db->prepare("SELECT e.id FROM tblEmployee e JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=? WHERE e.id=?");
-            $chk->execute([$user['id'], $id]);
+            $chk->execute([$user['scope_id'], $id]);
             if (!$chk->fetch()) continue;
         }
 
@@ -78,7 +78,7 @@ if (isset($_GET['saved'])) $msg = 'Saved ' . (int)$_GET['saved'] . ' row(s).';
 // Load employees for selected company
 $where  = $fCompany ? ['e.CompanyId = ?'] : [];
 $params = $fCompany ? [$fCompany] : [];
-if ($user['role'] !== 'superadmin') { $where[] = 'c.AdminId = ?'; $params[] = $user['id']; }
+if ($user['role'] !== 'superadmin') { $where[] = 'c.AdminId = ?'; $params[] = $user['scope_id']; }
 if ($fDept) { $where[] = 'e.Department = ?'; $params[] = $fDept; }
 $wsql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
@@ -95,7 +95,7 @@ $stmt = $db->prepare(
 $stmt->execute($params);
 $employees = $stmt->fetchAll();
 
-$scopeJoin = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=' . $user['id'];
+$scopeJoin = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=' . $user['scope_id'];
 $depts = array_filter(array_column(
     $db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(),
     'Department'

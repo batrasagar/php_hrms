@@ -15,7 +15,7 @@ if ($user['role'] === 'superadmin') {
     $companies = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companies = $stmt->fetchAll();
 }
 
@@ -27,7 +27,7 @@ if ($editId) {
         $q = $db->prepare(
             "SELECT h.* FROM tblHoliday h JOIN tblCompany c ON c.id=h.CompanyId AND c.AdminId=? WHERE h.id=?"
         );
-        $q->execute([$user['id'], $editId]);
+        $q->execute([$user['scope_id'], $editId]);
     }
     $f = $q->fetch();
     if (!$f) { header('Location: index.php'); exit; }
@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors && $user['role'] !== 'superadmin') {
         $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-        $chk->execute([$companyId, $user['id']]);
+        $chk->execute([$companyId, $user['scope_id']]);
         if (!$chk->fetch()) $errors[] = 'Invalid company.';
     }
 

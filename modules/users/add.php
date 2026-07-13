@@ -2,13 +2,13 @@
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
-requireAdmin();
+requireUserAdmin();
 $editId = (int)($_GET['edit'] ?? 0);
 
 $db      = getDb();
 $user    = currentUser();
 $errors  = [];
-$row     = ['Name' => '', 'Email' => '', 'Role' => 'user', 'IsActive' => 1, 'CompanyId' => 0];
+$row     = ['Name' => '', 'Email' => '', 'Role' => 'user', 'IsActive' => 1, 'CompanyId' => 0, 'ParentAdminId' => 0];
 
 // Companies this admin owns (for user-role company assignment)
 if ($user['role'] === 'superadmin') {
@@ -17,6 +17,12 @@ if ($user['role'] === 'superadmin') {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
     $stmt->execute([$user['id']]);
     $companies = $stmt->fetchAll();
+}
+
+// Admins a superadmin can attach an operator to (an operator manages this admin's companies).
+$admins = [];
+if ($user['role'] === 'superadmin') {
+    $admins = $db->query("SELECT id, Name FROM tblUser WHERE Role='admin' AND IsActive=1 ORDER BY Name")->fetchAll();
 }
 
 if ($editId) {
@@ -40,11 +46,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pass      = $_POST['Password']  ?? '';
     $pass2     = $_POST['Password2'] ?? '';
 
-    // Role: admin can only create user-role accounts
+    // Role. Superadmin: user/admin/operator. Admin: user/operator. Others: user only.
+    // Operators are co-admins scoped to their parent admin's companies (see currentUser()).
     $role = 'user';
     if ($user['role'] === 'superadmin') {
-        $role = in_array($_POST['Role'] ?? '', ['admin', 'user']) ? $_POST['Role'] : 'user';
+        $role = in_array($_POST['Role'] ?? '', ['admin', 'user', 'operator'], true) ? $_POST['Role'] : 'user';
+    } elseif ($user['role'] === 'admin') {
+        $role = in_array($_POST['Role'] ?? '', ['user', 'operator'], true) ? $_POST['Role'] : 'user';
     }
+
+    // Parent admin an operator works under. Superadmin picks it; an admin is always the parent.
+    $parentAdminSel = (int)($_POST['ParentAdminId'] ?? 0);
+    if ($role === 'operator') $companyId = 0; // operators span all of the admin's companies
 
     if (!$name)  $errors[] = 'Name is required.';
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Valid email required.';
@@ -52,6 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($pass && $pass !== $pass2) $errors[] = 'Passwords do not match.';
     if ($pass && strlen($pass) < 6) $errors[] = 'Password must be at least 6 characters.';
     if ($role === 'user' && !$companyId) $errors[] = 'Please select a company for this user.';
+    if ($role === 'operator' && $user['role'] === 'superadmin' && !$parentAdminSel) {
+        $errors[] = 'Please select the parent admin this operator will work under.';
+    }
 
     // Validate company belongs to this admin
     if ($companyId && $user['role'] !== 'superadmin') {
@@ -60,16 +76,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$chk->fetch()) { $errors[] = 'Invalid company selected.'; $companyId = 0; }
     }
 
+    // Resolve the parent admin. An operator created by an admin belongs to that admin;
+    // one created by a superadmin belongs to the selected admin. Admins/users have none.
+    if ($role === 'operator') {
+        $parentId = $user['role'] === 'superadmin' ? $parentAdminSel : $user['id'];
+    } else {
+        $parentId = $user['role'] === 'superadmin' ? 0 : $user['id'];
+    }
+
     if (!$errors) {
         if ($editId) {
-            $sql    = "UPDATE tblUser SET Name=?, Email=?, Role=?, IsActive=?, CompanyId=? WHERE id=?";
-            $params = [$name, $email, $role, $isActive, $companyId ?: null, $editId];
-            if ($pass) {
-                $sql    = "UPDATE tblUser SET Name=?, Email=?, Role=?, IsActive=?, CompanyId=?, Password=? WHERE id=?";
-                $params = [$name, $email, $role, $isActive, $companyId ?: null, password_hash($pass, PASSWORD_DEFAULT), $editId];
+            $cols   = "Name=?, Email=?, Role=?, IsActive=?, CompanyId=?";
+            $params = [$name, $email, $role, $isActive, $companyId ?: null];
+            // Let a superadmin (re)assign the operator's parent admin on edit.
+            if ($role === 'operator' && $user['role'] === 'superadmin') {
+                $cols    .= ", ParentAdminId=?";
+                $params[] = $parentId ?: (int)($row['ParentAdminId'] ?? 0);
             }
+            if ($pass) { $cols .= ", Password=?"; $params[] = password_hash($pass, PASSWORD_DEFAULT); }
+            $params[] = $editId;
+            $sql = "UPDATE tblUser SET $cols WHERE id=?";
         } else {
-            $parentId = $user['role'] === 'superadmin' ? 0 : $user['id'];
             $sql    = "INSERT INTO tblUser (Name, Email, Password, Role, IsActive, CompanyId, ParentAdminId, Status)
                        VALUES (?, ?, ?, ?, ?, ?, ?, 'active')";
             $params = [$name, $email, password_hash($pass, PASSWORD_DEFAULT), $role, $isActive, $companyId ?: null, $parentId];
@@ -84,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>false,'errors'=>$errors]); exit; }
-    $row = ['Name' => $name, 'Email' => $email, 'Role' => $role, 'IsActive' => $isActive, 'CompanyId' => $companyId];
+    $row = ['Name' => $name, 'Email' => $email, 'Role' => $role, 'IsActive' => $isActive, 'CompanyId' => $companyId, 'ParentAdminId' => $parentAdminSel];
 }
 
 $pageTitle  = $editId ? 'Edit User' : 'Add User';
@@ -116,15 +143,39 @@ require_once __DIR__ . '/../../includes/header.php';
       <?php if ($user['role'] === 'superadmin'): ?>
       <div class="mb-3">
         <label class="form-label">Role</label>
-        <select name="Role" class="form-select" id="roleSelect" onchange="toggleCompany()">
-          <option value="user"  <?= ($row['Role'] ?? 'user') === 'user'  ? 'selected' : '' ?>>User</option>
-          <option value="admin" <?= ($row['Role'] ?? '') === 'admin' ? 'selected' : '' ?>>Admin</option>
+        <select name="Role" class="form-select" id="roleSelect" onchange="toggleRole()">
+          <option value="user"     <?= ($row['Role'] ?? 'user') === 'user'     ? 'selected' : '' ?>>User</option>
+          <option value="admin"    <?= ($row['Role'] ?? '') === 'admin'    ? 'selected' : '' ?>>Admin</option>
+          <option value="operator" <?= ($row['Role'] ?? '') === 'operator' ? 'selected' : '' ?>>Operator</option>
         </select>
+      </div>
+      <?php elseif ($user['role'] === 'admin'): ?>
+      <div class="mb-3">
+        <label class="form-label">Role</label>
+        <select name="Role" class="form-select" id="roleSelect" onchange="toggleRole()">
+          <option value="user"     <?= ($row['Role'] ?? 'user') === 'user'     ? 'selected' : '' ?>>User</option>
+          <option value="operator" <?= ($row['Role'] ?? '') === 'operator' ? 'selected' : '' ?>>Operator</option>
+        </select>
+        <div class="form-text">An operator can do everything in your companies except manage users.</div>
       </div>
       <?php else: ?>
       <input type="hidden" name="Role" value="user">
       <?php endif; ?>
-      <div class="mb-3" id="companyRow" <?= (($row['Role'] ?? 'user') === 'admin') ? 'style="display:none"' : '' ?>>
+      <?php if ($user['role'] === 'superadmin'): ?>
+      <div class="mb-3" id="parentAdminRow" <?= (($row['Role'] ?? '') === 'operator') ? '' : 'style="display:none"' ?>>
+        <label class="form-label">Parent Admin <span class="text-danger">*</span></label>
+        <select name="ParentAdminId" class="form-select">
+          <option value="">— Select Admin —</option>
+          <?php foreach ($admins as $a): ?>
+          <option value="<?= $a['id'] ?>" <?= (int)($row['ParentAdminId'] ?? 0) === $a['id'] ? 'selected' : '' ?>>
+            <?= htmlspecialchars($a['Name']) ?>
+          </option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text">The operator will manage all companies under this admin.</div>
+      </div>
+      <?php endif; ?>
+      <div class="mb-3" id="companyRow" <?= (($row['Role'] ?? 'user') === 'user') ? '' : 'style="display:none"' ?>>
         <label class="form-label">Assign Company <span class="text-danger">*</span></label>
         <select name="CompanyId" class="form-select">
           <option value="">— Select Company —</option>
@@ -148,9 +199,12 @@ require_once __DIR__ . '/../../includes/header.php';
   </div>
 </div>
 <script>
-function toggleCompany() {
+function toggleRole() {
   var role = document.getElementById('roleSelect')?.value ?? 'user';
-  document.getElementById('companyRow').style.display = role === 'admin' ? 'none' : '';
+  var companyRow = document.getElementById('companyRow');
+  var parentRow  = document.getElementById('parentAdminRow');
+  if (companyRow) companyRow.style.display = (role === 'user')     ? '' : 'none';
+  if (parentRow)  parentRow.style.display  = (role === 'operator') ? '' : 'none';
 }
 </script>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

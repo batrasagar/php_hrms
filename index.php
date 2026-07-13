@@ -38,9 +38,10 @@ $myLinks = $myLinks->fetchAll(PDO::FETCH_ASSOC);
 // ── Companies for the live attendance-summary panel ───────────────────────────
 if ($role === 'superadmin') {
     $dashCos = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll(PDO::FETCH_ASSOC);
-} elseif ($role === 'admin') {
+} elseif ($role === 'admin' || $role === 'operator') {
+    // Operators see their parent admin's companies (scope_id); admins see their own.
     $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$uid]); $dashCos = $s->fetchAll(PDO::FETCH_ASSOC);
+    $s->execute([(int)$user['scope_id']]); $dashCos = $s->fetchAll(PDO::FETCH_ASSOC);
 } else {
     $dashCos = [];
 }

@@ -14,7 +14,7 @@ $user = currentUser();
 if ($user['role'] === 'superadmin') {
     $companies = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
-    $adminId   = ($user['role'] === 'admin') ? $user['id'] : ($user['parent_admin_id'] ?? null);
+    $adminId   = (in_array($user['role'], ['admin','operator'], true)) ? $user['scope_id'] : ($user['parent_admin_id'] ?? null);
     $stmt      = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
     $stmt->execute([$adminId]);
     $companies = $stmt->fetchAll();
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Authorise company access
     if ($fCompany && $user['role'] !== 'superadmin') {
         $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-        $chk->execute([$fCompany, $user['id']]);
+        $chk->execute([$fCompany, $user['scope_id']]);
         if (!$chk->fetch()) { $fCompany = 0; }
     }
 

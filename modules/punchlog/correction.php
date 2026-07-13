@@ -14,7 +14,7 @@ if ($user['role'] === 'superadmin') {
     $companies = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companies = $stmt->fetchAll();
 }
 
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save'])) {
     // Auth guard
     if ($user['role'] !== 'superadmin') {
         $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-        $chk->execute([$cid, $user['id']]);
+        $chk->execute([$cid, $user['scope_id']]);
         if (!$chk->fetch()) { $err = 'Unauthorized company.'; if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>false,'errors'=>[$err]]); exit; } goto render; }
     }
 
@@ -94,7 +94,7 @@ if (isset($_GET['del'])) {
             DELETE c FROM tblPunchLogCorrection c
             JOIN tblCompany co ON co.id=c.CompanyId AND co.AdminId=?
             WHERE c.id=?
-        ")->execute([$user['id'], $delId]);
+        ")->execute([$user['scope_id'], $delId]);
     }
     header('Location: correction.php?company=' . $fCompany);
     exit;
@@ -109,7 +109,7 @@ if ($fCompany) {
     $params = [$fCompany];
     if ($user['role'] !== 'superadmin') {
         $where[] = 'co.AdminId = ?';
-        $params[] = $user['id'];
+        $params[] = $user['scope_id'];
     }
     $params[] = $fDate;
     $stmt = $db->prepare("

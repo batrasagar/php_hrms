@@ -10,9 +10,9 @@ $user = currentUser();
 // ── Build accessible company names ────────────────────────────────────────────
 if ($user['role'] === 'superadmin') {
     $accessibleNames = null; // null = no filter (see all)
-} elseif ($user['role'] === 'admin') {
+} elseif (in_array($user['role'], ['admin','operator'], true)) {
     $stmt = $db->prepare("SELECT Name FROM tblCompany WHERE AdminId=? AND IsActive=1");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $accessibleNames = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } else {
     $parentId = $user['parent_admin_id'];
@@ -30,7 +30,7 @@ if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
     if ($user['role'] === 'superadmin') {
         $db->prepare("DELETE FROM tblDevices WHERE id=?")->execute([$id]);
-    } elseif ($user['role'] === 'admin' && !empty($accessibleNames)) {
+    } elseif (in_array($user['role'], ['admin','operator'], true) && !empty($accessibleNames)) {
         $ph = implode(',', array_fill(0, count($accessibleNames), '?'));
         $db->prepare("DELETE FROM tblDevices WHERE id=? AND Company IN ($ph)")
            ->execute([$id, ...$accessibleNames]);

@@ -873,6 +873,20 @@ $migrations = [
                 ADD COLUMN `LunchInTime`  TIME NULL DEFAULT NULL COMMENT 'Lunch end — employee punches back in' AFTER `LunchOutTime`",
         ],
     ],
+    [
+        'id'    => 'M018',
+        'desc'  => "Add 'operator' role to tblUser.Role (co-admin, everything except user management)",
+        // Pure ENUM change has no column/table to probe, so a marker table gates the check:
+        // it is absent (query throws → pending) until this migration creates it.
+        'check' => "SELECT 1 FROM `tblMigOperatorRole` LIMIT 1",
+        'stmts' => [
+            "ALTER TABLE `tblUser` MODIFY COLUMN `Role`
+                ENUM('superadmin','admin','user','operator') NOT NULL DEFAULT 'user'",
+            "CREATE TABLE IF NOT EXISTS `tblMigOperatorRole` (
+                `id` TINYINT UNSIGNED NOT NULL PRIMARY KEY DEFAULT 1
+            ) ENGINE=InnoDB",
+        ],
+    ],
 ];
 
 // ── DB connection ─────────────────────────────────────────────────────────────

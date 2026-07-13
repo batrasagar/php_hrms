@@ -15,9 +15,9 @@ $fContractor = trim($_GET['contractor']  ?? '');
 
 if (!$fCompany) { echo 'No company selected.'; exit; }
 
-if ($user['role'] === 'admin') {
+if (in_array($user['role'], ['admin','operator'], true)) {
     $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$fCompany, $user['id']]);
+    $chk->execute([$fCompany, $user['scope_id']]);
     if (!$chk->fetch()) { echo 'Access denied.'; exit; }
 }
 

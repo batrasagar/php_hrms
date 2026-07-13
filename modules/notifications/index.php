@@ -54,13 +54,13 @@ if ($user['role'] === 'superadmin') {
     $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['id']]);
+    $s->execute([$user['scope_id']]);
     $companiesDd = $s->fetchAll();
 }
 $fCompany = (int)($_REQUEST['company'] ?? ($companiesDd[0]['id'] ?? 0));
-if ($fCompany && $user['role'] === 'admin') {
+if ($fCompany && in_array($user['role'], ['admin','operator'], true)) {
     $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$fCompany, $user['id']]);
+    $chk->execute([$fCompany, $user['scope_id']]);
     if (!$chk->fetch()) $fCompany = 0;
 }
 

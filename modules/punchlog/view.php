@@ -21,7 +21,7 @@ if ($user['role'] === 'superadmin') {
         "SELECT SerialNumber, Company, LastSyncedAt FROM tblDevices ORDER BY Company, SerialNumber"
     )->fetchAll();
 } else {
-    $adminId    = ($user['role'] === 'admin') ? $user['id'] : ($user['parent_admin_id'] ?? null);
+    $adminId    = (in_array($user['role'], ['admin','operator'], true)) ? $user['scope_id'] : ($user['parent_admin_id'] ?? null);
     $devices    = [];
     if ($adminId) {
         $nameStmt = $db->prepare("SELECT Name FROM tblCompany WHERE AdminId=? AND IsActive=1");

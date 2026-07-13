@@ -617,7 +617,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       </li>
 <?php endif; ?>
 
-<?php if (in_array($user['role'], ['superadmin','admin'])): ?>
+<?php if (in_array($user['role'], ['superadmin','admin','operator'])): ?>
 <?php
   $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','emp_left','print']) ? 'show' : '';
   $shiftOpen   = in_array($ap, ['shifts','shift_defaults','shift_assign','shift_cyclic','compoff']) ? 'show' : '';

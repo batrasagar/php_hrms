@@ -183,13 +183,13 @@ if ($user['role'] === 'superadmin') {
     $companies = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companies = $stmt->fetchAll();
 }
 
 // Datalist sources
 $scopeWhere  = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id = e.CompanyId WHERE c.AdminId = ?';
-$scopeParams = $user['role'] === 'superadmin' ? [] : [$user['id']];
+$scopeParams = $user['role'] === 'superadmin' ? [] : [$user['scope_id']];
 
 $deptStmt = $db->prepare("SELECT DISTINCT Department FROM tblEmployee e $scopeWhere ORDER BY Department");
 $deptStmt->execute($scopeParams);
@@ -214,7 +214,7 @@ if ($editId) {
              JOIN tblCompany c ON c.id = e.CompanyId AND c.AdminId = ?
              WHERE e.id = ?"
         );
-        $q->execute([$user['id'], $editId]);
+        $q->execute([$user['scope_id'], $editId]);
     }
     $fetched = $q->fetch();
     if (!$fetched) { header('Location: index.php'); exit; }
@@ -245,7 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!$errors && $user['role'] !== 'superadmin') {
         $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-        $chk->execute([$rec['CompanyId'], $user['id']]);
+        $chk->execute([$rec['CompanyId'], $user['scope_id']]);
         if (!$chk->fetch()) $errors[] = 'Invalid company selected.';
     }
 

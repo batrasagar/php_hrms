@@ -10,9 +10,9 @@ $user = currentUser();
 // ── Accessible companies for this user ────────────────────────────────────────
 if ($user['role'] === 'superadmin') {
     $companies = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} elseif ($user['role'] === 'admin') {
+} elseif (in_array($user['role'], ['admin','operator'], true)) {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companies = $stmt->fetchAll();
 } else {
     $parentId = $user['parent_admin_id'] ?? 0;

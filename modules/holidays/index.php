@@ -10,7 +10,7 @@ $msg  = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
-    $where = $user['role'] === 'superadmin' ? 'id=?' : 'id=? AND CompanyId IN (SELECT id FROM tblCompany WHERE AdminId=' . $user['id'] . ')';
+    $where = $user['role'] === 'superadmin' ? 'id=?' : 'id=? AND CompanyId IN (SELECT id FROM tblCompany WHERE AdminId=' . $user['scope_id'] . ')';
     $db->prepare("DELETE FROM tblHoliday WHERE $where")->execute([$id]);
     $_SESSION['flash'] = 'Holiday deleted.'; header('Location: index.php'); exit;
 }
@@ -29,10 +29,10 @@ if ($user['role'] === 'superadmin') {
     $stmt->execute($params);
 } else {
     $stmt2 = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt2->execute([$user['id']]);
+    $stmt2->execute([$user['scope_id']]);
     $companiesDd = $stmt2->fetchAll();
     $where = ['YEAR(h.HolidayDate) = ?', 'c.AdminId = ?'];
-    $params = [$fYear, $user['id']];
+    $params = [$fYear, $user['scope_id']];
     if ($fCo) { $where[] = 'h.CompanyId=?'; $params[] = $fCo; }
     $stmt = $db->prepare("SELECT h.*, c.Name AS CompanyName FROM tblHoliday h
         JOIN tblCompany c ON c.id = h.CompanyId

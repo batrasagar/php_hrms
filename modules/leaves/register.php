@@ -11,7 +11,7 @@ if ($user['role'] === 'superadmin') {
     $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companiesDd = $stmt->fetchAll();
 }
 
@@ -22,7 +22,7 @@ $fDept    = trim($_GET['dept'] ?? '');
 function canAccess($db, $user, $cid) {
     if ($user['role'] === 'superadmin') return true;
     $s = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $s->execute([$cid, $user['id']]); return (bool)$s->fetch();
+    $s->execute([$cid, $user['scope_id']]); return (bool)$s->fetch();
 }
 
 $msg = ''; $err = '';
@@ -117,7 +117,7 @@ if ($fCompany && !empty($employees) && !empty($leaveTypes)) {
 }
 
 // Dept filter list
-$scopeJoin = $user['role']==='superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId='.$user['id'];
+$scopeJoin = $user['role']==='superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId='.$user['scope_id'];
 $depts = array_filter(array_column(
     $db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(),
     'Department'

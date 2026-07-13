@@ -23,12 +23,12 @@ if ($user['role'] === 'superadmin') {
     $fCompany    = 0;
 } else {
     $cStmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $cStmt->execute([$user['id']]);
+    $cStmt->execute([$user['scope_id']]);
     $companiesDd = $cStmt->fetchAll();
     $fCompany    = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
     if ($fCompany) {
         $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-        $chk->execute([$fCompany, $user['id']]);
+        $chk->execute([$fCompany, $user['scope_id']]);
         if (!$chk->fetch()) $fCompany = 0;
     }
 }
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $saveFor = (int)($_POST['company_id'] ?? 0);
     if ($user['role'] !== 'superadmin') {
         $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-        $chk->execute([$saveFor, $user['id']]);
+        $chk->execute([$saveFor, $user['scope_id']]);
         if (!$chk->fetch()) {
             header('Content-Type: application/json');
             echo json_encode(['success' => false, 'errors' => ['Access denied.']]);

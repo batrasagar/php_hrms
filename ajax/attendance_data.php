@@ -20,9 +20,9 @@ if ($user['role'] === 'user') {
     $fCompany = $user['company_id'];
 } else {
     $fCompany = (int)($_GET['company'] ?? 0);
-    if ($fCompany && $user['role'] === 'admin') {
+    if ($fCompany && in_array($user['role'], ['admin','operator'], true)) {
         $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-        $chk->execute([$fCompany, $user['id']]);
+        $chk->execute([$fCompany, $user['scope_id']]);
         if (!$chk->fetch()) $fCompany = 0;
     }
 }

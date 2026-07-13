@@ -18,7 +18,7 @@ if ($user['role'] === 'user') {
     $fCompany    = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companiesDd = $stmt->fetchAll();
     $fCompany    = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
 }
@@ -26,7 +26,7 @@ $fMonth      = trim($_GET['month']       ?? date('Y-m'));
 $fDept       = trim($_GET['dept']        ?? '');
 $fContractor = trim($_GET['contractor']  ?? '');
 
-$scopeJoin   = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=' . $user['id'];
+$scopeJoin   = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=' . $user['scope_id'];
 $depts       = array_filter(array_column($db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(), 'Department'));
 $contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor FROM tblEmployee e $scopeJoin WHERE Contractor IS NOT NULL ORDER BY Contractor")->fetchAll(), 'Contractor'));
 

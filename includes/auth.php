@@ -15,6 +15,18 @@ function requireLogin(): void {
 function requireAdmin(): void {
     requireLogin();
     $role = $_SESSION['user_role'] ?? '';
+    // Operators are co-admins that can reach every back-office page except user management.
+    if ($role !== 'admin' && $role !== 'superadmin' && $role !== 'operator') {
+        header('Location: ' . BASE_URL . '/index.php');
+        exit;
+    }
+}
+
+// User-management pages (create/edit/delete accounts). Operators are excluded here
+// even though they pass requireAdmin() everywhere else.
+function requireUserAdmin(): void {
+    requireLogin();
+    $role = $_SESSION['user_role'] ?? '';
     if ($role !== 'admin' && $role !== 'superadmin') {
         header('Location: ' . BASE_URL . '/index.php');
         exit;
@@ -30,13 +42,21 @@ function requireSuperAdmin(): void {
 }
 
 function currentUser(): array {
+    $id     = $_SESSION['user_id']              ?? 0;
+    $role   = $_SESSION['user_role']            ?? 'user';
+    $parent = $_SESSION['user_parent_admin_id'] ?? 0;
     return [
-        'id'              => $_SESSION['user_id']              ?? 0,
+        'id'              => $id,
         'name'            => $_SESSION['user_name']            ?? '',
-        'role'            => $_SESSION['user_role']            ?? 'user',
+        'role'            => $role,
         'company_limit'   => $_SESSION['user_company_limit']   ?? 1,
-        'parent_admin_id' => $_SESSION['user_parent_admin_id'] ?? 0,
+        'parent_admin_id' => $parent,
         'company_id'      => $_SESSION['user_company_id']      ?? 0,
+        // Data-scope owner. All company data is owned by an admin id (tblCompany.AdminId).
+        // An operator owns no companies of its own — it acts on its parent admin's companies —
+        // so its scope_id is the parent admin. For every other role scope_id === id, which
+        // keeps existing behaviour byte-for-byte identical.
+        'scope_id'        => $role === 'operator' ? (int)$parent : (int)$id,
     ];
 }
 

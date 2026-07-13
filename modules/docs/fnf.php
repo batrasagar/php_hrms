@@ -14,12 +14,12 @@ if ($user['role'] === 'superadmin') {
     $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['id']]); $companiesDd = $s->fetchAll();
+    $s->execute([$user['scope_id']]); $companiesDd = $s->fetchAll();
 }
 $fCompany = (int)($_REQUEST['company'] ?? ($companiesDd[0]['id'] ?? 0));
-if ($fCompany && $user['role'] === 'admin') {
+if ($fCompany && in_array($user['role'], ['admin','operator'], true)) {
     $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$fCompany, $user['id']]); if (!$chk->fetch()) $fCompany = 0;
+    $chk->execute([$fCompany, $user['scope_id']]); if (!$chk->fetch()) $fCompany = 0;
 }
 
 $tab       = in_array($_GET['tab'] ?? '', ['settlements','template']) ? ($_GET['tab'] ?? 'settlements') : 'settlements';
@@ -193,7 +193,7 @@ if ($fCompany) {
         }
     }
     // Employees for initiate form
-    $s = $db->prepare("SELECT e.id, e.Name, e.EmployeeCode, e.Department FROM tblEmployee e JOIN tblCompany c ON c.id=e.CompanyId WHERE e.CompanyId=? " . ($user['role']==='admin'?"AND c.AdminId={$user['id']}":'') . " ORDER BY e.Department, e.Name");
+    $s = $db->prepare("SELECT e.id, e.Name, e.EmployeeCode, e.Department FROM tblEmployee e JOIN tblCompany c ON c.id=e.CompanyId WHERE e.CompanyId=? " . (in_array($user['role'], ['admin','operator'], true)?"AND c.AdminId={$user['scope_id']}":'') . " ORDER BY e.Department, e.Name");
     $s->execute([$fCompany]); $employees = $s->fetchAll();
 }
 

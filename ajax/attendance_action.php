@@ -25,7 +25,7 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) fail('Invalid date.');
 // ── Company access ────────────────────────────────────────────────────────────
 if ($user['role'] !== 'superadmin') {
     $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$company, $user['id']]);
+    $chk->execute([$company, $user['scope_id']]);
     if (!$chk->fetch()) fail('Access denied for this company.');
 }
 

@@ -2,7 +2,7 @@
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
-requireAdmin();
+requireUserAdmin();
 
 $db   = getDb();
 $user = currentUser();
@@ -92,6 +92,7 @@ if ($user['role'] === 'superadmin') {
               $roleColor = match($u['Role']) {
                 'superadmin' => 'danger',
                 'admin'      => 'primary',
+                'operator'   => 'info',
                 default      => 'secondary',
               };
             ?>

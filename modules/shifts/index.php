@@ -10,13 +10,13 @@ $msg  = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 
 if (isset($_GET['toggle'])) {
     $id = (int)$_GET['toggle'];
-    $where = $user['role'] === 'superadmin' ? 'id=?' : 'id=? AND CompanyId IN (SELECT id FROM tblCompany WHERE AdminId=' . $user['id'] . ')';
+    $where = $user['role'] === 'superadmin' ? 'id=?' : 'id=? AND CompanyId IN (SELECT id FROM tblCompany WHERE AdminId=' . $user['scope_id'] . ')';
     $db->prepare("UPDATE tblShift SET IsActive = 1 - IsActive WHERE $where")->execute([$id]);
     header('Location: index.php'); exit;
 }
 if (isset($_GET['delete'])) {
     $id = (int)$_GET['delete'];
-    $where = $user['role'] === 'superadmin' ? 'id=?' : 'id=? AND CompanyId IN (SELECT id FROM tblCompany WHERE AdminId=' . $user['id'] . ')';
+    $where = $user['role'] === 'superadmin' ? 'id=?' : 'id=? AND CompanyId IN (SELECT id FROM tblCompany WHERE AdminId=' . $user['scope_id'] . ')';
     $db->prepare("DELETE FROM tblShift WHERE $where")->execute([$id]);
     $_SESSION['flash'] = 'Shift deleted.'; header('Location: index.php'); exit;
 }
@@ -32,7 +32,7 @@ if ($user['role'] === 'superadmin') {
          JOIN tblCompany c ON c.id = s.CompanyId AND c.AdminId = ?
          ORDER BY c.Name, s.ShiftName"
     );
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $shifts = $stmt->fetchAll();
 }
 $pageTitle  = 'Shift Master';

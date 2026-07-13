@@ -18,7 +18,7 @@ if ($user['role'] === 'user') {
     $fCompany    = (int)($_GET['company'] ?? 0);
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companiesDd = $stmt->fetchAll();
     $fCompany    = (int)($_GET['company'] ?? 0);
 }
@@ -35,7 +35,7 @@ $dateCol = $fType === 'left' ? 'DOL' : 'JoinDate';
 $where  = [];
 $params = [];
 if ($user['role'] === 'user')      { $where[] = 'e.CompanyId = ?'; $params[] = $fCompany; }
-elseif ($user['role'] === 'admin') { $where[] = 'c.AdminId = ?';    $params[] = $user['id']; }
+elseif (in_array($user['role'], ['admin','operator'], true)) { $where[] = 'c.AdminId = ?';    $params[] = $user['scope_id']; }
 if ($fCompany && $user['role'] !== 'user') { $where[] = 'e.CompanyId = ?'; $params[] = $fCompany; }
 $where[] = "e.$dateCol IS NOT NULL";
 $where[] = "e.$dateCol >= ?"; $params[] = $fFrom;
@@ -58,7 +58,7 @@ $stmt = $db->prepare(
 $stmt->execute($params);
 $records = $stmt->fetchAll();
 
-$scopeJoin   = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=' . $user['id'];
+$scopeJoin   = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=' . $user['scope_id'];
 $depts       = array_filter(array_column($db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(), 'Department'));
 $contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor FROM tblEmployee e $scopeJoin ORDER BY Contractor")->fetchAll(), 'Contractor'));
 

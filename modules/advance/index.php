@@ -31,7 +31,7 @@ if ($user['role'] === 'superadmin') {
     $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companiesDd = $stmt->fetchAll();
 }
 
@@ -42,7 +42,7 @@ $fEmp     = (int)($_GET['emp'] ?? 0);
 function canAccess(PDO $db, array $user, int $companyId): bool {
     if ($user['role'] === 'superadmin') return true;
     $s = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $s->execute([$companyId, $user['id']]);
+    $s->execute([$companyId, $user['scope_id']]);
     return (bool)$s->fetch();
 }
 

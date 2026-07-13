@@ -14,7 +14,7 @@ if ($user['role'] === 'superadmin') {
     $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companiesDd = $stmt->fetchAll();
 }
 
@@ -25,7 +25,7 @@ $fStatus     = trim($_GET['status']      ?? 'active');
 
 $where  = [];
 $params = [];
-if ($user['role'] !== 'superadmin') { $where[] = 'c.AdminId = ?'; $params[] = $user['id']; }
+if ($user['role'] !== 'superadmin') { $where[] = 'c.AdminId = ?'; $params[] = $user['scope_id']; }
 if ($fCompany)    { $where[] = 'e.CompanyId = ?';  $params[] = $fCompany; }
 if ($fDept)       { $where[] = 'e.Department = ?'; $params[] = $fDept; }
 if ($fContractor) { $where[] = 'e.Contractor = ?'; $params[] = $fContractor; }
@@ -39,7 +39,7 @@ $stmt = $db->prepare(
 $stmt->execute($params);
 $employees = $stmt->fetchAll();
 
-$scopeJoin   = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=' . $user['id'];
+$scopeJoin   = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=' . $user['scope_id'];
 $depts       = array_filter(array_column($db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(), 'Department'));
 $contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor FROM tblEmployee e $scopeJoin ORDER BY Contractor")->fetchAll(), 'Contractor'));
 ?>

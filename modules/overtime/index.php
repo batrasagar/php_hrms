@@ -12,7 +12,7 @@ if ($user['role'] === 'superadmin') {
     $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
     $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['scope_id']]);
     $companiesDd = $stmt->fetchAll();
 }
 
@@ -23,7 +23,7 @@ $fDate    = trim($_GET['date'] ?? date('Y-m-d'));
 if (isset($_GET['delete'])) {
     $did = (int)$_GET['delete'];
     $db->prepare("DELETE FROM tblOvertime WHERE id=? AND CompanyId IN (SELECT id FROM tblCompany WHERE " .
-        ($user['role'] === 'superadmin' ? '1' : 'AdminId=' . $user['id']) . ")")->execute([$did]);
+        ($user['role'] === 'superadmin' ? '1' : 'AdminId=' . $user['scope_id']) . ")")->execute([$did]);
     header("Location: index.php?company=$fCompany&date=" . urlencode($fDate)); exit;
 }
 
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
 
     if ($user['role'] !== 'superadmin') {
         $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-        $chk->execute([$companyId, $user['id']]);
+        $chk->execute([$companyId, $user['scope_id']]);
         if (!$chk->fetch()) { header('Location: index.php'); exit; }
     }
 
@@ -76,7 +76,7 @@ $employees = [];
 if ($fCompany) {
     if ($user['role'] !== 'superadmin') {
         $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-        $chk->execute([$fCompany, $user['id']]);
+        $chk->execute([$fCompany, $user['scope_id']]);
         if (!$chk->fetch()) $fCompany = 0;
     }
     if ($fCompany) {
