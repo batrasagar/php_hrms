@@ -39,31 +39,59 @@ require_once __DIR__ . '/../../includes/header.php';
 
 $msg = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 
+// Companies for the filter dropdown (superadmin: all; admin: the ones they own).
 if ($user['role'] === 'superadmin') {
-    $users = $db->query(
-        "SELECT u.id, u.Name, u.Email, u.Role, u.IsActive, u.CreatedAt,
-                c.Name AS CompanyName, pu.Name AS CreatedByName
-         FROM tblUser u
-         LEFT JOIN tblCompany c ON c.id = u.CompanyId
-         LEFT JOIN tblUser pu ON pu.id = u.ParentAdminId
-         ORDER BY u.id DESC"
-    )->fetchAll();
+    $companiesDd = $db->query("SELECT id, Name, AdminId FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
 } else {
-    $stmt = $db->prepare(
-        "SELECT u.id, u.Name, u.Email, u.Role, u.IsActive, u.CreatedAt,
-                c.Name AS CompanyName
-         FROM tblUser u
-         LEFT JOIN tblCompany c ON c.id = u.CompanyId
-         WHERE u.ParentAdminId = ? OR u.id = ?
-         ORDER BY CASE WHEN u.id = ? THEN 0 ELSE 1 END, u.id DESC"
-    );
-    $stmt->execute([$user['id'], $user['id'], $user['id']]);
-    $users = $stmt->fetchAll();
+    $s = $db->prepare("SELECT id, Name, AdminId FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
+    $s->execute([$user['id']]);
+    $companiesDd = $s->fetchAll();
 }
+$fCompany = (int)($_GET['company'] ?? 0);
+$fAdminId = 0;
+foreach ($companiesDd as $c) if ((int)$c['id'] === $fCompany) $fAdminId = (int)$c['AdminId'];
+if ($fCompany && !$fAdminId) $fCompany = 0;   // selected company not in scope
+
+$where = []; $params = [];
+if ($user['role'] !== 'superadmin') {
+    $where[] = '(u.ParentAdminId = ? OR u.id = ?)';
+    $params[] = $user['id']; $params[] = $user['id'];
+}
+if ($fCompany) {
+    // A company's people: users assigned to it, its owning admin, and co-admins under that admin.
+    $where[] = '(u.CompanyId = ? OR u.id = ? OR u.ParentAdminId = ?)';
+    $params[] = $fCompany; $params[] = $fAdminId; $params[] = $fAdminId;
+}
+$whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+$stmt = $db->prepare(
+    "SELECT u.id, u.Name, u.Email, u.Role, u.IsActive, u.CreatedAt,
+            c.Name AS CompanyName, pu.Name AS ParentName,
+            (SELECT GROUP_CONCAT(oc.Name ORDER BY oc.Name SEPARATOR ', ') FROM tblCompany oc WHERE oc.AdminId = u.id) AS OwnedCompanies
+     FROM tblUser u
+     LEFT JOIN tblCompany c ON c.id = u.CompanyId
+     LEFT JOIN tblUser pu ON pu.id = u.ParentAdminId
+     $whereSql
+     ORDER BY CASE WHEN u.id = ? THEN 0 ELSE 1 END, u.id DESC"
+);
+$stmt->execute([...$params, $user['id']]);
+$users = $stmt->fetchAll();
 ?>
 <?php if ($msg): ?><div class="alert alert-success"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <span><?= count($users) ?> user<?= count($users) !== 1 ? 's' : '' ?></span>
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-2">
+    <span><?= count($users) ?> user<?= count($users) !== 1 ? 's' : '' ?></span>
+    <?php if ($companiesDd): ?>
+    <form method="GET" class="d-flex">
+      <select name="company" class="form-select form-select-sm" style="min-width:180px" onchange="this.form.submit()">
+        <option value="">All companies</option>
+        <?php foreach ($companiesDd as $c): ?>
+        <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </form>
+    <?php endif; ?>
+  </div>
   <a href="add.php" class="btn btn-primary"><i class="bi bi-plus-lg"></i> Add User</a>
 </div>
 <div class="card">
@@ -93,14 +121,23 @@ if ($user['role'] === 'superadmin') {
                 'superadmin' => 'danger',
                 'admin'      => 'primary',
                 'operator'   => 'info',
+                'compliance' => 'warning text-dark',
                 default      => 'secondary',
               };
             ?>
             <span class="badge bg-<?= $roleColor ?>"><?= $u['Role'] ?></span>
           </td>
-          <td class="small"><?= $u['CompanyName'] ? htmlspecialchars($u['CompanyName']) : '<span class="text-muted">—</span>' ?></td>
+          <td class="small">
+            <?php
+              // user → assigned company; admin → companies they own; operator/compliance → parent admin's scope.
+              if (!empty($u['CompanyName']))        echo htmlspecialchars($u['CompanyName']);
+              elseif (!empty($u['OwnedCompanies']))  echo htmlspecialchars($u['OwnedCompanies']);
+              elseif (!empty($u['ParentName']))      echo '<span class="text-muted">Under ' . htmlspecialchars($u['ParentName']) . '</span>';
+              else                                   echo '<span class="text-muted">—</span>';
+            ?>
+          </td>
           <?php if ($user['role'] === 'superadmin'): ?>
-          <td class="small text-muted"><?= htmlspecialchars($u['CreatedByName'] ?? '—') ?></td>
+          <td class="small text-muted"><?= htmlspecialchars($u['ParentName'] ?? '—') ?></td>
           <?php endif; ?>
           <td>
             <?php if ($u['id'] === $user['id']): ?>
