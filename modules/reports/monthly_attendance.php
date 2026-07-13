@@ -196,6 +196,7 @@ $extraJs = <<<JS
           + '<th class="text-center" style="min-width:30px" title="Leave">L</th>'
           + '<th class="text-center" style="min-width:30px" title="Comp Off">CO</th>'
           + '<th class="text-center" style="min-width:30px" title="Holiday / Sunday">H+S</th>'
+          + '<th class="text-center" style="min-width:44px" title="Total Pay Days = P + ½·HP + L + CO + Holidays/Sundays">Pay Days</th>'
           + '</tr><tr class="table-light"><th></th>';
 
     dates.forEach(function (d) {
@@ -204,7 +205,7 @@ $extraJs = <<<JS
       html += '<th class="text-center dc" style="font-size:9px;' + (d.isSun ? 'background:#f0f0f0' : '') + '">'
             + DAY_NAMES[dayIdx] + '</th>';
     });
-    html += '<th colspan="6"></th></tr></thead><tbody>';
+    html += '<th colspan="7"></th></tr></thead><tbody>';
 
     emps.forEach(function (emp) {
       var cntP = 0, cntHP = 0, cntA = 0, cntL = 0, cntCO = 0, cntHS = 0;
@@ -221,6 +222,7 @@ $extraJs = <<<JS
         else if (c.type === 'A')   cntA++;
         dayCells += '<td class="dc text-center">' + badgeHtml(c.type) + '</td>';
       });
+      var payDays = cntP + cntHP * 0.5 + cntL + cntCO + cntHS;
       html += '<tr><td style="font-size:11px"><strong>' + (emp.code || '&mdash;') + '</strong> ' + emp.name;
       if (emp.department) html += '<br><span style="font-size:9px;color:#888">' + emp.department + '</span>';
       html += '</td>' + dayCells
@@ -229,7 +231,8 @@ $extraJs = <<<JS
             + '<td class="text-center fw-semibold s-a">'  + (cntA  || '') + '</td>'
             + '<td class="text-center fw-semibold s-l">'  + (cntL  ? (Number.isInteger(cntL) ? cntL : cntL.toFixed(1)) : '') + '</td>'
             + '<td class="text-center fw-semibold s-co">' + (cntCO || '') + '</td>'
-            + '<td class="text-center s-h">'              + (cntHS || '') + '</td></tr>';
+            + '<td class="text-center s-h">'              + (cntHS || '') + '</td>'
+            + '<td class="text-center fw-bold" style="background:#eef6ff">' + (payDays ? (Number.isInteger(payDays) ? payDays : payDays.toFixed(1)) : '') + '</td></tr>';
     });
 
     html += '</tbody></table></div></div>';

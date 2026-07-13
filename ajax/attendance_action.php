@@ -128,6 +128,50 @@ switch ($action) {
         ok("$date marked as week-off for {$empRow['Name']}.");
     }
 
+    // ── Change the employee's shift ───────────────────────────────────────────
+    //   mode=day      → override the shift for just this date (tblPunchLogCorrection)
+    //   mode=onwards  → change the employee's standing shift (tblEmployee.ShiftNo)
+    case 'shift_change': {
+        $shiftId = trim($_POST['shift_id'] ?? '');
+        $mode    = ($_POST['mode'] ?? 'onwards') === 'day' ? 'day' : 'onwards';
+        $reason  = trim($_POST['reason'] ?? '') ?: 'Shift override';
+
+        // Validate the shift belongs to this company (empty = clear).
+        $shName = null;
+        if ($shiftId !== '') {
+            if (!ctype_digit((string)$shiftId)) fail('Invalid shift.');
+            $sh = $db->prepare("SELECT ShiftName FROM tblShift WHERE id=? AND CompanyId=? AND IsActive=1");
+            $sh->execute([(int)$shiftId, $company]);
+            $shName = $sh->fetchColumn();
+            if ($shName === false) fail('Unknown shift for this company.');
+        }
+
+        if ($mode === 'day') {
+            if ($shiftId === '') {
+                // Clear only the shift override for this date; keep any other correction.
+                $db->prepare("UPDATE tblPunchLogCorrection SET ShiftNo=NULL WHERE CompanyId=? AND EmpCode=? AND tDate=?")
+                   ->execute([$company, $empCode, $date]);
+                ok("Shift override cleared for {$empRow['Name']} on $date.");
+            }
+            $db->prepare(
+                "INSERT INTO tblPunchLogCorrection (CompanyId, EmpCode, tDate, ShiftNo, Reason, CorrectedBy, CorrectedAt)
+                 VALUES (?,?,?,?,?,?, NOW())
+                 ON DUPLICATE KEY UPDATE ShiftNo=VALUES(ShiftNo), Reason=VALUES(Reason), CorrectedBy=VALUES(CorrectedBy), CorrectedAt=NOW()"
+            )->execute([$company, $empCode, $date, (int)$shiftId, $reason, $user['id']]);
+            ok("Shift set to {$shName} for {$empRow['Name']} on $date.");
+        }
+
+        // mode = onwards → standing shift
+        if ($shiftId === '') {
+            $db->prepare("UPDATE tblEmployee SET ShiftNo=NULL, UpdatedAt=NOW() WHERE id=? AND CompanyId=?")
+               ->execute([$empId, $company]);
+            ok("Shift cleared for {$empRow['Name']}.");
+        }
+        $db->prepare("UPDATE tblEmployee SET ShiftNo=?, UpdatedAt=NOW() WHERE id=? AND CompanyId=?")
+           ->execute([(int)$shiftId, $empId, $company]);
+        ok("Shift set to {$shName} for {$empRow['Name']} (from now onwards).");
+    }
+
     // ── Manual time / forced status (punch correction) ────────────────────────
     case 'manual_time': {
         $in     = trim($_POST['in_time']  ?? '');

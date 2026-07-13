@@ -8,7 +8,8 @@ $db     = getDb();
 $user   = currentUser();
 $errors = [];
 $editId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-$rec    = ['Name'=>'','Address'=>'','Phone'=>'','Email'=>'','IsActive'=>1,'AdminId'=>0];
+$rec    = ['Name'=>'','Address'=>'','Phone'=>'','Email'=>'','IsActive'=>1,'AdminId'=>0,
+           'SignImage'=>'','SignName'=>'','SignDesignation'=>''];
 
 if ($editId) {
     if ($user['role'] === 'superadmin') {
@@ -42,9 +43,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email      = trim($_POST['email']       ?? '');
     $ownerEmail = trim($_POST['owner_email'] ?? '');
     $isActive   = isset($_POST['isactive']) ? 1 : 0;
+    $signName   = trim($_POST['sign_name']        ?? '');
+    $signDesig  = trim($_POST['sign_designation'] ?? '');
 
     if (!$name) $errors[] = 'Company name is required.';
     if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Invalid company email.';
+
+    // Authorized-signatory signature image (base64 → uploads/company/)
+    $signImage = $rec['SignImage'] ?? '';
+    $sigDir    = __DIR__ . '/../../uploads/company/';
+    if (!empty($_POST['sign_data']) && str_starts_with($_POST['sign_data'], 'data:image/')) {
+        $parts = explode(',', $_POST['sign_data'], 2);
+        if (count($parts) === 2) {
+            $sd = base64_decode($parts[1]);
+            if ($sd !== false && strlen($sd) > 100) {
+                if (!is_dir($sigDir)) mkdir($sigDir, 0755, true);
+                $newSig = uniqid('cosig_', true) . '.png';
+                file_put_contents($sigDir . $newSig, $sd);
+                if ($signImage && file_exists($sigDir . $signImage)) unlink($sigDir . $signImage);
+                $signImage = $newSig;
+            }
+        }
+    } elseif (!empty($_POST['sign_clear'])) {
+        if ($signImage && file_exists($sigDir . $signImage)) unlink($sigDir . $signImage);
+        $signImage = '';
+    }
 
     // Resolve AdminId from owner_email (superadmin only)
     $newAdminId = null;
@@ -79,18 +102,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($editId) {
             if ($user['role'] === 'superadmin') {
                 $db->prepare(
-                    "UPDATE tblCompany SET AdminId=?, Name=?, Address=?, Phone=?, Email=?, IsActive=?, UpdatedAt=NOW() WHERE id=?"
-                )->execute([$newAdminId, $name, $address ?: null, $phone ?: null, $email ?: null, $isActive, $editId]);
+                    "UPDATE tblCompany SET AdminId=?, Name=?, Address=?, Phone=?, Email=?, IsActive=?,
+                       SignImage=?, SignName=?, SignDesignation=?, UpdatedAt=NOW() WHERE id=?"
+                )->execute([$newAdminId, $name, $address ?: null, $phone ?: null, $email ?: null, $isActive,
+                            $signImage ?: null, $signName ?: null, $signDesig ?: null, $editId]);
             } else {
                 $db->prepare(
-                    "UPDATE tblCompany SET Name=?, Address=?, Phone=?, Email=?, IsActive=?, UpdatedAt=NOW() WHERE id=? AND AdminId=?"
-                )->execute([$name, $address ?: null, $phone ?: null, $email ?: null, $isActive, $editId, $user['id']]);
+                    "UPDATE tblCompany SET Name=?, Address=?, Phone=?, Email=?, IsActive=?,
+                       SignImage=?, SignName=?, SignDesignation=?, UpdatedAt=NOW() WHERE id=? AND AdminId=?"
+                )->execute([$name, $address ?: null, $phone ?: null, $email ?: null, $isActive,
+                            $signImage ?: null, $signName ?: null, $signDesig ?: null, $editId, $user['id']]);
             }
         } else {
             $adminId = $user['role'] === 'superadmin' ? $newAdminId : $user['id'];
             $db->prepare(
-                "INSERT INTO tblCompany (AdminId, Name, Address, Phone, Email, IsActive) VALUES (?,?,?,?,?,?)"
-            )->execute([$adminId, $name, $address ?: null, $phone ?: null, $email ?: null, $isActive]);
+                "INSERT INTO tblCompany (AdminId, Name, Address, Phone, Email, IsActive, SignImage, SignName, SignDesignation)
+                 VALUES (?,?,?,?,?,?,?,?,?)"
+            )->execute([$adminId, $name, $address ?: null, $phone ?: null, $email ?: null, $isActive,
+                        $signImage ?: null, $signName ?: null, $signDesig ?: null]);
         }
         $_SESSION['flash'] = $editId ? 'Company updated.' : 'Company added.';
         if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'redirect'=>'index.php']); exit; }
@@ -98,7 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>false,'errors'=>$errors]); exit; }
-    $rec = ['Name'=>$name,'Address'=>$address,'Phone'=>$phone,'Email'=>$email,'IsActive'=>$isActive,'AdminId'=>$rec['AdminId']];
+    $rec = ['Name'=>$name,'Address'=>$address,'Phone'=>$phone,'Email'=>$email,'IsActive'=>$isActive,'AdminId'=>$rec['AdminId'],
+            'SignImage'=>$signImage,'SignName'=>$signName,'SignDesignation'=>$signDesig];
 }
 
 $pageTitle  = 'Companies';
@@ -149,6 +179,38 @@ require_once __DIR__ . '/../../includes/header.php';
         <div class="form-text">Email of the admin account this company belongs to.</div>
       </div>
       <?php endif; ?>
+      <hr>
+      <div class="fw-semibold mb-1">Authorized Signatory <span class="text-muted small fw-normal">(prints on issued documents)</span></div>
+      <input type="hidden" name="sign_data" id="signData">
+      <input type="hidden" name="sign_clear" id="signClear" value="">
+      <div class="row g-3 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label">Signatory Name</label>
+          <input type="text" name="sign_name" class="form-control" value="<?= htmlspecialchars($rec['SignName'] ?? '') ?>" placeholder="e.g. Ramesh Kumar">
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label">Designation</label>
+          <input type="text" name="sign_designation" class="form-control" value="<?= htmlspecialchars($rec['SignDesignation'] ?? '') ?>" placeholder="e.g. HR Manager">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Signature Image</label>
+          <div class="d-flex align-items-center gap-3">
+            <div id="coSigWrap" style="width:200px;height:70px;border:2px dashed #dee2e6;border-radius:8px;overflow:hidden;background:#f8f9fa;display:flex;align-items:center;justify-content:center;padding:4px">
+              <?php if (!empty($rec['SignImage'])): ?>
+                <img id="coSigPreview" src="<?= BASE_URL ?>/uploads/company/<?= htmlspecialchars($rec['SignImage']) ?>" style="max-width:100%;max-height:100%;object-fit:contain">
+              <?php else: ?>
+                <span class="text-muted small" id="coSigPlaceholder" style="font-size:11px"><i class="bi bi-vector-pen"></i> Signature</span>
+                <img id="coSigPreview" style="max-width:100%;max-height:100%;object-fit:contain;display:none">
+              <?php endif; ?>
+            </div>
+            <div>
+              <input type="file" id="coSigInput" accept="image/png,image/jpeg,image/webp" class="form-control form-control-sm" style="max-width:220px">
+              <button type="button" id="coSigClear" class="btn btn-sm btn-outline-danger mt-2"><i class="bi bi-x-lg"></i> Remove</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="mb-4">
         <div class="form-check">
           <input type="checkbox" name="isactive" class="form-check-input" id="isactive"
@@ -163,4 +225,29 @@ require_once __DIR__ . '/../../includes/header.php';
     </form>
   </div>
 </div>
+<script>
+(function () {
+  var input = document.getElementById('coSigInput');
+  var clear = document.getElementById('coSigClear');
+  var prev  = document.getElementById('coSigPreview');
+  var ph    = document.getElementById('coSigPlaceholder');
+  var data  = document.getElementById('signData');
+  var flag  = document.getElementById('signClear');
+  input.addEventListener('change', function () {
+    var file = this.files[0]; if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      data.value = e.target.result; flag.value = '';
+      prev.src = e.target.result; prev.style.display = 'block';
+      if (ph) ph.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  });
+  clear.addEventListener('click', function () {
+    data.value = ''; flag.value = '1'; input.value = '';
+    prev.src = ''; prev.style.display = 'none';
+    if (ph) ph.style.display = 'inline';
+  });
+})();
+</script>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

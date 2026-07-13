@@ -135,6 +135,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
         if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'redirect'=>"fnf.php?company=$fCompany&view=$settId"]); exit; }
         header("Location: fnf.php?company=$fCompany&view=$settId"); exit;
 
+    } elseif ($action === 'add_pay_item') {
+        $settId = (int)$_POST['settlement_id'];
+        $label  = trim($_POST['label'] ?? '');
+        $type   = ($_POST['pay_type'] ?? 'earning') === 'deduction' ? 'deduction' : 'earning';
+        $amount = round((float)($_POST['amount'] ?? 0), 2);
+        // Verify settlement belongs to this company
+        $own = $db->prepare("SELECT id FROM tblFnFSettlement WHERE id=? AND CompanyId=?");
+        $own->execute([$settId, $fCompany]);
+        if ($settId && $label && $own->fetch()) {
+            $db->prepare("INSERT INTO tblFnFPayItem (SettlementId,Label,Type,Amount) VALUES (?,?,?,?)")
+               ->execute([$settId, $label, $type, $amount]);
+        }
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'redirect'=>"fnf.php?company=$fCompany&view=$settId"]); exit; }
+        header("Location: fnf.php?company=$fCompany&view=$settId"); exit;
+
+    } elseif ($action === 'delete_pay_item') {
+        $settId = (int)$_POST['settlement_id'];
+        $pid    = (int)$_POST['pay_item_id'];
+        $db->prepare("DELETE p FROM tblFnFPayItem p JOIN tblFnFSettlement s ON s.id=p.SettlementId AND s.CompanyId=? WHERE p.id=?")
+           ->execute([$fCompany, $pid]);
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'redirect'=>"fnf.php?company=$fCompany&view=$settId"]); exit; }
+        header("Location: fnf.php?company=$fCompany&view=$settId"); exit;
+
     } elseif ($action === 'complete') {
         $settId = (int)$_POST['settlement_id'];
         $db->prepare("UPDATE tblFnFSettlement SET Status='completed', CompletedOn=NOW(), UpdatedAt=NOW() WHERE id=? AND CompanyId=?")
@@ -164,6 +187,7 @@ $settlements = [];
 $tplItems    = [];
 $settRow     = null;
 $settItems   = [];
+$payItems    = [];
 $employees   = [];
 $categories  = ['Documents','Returns','Finance','Clearance','General'];
 
@@ -190,6 +214,8 @@ if ($fCompany) {
         if ($settRow) {
             $s = $db->prepare("SELECT fi.*, u.Name AS DoneByName FROM tblFnFItem fi LEFT JOIN tblUser u ON u.id=fi.DoneBy WHERE fi.SettlementId=? ORDER BY fi.Category, fi.SortOrder, fi.id");
             $s->execute([$viewId]); $settItems = $s->fetchAll();
+            $s = $db->prepare("SELECT * FROM tblFnFPayItem WHERE SettlementId=? ORDER BY Type='deduction', SortOrder, id");
+            $s->execute([$viewId]); $payItems = $s->fetchAll();
         }
     }
     // Employees for initiate form
@@ -234,6 +260,9 @@ require_once __DIR__ . '/../../includes/header.php';
     <span class="badge bg-<?= $settRow['Status']==='completed'?'success':'warning' ?> ms-2"><?= ucfirst($settRow['Status']) ?></span>
   </div>
   <div class="d-flex gap-2">
+    <a href="fnf_statement.php?company=<?= $fCompany ?>&id=<?= $viewId ?>" target="_blank" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-printer me-1"></i>Print Statement
+    </a>
     <?php if ($settRow['Status']==='open'): ?>
     <form method="POST" data-ajax>
       <input type="hidden" name="action" value="complete">
@@ -307,6 +336,100 @@ $progress  = $total ? round(($doneCount + $naCount) / $total * 100) : 0;
   </div>
 </div>
 <?php endforeach; ?>
+
+<?php
+$payEarn = array_filter($payItems, fn($p) => $p['Type']==='earning');
+$payDed  = array_filter($payItems, fn($p) => $p['Type']==='deduction');
+$sumEarn = array_sum(array_map(fn($p) => (float)$p['Amount'], $payEarn));
+$sumDed  = array_sum(array_map(fn($p) => (float)$p['Amount'], $payDed));
+$netPay  = $sumEarn - $sumDed;
+?>
+<!-- Settlement Amounts -->
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-white fw-semibold small d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-cash-coin me-1"></i>Settlement Amounts</span>
+    <span class="<?= $netPay>=0?'text-success':'text-danger' ?> fw-bold">Net Payable: ₹<?= number_format($netPay, 2) ?></span>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="fw-semibold small text-primary mb-2">Earnings / Dues to Employee</div>
+        <table class="table table-sm mb-2">
+          <tbody>
+          <?php foreach ($payEarn as $p): ?>
+          <tr>
+            <td><?= htmlspecialchars($p['Label']) ?></td>
+            <td class="text-end" style="width:110px">₹<?= number_format((float)$p['Amount'],2) ?></td>
+            <td style="width:34px">
+              <form method="POST" data-ajax class="d-inline">
+                <input type="hidden" name="action" value="delete_pay_item">
+                <input type="hidden" name="company" value="<?= $fCompany ?>">
+                <input type="hidden" name="settlement_id" value="<?= $viewId ?>">
+                <input type="hidden" name="pay_item_id" value="<?= $p['id'] ?>">
+                <button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-lg"></i></button>
+              </form>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+          <?php if (!$payEarn): ?><tr><td colspan="3" class="text-muted small">No earning lines yet.</td></tr><?php endif; ?>
+          </tbody>
+          <tfoot><tr class="fw-bold"><td>Total Earnings</td><td class="text-end">₹<?= number_format($sumEarn,2) ?></td><td></td></tr></tfoot>
+        </table>
+      </div>
+      <div class="col-md-6">
+        <div class="fw-semibold small text-danger mb-2">Deductions / Recoveries</div>
+        <table class="table table-sm mb-2">
+          <tbody>
+          <?php foreach ($payDed as $p): ?>
+          <tr>
+            <td><?= htmlspecialchars($p['Label']) ?></td>
+            <td class="text-end" style="width:110px">₹<?= number_format((float)$p['Amount'],2) ?></td>
+            <td style="width:34px">
+              <form method="POST" data-ajax class="d-inline">
+                <input type="hidden" name="action" value="delete_pay_item">
+                <input type="hidden" name="company" value="<?= $fCompany ?>">
+                <input type="hidden" name="settlement_id" value="<?= $viewId ?>">
+                <input type="hidden" name="pay_item_id" value="<?= $p['id'] ?>">
+                <button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-x-lg"></i></button>
+              </form>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+          <?php if (!$payDed): ?><tr><td colspan="3" class="text-muted small">No deduction lines yet.</td></tr><?php endif; ?>
+          </tbody>
+          <tfoot><tr class="fw-bold"><td>Total Deductions</td><td class="text-end">₹<?= number_format($sumDed,2) ?></td><td></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+    <form method="POST" class="row g-2 align-items-end border-top pt-3" data-ajax>
+      <input type="hidden" name="action" value="add_pay_item">
+      <input type="hidden" name="company" value="<?= $fCompany ?>">
+      <input type="hidden" name="settlement_id" value="<?= $viewId ?>">
+      <div class="col-sm-5">
+        <label class="form-label small mb-1">Line item</label>
+        <input type="text" name="label" class="form-control form-control-sm" list="fnfLabels" placeholder="e.g. Leave Encashment" required>
+        <datalist id="fnfLabels">
+          <option value="Pending Salary"><option value="Leave Encashment"><option value="Gratuity"><option value="Bonus"><option value="Notice Pay">
+          <option value="Advance Recovery"><option value="Notice Period Recovery"><option value="Loan Recovery"><option value="Asset Recovery">
+        </datalist>
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label small mb-1">Type</label>
+        <select name="pay_type" class="form-select form-select-sm">
+          <option value="earning">Earning / Due</option>
+          <option value="deduction">Deduction / Recovery</option>
+        </select>
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label small mb-1">Amount (₹)</label>
+        <input type="number" name="amount" step="0.01" min="0" class="form-control form-control-sm" required>
+      </div>
+      <div class="col-sm-2">
+        <button type="submit" class="btn btn-primary btn-sm w-100">Add Line</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <!-- Add custom item -->
 <div class="card border-0 shadow-sm">

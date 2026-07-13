@@ -176,6 +176,7 @@ $rec = [
     'Child5ResidingWith' => '',
     // Photo
     'Photo'              => '',
+    'Signature'          => '',
 ];
 
 // Companies for dropdown
@@ -231,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
 
     foreach (array_keys($rec) as $col) {
-        if ($col === 'Photo') continue;
+        if ($col === 'Photo' || $col === 'Signature') continue;
         if ($col === 'OT')        { $rec[$col] = isset($_POST['OT']) ? 1 : 0; }
         elseif ($col === 'CompanyId') { $rec[$col] = (int)($_POST['CompanyId'] ?? 0); }
         else                      { $rec[$col] = trim($_POST[$col] ?? ''); }
@@ -268,6 +269,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     $rec['Photo'] = $photoFilename;
+
+    // Signature (uploaded image → PNG, preserves transparency)
+    $sigFilename = $rec['Signature'];
+    if (!empty($_POST['signature_data']) && str_starts_with($_POST['signature_data'], 'data:image/')) {
+        $parts = explode(',', $_POST['signature_data'], 2);
+        if (count($parts) === 2) {
+            $sigData = base64_decode($parts[1]);
+            if ($sigData !== false && strlen($sigData) > 100) {
+                $uploadDir = __DIR__ . '/../../uploads/employees/';
+                if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+                $newSig = uniqid('sig_', true) . '.png';
+                file_put_contents($uploadDir . $newSig, $sigData);
+                if ($sigFilename && file_exists($uploadDir . $sigFilename)) unlink($uploadDir . $sigFilename);
+                $sigFilename = $newSig;
+            }
+        }
+    } elseif (!empty($_POST['signature_clear'])) {
+        if ($sigFilename && file_exists(__DIR__ . '/../../uploads/employees/' . $sigFilename)) {
+            unlink(__DIR__ . '/../../uploads/employees/' . $sigFilename);
+        }
+        $sigFilename = '';
+    }
+    $rec['Signature'] = $sigFilename;
 
     if (!$errors) {
         $dbCols   = array_column($db->query("SHOW COLUMNS FROM tblEmployee")->fetchAll(), 'Field');
@@ -382,6 +406,8 @@ require_once __DIR__ . '/../../includes/header.php';
     <form method="POST" id="empForm" data-ajax>
       <input type="hidden" name="_csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="photo_data" id="photoData">
+      <input type="hidden" name="signature_data" id="signatureData">
+      <input type="hidden" name="signature_clear" id="signatureClear" value="">
 
       <div class="tab-content">
 
@@ -401,6 +427,23 @@ require_once __DIR__ . '/../../includes/header.php';
               </div>
               <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/gif,image/webp" capture="environment"
                      class="form-control form-control-sm mt-2" style="width:110px;font-size:10px">
+            </div>
+
+            <!-- Signature -->
+            <div class="col-12 col-sm-auto d-flex flex-column align-items-center mb-2">
+              <div id="sigPreviewWrap" style="width:180px;height:70px;border:2px dashed #dee2e6;border-radius:8px;overflow:hidden;background:#f8f9fa;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:4px">
+                <?php if (!empty($rec['Signature'])): ?>
+                  <img id="sigPreview" src="<?= BASE_URL ?>/uploads/employees/<?= v($rec,'Signature') ?>" style="max-width:100%;max-height:100%;object-fit:contain">
+                <?php else: ?>
+                  <span class="text-muted small" id="sigPlaceholder" style="font-size:11px"><i class="bi bi-vector-pen"></i> Signature</span>
+                  <img id="sigPreview" style="max-width:100%;max-height:100%;object-fit:contain;display:none">
+                <?php endif; ?>
+              </div>
+              <div class="d-flex gap-1 mt-2" style="width:180px">
+                <input type="file" id="sigFileInput" accept="image/png,image/jpeg,image/webp"
+                       class="form-control form-control-sm" style="font-size:10px">
+                <button type="button" id="sigClearBtn" class="btn btn-sm btn-outline-danger px-2" title="Remove signature"><i class="bi bi-x-lg"></i></button>
+              </div>
             </div>
 
             <div class="col">
@@ -1083,6 +1126,33 @@ document.getElementById('btnApplyCrop').addEventListener('click', function(){
   preview.style.display = 'block';
   if (placeholder) placeholder.style.display = 'none';
   cropModal.hide();
+});
+
+// Signature upload (no crop — signatures are wide; stored as-is)
+document.getElementById('sigFileInput').addEventListener('change', function(){
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    document.getElementById('signatureData').value = dataUrl;
+    document.getElementById('signatureClear').value = '';
+    const prev = document.getElementById('sigPreview');
+    const ph   = document.getElementById('sigPlaceholder');
+    prev.src = dataUrl;
+    prev.style.display = 'block';
+    if (ph) ph.style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+});
+document.getElementById('sigClearBtn').addEventListener('click', function(){
+  document.getElementById('signatureData').value = '';
+  document.getElementById('signatureClear').value = '1';
+  document.getElementById('sigFileInput').value = '';
+  const prev = document.getElementById('sigPreview');
+  const ph   = document.getElementById('sigPlaceholder');
+  prev.src = ''; prev.style.display = 'none';
+  if (ph) ph.style.display = 'inline';
 });
 
 // Age from DOB helper

@@ -225,11 +225,12 @@ th { background: #e8e8e8; font-weight: 700; }
           + '<th class="col-sum" title="Leave">L</th>'
           + '<th class="col-sum" title="Comp Off">CO</th>'
           + '<th class="col-sum" title="Holiday+Sunday">H+S</th>'
+          + '<th class="col-sum" title="Total Pay Days = P + half-HP + L + CO + Holidays/Sundays">Pay</th>'
           + '</tr><tr class="dow-row"><th class="col-name"></th>';
     dates.forEach(function (d) {
       html += '<th class="col-day' + (d.isSun ? ' sun-col' : '') + '">' + esc(d.dayName) + '</th>';
     });
-    html += '<th colspan="6"></th></tr></thead><tbody>';
+    html += '<th colspan="7"></th></tr></thead><tbody>';
 
     var prevDept = null;
     emps.forEach(function (emp) {
@@ -254,6 +255,7 @@ th { background: #e8e8e8; font-weight: 700; }
         else if (c.type === 'A')   cntA++;
         dayCells += '<td class="col-day' + (d.isSun ? ' sun-col' : '') + '">' + badgeHtml(c.type) + '</td>';
       });
+      var payDays = cntP + cntHP * 0.5 + cntL + cntCO + cntHS;
 
       html += '<tr>'
             + '<td class="col-name" style="text-align:left;padding:1px 3px;">'
@@ -266,7 +268,8 @@ th { background: #e8e8e8; font-weight: 700; }
             + '<td class="col-sum sum-a">'  + (cntA  || '') + '</td>'
             + '<td class="col-sum sum-l">'  + (cntL > 0 ? (Number.isInteger(cntL) ? cntL : cntL.toFixed(1)) : '') + '</td>'
             + '<td class="col-sum sum-co">' + (cntCO || '') + '</td>'
-            + '<td class="col-sum sum-hs">' + (cntHS || '') + '</td></tr>';
+            + '<td class="col-sum sum-hs">' + (cntHS || '') + '</td>'
+            + '<td class="col-sum" style="font-weight:700;background:#eef6ff">' + (payDays ? (Number.isInteger(payDays) ? payDays : payDays.toFixed(1)) : '') + '</td></tr>';
     });
 
     html += '</tbody></table>';

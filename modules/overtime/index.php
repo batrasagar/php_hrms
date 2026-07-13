@@ -2,6 +2,7 @@
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/sms_helper.php';
 requireAdmin();
 
 $db   = getDb();
@@ -41,10 +42,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
         if (!$chk->fetch()) { header('Location: index.php'); exit; }
     }
 
+    // OT approval policy for this company
+    $apprReq = (int)($db->query("SELECT OTApprovalRequired FROM tblPayrollSettings WHERE CompanyId=" . (int)$companyId)->fetchColumn() ?: 0);
+    $status  = $apprReq ? 'pending' : 'approved';
+
     $ids     = $_POST['emp_ids']  ?? [];
     $hours   = $_POST['ot_hours'] ?? [];
     $reasons = $_POST['reasons']  ?? [];
-    $saved   = 0;
+    $saved   = 0; $totalHrs = 0.0;
 
     foreach ($ids as $i => $eid) {
         $eid  = (int)$eid;
@@ -53,18 +58,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
         if (!$eid) continue;
 
         if ($hrs > 0) {
+            // New/edited OT resets approval state to the company policy.
             $db->prepare(
-                "INSERT INTO tblOvertime (CompanyId, EmployeeId, OTDate, OTHours, Reason, CreatedBy)
-                 VALUES (?,?,?,?,?,?)
-                 ON DUPLICATE KEY UPDATE OTHours=?, Reason=?"
-            )->execute([$companyId, $eid, $otDate, $hrs, $rsn ?: null, $user['id'], $hrs, $rsn ?: null]);
-            $saved++;
+                "INSERT INTO tblOvertime (CompanyId, EmployeeId, OTDate, OTHours, Reason, Status, CreatedBy)
+                 VALUES (?,?,?,?,?,?,?)
+                 ON DUPLICATE KEY UPDATE OTHours=VALUES(OTHours), Reason=VALUES(Reason),
+                    Status=VALUES(Status), ApprovedBy=NULL, ApprovedAt=NULL"
+            )->execute([$companyId, $eid, $otDate, $hrs, $rsn ?: null, $status, $user['id']]);
+            $saved++; $totalHrs += $hrs;
         } else {
             // 0 hours = delete if exists
             $db->prepare("DELETE FROM tblOvertime WHERE EmployeeId=? AND OTDate=?")->execute([$eid, $otDate]);
         }
     }
-    $successMsg = "Saved overtime for $saved employee(s).";
+
+    // Prior-OT SMS to the HR Manager
+    if ($saved > 0) {
+        $hrMobile = hrManagerMobile($db, $companyId);
+        if ($hrMobile) {
+            $coName = (string)($db->query("SELECT Name FROM tblCompany WHERE id=" . (int)$companyId)->fetchColumn() ?: 'Company');
+            $tail   = $apprReq ? 'Pending approval.' : 'Auto-approved.';
+            @sendSms($hrMobile, "OT entered: $saved staff, " . rtrim(rtrim(number_format($totalHrs,2),'0'),'.') . " hrs on $otDate at $coName. $tail");
+        }
+    }
+
+    $successMsg = "Saved overtime for $saved employee(s)." . ($apprReq ? ' Pending approval.' : '');
     if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'message'=>$successMsg]); exit; }
     header("Location: index.php?company=$companyId&date=" . urlencode($otDate) . "&saved=$saved");
     exit;
@@ -82,7 +100,7 @@ if ($fCompany) {
     if ($fCompany) {
         $stmt = $db->prepare(
             "SELECT e.id, e.EmployeeCode, e.Name, e.Department,
-                    ot.id AS otId, ot.OTHours, ot.Reason
+                    ot.id AS otId, ot.OTHours, ot.Reason, ot.Status AS OTStatus
              FROM tblEmployee e
              LEFT JOIN tblOvertime ot ON ot.EmployeeId = e.id AND ot.OTDate = ?
              WHERE e.CompanyId = ? AND e.Status = 'active'
@@ -126,7 +144,10 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-semibold">OT Entry — <?= htmlspecialchars($fDate) ?> <small class="text-muted">(enter 0 to remove)</small></span>
-    <button form="otForm" type="submit" class="btn btn-success btn-sm"><i class="bi bi-save me-1"></i>Save OT</button>
+    <div class="d-flex gap-2">
+      <a href="approvals.php?company=<?= $fCompany ?>" class="btn btn-outline-warning btn-sm"><i class="bi bi-check2-square me-1"></i>Approvals</a>
+      <button form="otForm" type="submit" class="btn btn-success btn-sm"><i class="bi bi-save me-1"></i>Save OT</button>
+    </div>
   </div>
   <div class="card-body p-0">
     <form id="otForm" method="POST" data-ajax>
@@ -138,6 +159,7 @@ require_once __DIR__ . '/../../includes/header.php';
             <th>Code</th><th>Name</th><th>Department</th>
             <th style="width:110px">OT Hours</th>
             <th>Reason</th>
+            <th style="width:90px">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -155,6 +177,14 @@ require_once __DIR__ . '/../../includes/header.php';
           <td>
             <input type="text" name="reasons[]" class="form-control form-control-sm"
                    value="<?= htmlspecialchars($e['Reason'] ?? '') ?>" placeholder="Optional">
+          </td>
+          <td>
+            <?php if (($e['OTHours'] ?? 0) > 0):
+              $st = $e['OTStatus'] ?? 'approved';
+              $badge = ['pending'=>'bg-warning text-dark','approved'=>'bg-success','rejected'=>'bg-danger'][$st] ?? 'bg-secondary';
+            ?>
+              <span class="badge <?= $badge ?>"><?= ucfirst($st) ?></span>
+            <?php else: ?><span class="text-muted small">—</span><?php endif; ?>
           </td>
         </tr>
         <?php endforeach; ?>

@@ -27,6 +27,38 @@ $fEmp = (int)($_GET['emp'] ?? 0);
 $fTpl = (int)($_GET['tpl'] ?? 0);
 $msg  = ''; $msgType = 'success';
 
+// Variables that render as images / HTML blocks (not plain text, not user-typed).
+$imageVars = ['employee_photo','signature','employee_signature','issuer_signature'];
+
+/** Signature <img> if an image URL is given, else a blank signing line. */
+function signatureImg(string $url, string $label): string {
+    if ($url !== '') {
+        return '<img src="' . htmlspecialchars($url, ENT_QUOTES) . '" alt="' . htmlspecialchars($label) . '" '
+             . 'style="max-height:60px;max-width:200px;object-fit:contain" />';
+    }
+    return '<span style="display:inline-block;min-width:190px;border-top:1px solid #000;'
+         . 'padding-top:3px;margin-top:34px;text-align:center;font-size:11px">' . htmlspecialchars($label) . '</span>';
+}
+
+/** Build raw-HTML replacements for image/signature placeholders from an employee (+ company) row. */
+function docImageVars(array $emp): array {
+    $photo = '';
+    if (!empty($emp['Photo'])) {
+        $url = BASE_URL . '/uploads/employees/' . rawurlencode($emp['Photo']);
+        $photo = '<img src="' . htmlspecialchars($url, ENT_QUOTES) . '" alt="Employee Photo" '
+               . 'style="width:110px;height:132px;object-fit:cover;border:1px solid #999" />';
+    }
+    $empSigUrl = !empty($emp['Signature']) ? BASE_URL . '/uploads/employees/' . rawurlencode($emp['Signature']) : '';
+    $issSigUrl = !empty($emp['SignImage']) ? BASE_URL . '/uploads/company/'   . rawurlencode($emp['SignImage']) : '';
+    $empSig = signatureImg($empSigUrl, 'Signature');
+    return [
+        'employee_photo'     => $photo,
+        'employee_signature' => $empSig,
+        'signature'          => $empSig,                                   // alias → employee signature
+        'issuer_signature'   => signatureImg($issSigUrl, 'Authorised Signatory'),
+    ];
+}
+
 // ── DELETE document ────────────────────────────────────────────────────────────
 if (isset($_GET['del'])) {
     $delId = (int)$_GET['del'];
@@ -50,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
     $tpl = $s->fetch();
 
     // Load employee + company
-    $s = $db->prepare("SELECT e.*, c.Name AS CompanyName FROM tblEmployee e JOIN tblCompany c ON c.id=e.CompanyId WHERE e.id=? AND e.CompanyId=?");
+    $s = $db->prepare("SELECT e.*, c.Name AS CompanyName, c.SignImage, c.SignName, c.SignDesignation FROM tblEmployee e JOIN tblCompany c ON c.id=e.CompanyId WHERE e.id=? AND e.CompanyId=?");
     $s->execute([$empId, $fCompany]);
     $emp = $s->fetch();
 
@@ -81,21 +113,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
             'bank_account'    => $emp['BankAcNo'] ?? '',
             'bank_ifsc'       => $emp['IFSCCode'] ?? '',
             'company_name'    => $emp['CompanyName'] ?? '',
+            'issuer_name'         => $emp['SignName'] ?? '',
+            'issuer_designation'  => $emp['SignDesignation'] ?? '',
             'today_date'      => date('d/m/Y'),
             'issue_date'      => $issued ? date('d/m/Y', strtotime($issued)) : date('d/m/Y'),
         ];
 
-        // Override with user-supplied values from the form
+        // Override with user-supplied values from the form (image vars are not user-typed)
         foreach ($_POST as $k => $v) {
             if (strpos($k, 'var_') === 0) {
-                $vars[substr($k, 4)] = trim($v);
+                $name = substr($k, 4);
+                if (in_array($name, $imageVars, true)) continue;
+                $vars[$name] = trim($v);
             }
         }
 
-        // Substitute variables in template content
+        // Substitute text variables (escaped) in template content
         $content = $tpl['Content'];
         foreach ($vars as $k => $v) {
             $content = str_replace('{{' . $k . '}}', htmlspecialchars($v, ENT_QUOTES, 'UTF-8'), $content);
+        }
+        // Substitute image / signature variables as raw HTML (already sanitised)
+        foreach (docImageVars($emp) as $k => $v) {
+            $content = str_replace('{{' . $k . '}}', $v, $content);
         }
 
         $db->prepare(
@@ -128,7 +168,7 @@ $tplRow   = null;
 $tplVars  = [];
 
 if ($fEmp && $fCompany) {
-    $s = $db->prepare("SELECT e.*, c.Name AS CompanyName FROM tblEmployee e JOIN tblCompany c ON c.id=e.CompanyId WHERE e.id=? AND e.CompanyId=?");
+    $s = $db->prepare("SELECT e.*, c.Name AS CompanyName, c.SignImage, c.SignName, c.SignDesignation FROM tblEmployee e JOIN tblCompany c ON c.id=e.CompanyId WHERE e.id=? AND e.CompanyId=?");
     $s->execute([$fEmp, $fCompany]); $empRow = $s->fetch();
 
     if ($empRow) {
@@ -177,6 +217,8 @@ if ($empRow) {
         'bank_account'    => $empRow['BankAcNo'] ?? '',
         'bank_ifsc'       => $empRow['IFSCCode'] ?? '',
         'company_name'    => $empRow['CompanyName'] ?? '',
+        'issuer_name'         => $empRow['SignName'] ?? '',
+        'issuer_designation'  => $empRow['SignDesignation'] ?? '',
         'today_date'      => date('d/m/Y'),
         'issue_date'      => date('d/m/Y'),
     ];
@@ -250,11 +292,16 @@ require_once __DIR__ . '/../../includes/header.php';
               <input type="date" name="issued_on" class="form-control form-control-sm" value="<?= date('Y-m-d') ?>">
             </div>
           </div>
-          <?php if (empty($tplVars)): ?>
+          <?php
+            $textVars  = array_values(array_diff($tplVars, $imageVars));
+            $autoVars  = array_values(array_intersect($tplVars, $imageVars));
+          ?>
+          <?php if (empty($textVars) && empty($autoVars)): ?>
           <div class="alert alert-warning py-2">This template has no <code>{{variables}}</code>. It will be saved as-is.</div>
           <?php else: ?>
+          <?php if ($textVars): ?>
           <div class="row g-2">
-            <?php foreach ($tplVars as $v): ?>
+            <?php foreach ($textVars as $v): ?>
             <div class="col-sm-6">
               <label class="form-label small text-muted">{{<?= htmlspecialchars($v) ?>}}</label>
               <input type="text" name="var_<?= htmlspecialchars($v) ?>" class="form-control form-control-sm"
@@ -262,6 +309,14 @@ require_once __DIR__ . '/../../includes/header.php';
             </div>
             <?php endforeach; ?>
           </div>
+          <?php endif; ?>
+          <?php if ($autoVars): ?>
+          <div class="alert alert-info py-2 mt-2" data-no-toast style="font-size:12px">
+            <i class="bi bi-image me-1"></i>Auto-filled:
+            <?php foreach ($autoVars as $v): ?><code>{{<?= htmlspecialchars($v) ?>}}</code> <?php endforeach; ?>
+            — <?= in_array('employee_photo',$autoVars,true) && empty($empRow['Photo']) ? '<span class="text-danger">this employee has no photo uploaded</span>' : 'inserted automatically' ?>.
+          </div>
+          <?php endif; ?>
           <?php endif; ?>
           <div class="mt-3 d-flex gap-2">
             <button type="submit" class="btn btn-success"><i class="bi bi-file-earmark-check me-1"></i>Save &amp; Print</button>

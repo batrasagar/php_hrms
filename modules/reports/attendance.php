@@ -35,7 +35,20 @@ $contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor 
 $dataUrl   = BASE_URL . '/ajax/attendance_data.php';
 $actionUrl = BASE_URL . '/ajax/attendance_action.php';
 $autoload  = (int)$fCompany;
-$canEdit   = in_array($user['role'], ['admin','superadmin'], true) ? 1 : 0;
+$canEdit   = in_array($user['role'], ['admin','superadmin','operator'], true) ? 1 : 0;
+
+// Server-side option lists for the edit modal so the Leave-code and Shift
+// dropdowns are populated on page load, independent of the JS/ajax path.
+$leaveTypesDd = [];
+$shiftsDd     = [];
+if ($canEdit && $fCompany) {
+    $lt = $db->prepare("SELECT Code, Name FROM tblLeaveType WHERE CompanyId=? AND IsActive=1 ORDER BY Code");
+    $lt->execute([$fCompany]);
+    $leaveTypesDd = $lt->fetchAll();
+    $sh = $db->prepare("SELECT id, ShiftName FROM tblShift WHERE CompanyId=? AND IsActive=1 ORDER BY ShiftName");
+    $sh->execute([$fCompany]);
+    $shiftsDd = $sh->fetchAll();
+}
 
 require_once __DIR__ . '/../../includes/header.php';
 ?>
@@ -85,6 +98,13 @@ require_once __DIR__ . '/../../includes/header.php';
   </div>
 </div>
 
+<div id="attSearchBar" class="mb-2 d-none">
+  <div class="input-group input-group-sm" style="max-width:300px">
+    <span class="input-group-text"><i class="bi bi-search"></i></span>
+    <input type="text" id="attSearch" class="form-control" placeholder="Search code / name…" autocomplete="off">
+  </div>
+</div>
+
 <div id="filter-results">
   <div class="alert alert-info">Select a company and date range, then click <strong>Load</strong>.</div>
 </div>
@@ -110,13 +130,20 @@ require_once __DIR__ . '/../../includes/header.php';
           <label class="btn btn-outline-primary" for="aa_act_comp">Comp Off</label>
           <input type="radio" class="btn-check" name="aa_act" id="aa_act_wo" value="week_off">
           <label class="btn btn-outline-primary" for="aa_act_wo">Week Off</label>
+          <input type="radio" class="btn-check" name="aa_act" id="aa_act_shift" value="shift">
+          <label class="btn btn-outline-primary" for="aa_act_shift">Shift</label>
         </div>
 
         <!-- Leave -->
         <div class="aa-pane" data-pane="leave">
           <div class="mb-2">
             <label class="form-label small mb-1">Leave Code</label>
-            <select id="aa_leave_code" class="form-select form-select-sm"></select>
+            <select id="aa_leave_code" class="form-select form-select-sm">
+              <?php foreach ($leaveTypesDd as $lt): ?>
+              <option value="<?= htmlspecialchars($lt['Code']) ?>"><?= htmlspecialchars($lt['Code'].' — '.$lt['Name']) ?></option>
+              <?php endforeach; ?>
+              <?php if (!$leaveTypesDd): ?><option value="">(no leave types defined)</option><?php endif; ?>
+            </select>
           </div>
           <div class="mb-2">
             <label class="form-label small mb-1">Day Type</label>
@@ -169,6 +196,27 @@ require_once __DIR__ . '/../../includes/header.php';
           </div>
         </div>
 
+        <!-- Shift -->
+        <div class="aa-pane" data-pane="shift" hidden>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Shift</label>
+            <select id="aa_shift_id" class="form-select form-select-sm">
+              <option value="">— No shift —</option>
+              <?php foreach ($shiftsDd as $s): ?>
+              <option value="<?= (int)$s['id'] ?>"><?= htmlspecialchars($s['ShiftName']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="aa_shift_mode" id="aa_shift_day" value="day" checked>
+            <label class="form-check-label small" for="aa_shift_day">Mark for <strong id="aa_shift_dateLbl">this date</strong> only</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="aa_shift_mode" id="aa_shift_onwards" value="onwards">
+            <label class="form-check-label small" for="aa_shift_onwards">Change <strong id="aa_shift_name">this employee</strong>'s shift from now onwards</label>
+          </div>
+        </div>
+
         <div class="mt-2">
           <input type="text" id="aa_reason" class="form-control form-control-sm" placeholder="Reason (optional)">
         </div>
@@ -193,24 +241,40 @@ document.addEventListener('DOMContentLoaded', function(){
     document.querySelectorAll('#attActionModal .aa-pane').forEach(function(p){ p.hidden = (p.dataset.pane !== which); });
   }
 
-  $(document).on('click', '#tblAttendance td.att-cell.editable', function(){
+  $(document).on('dblclick', '#tblAttendance td.att-cell.editable', function(){
     var d = this.dataset;
     ctx = { emp:d.emp, code:d.code, name:d.name, date:d.date, type:d.type };
     $('#aa_title').text('Edit — ' + d.name);
     $('#aa_sub').html('<code>'+(d.code||'—')+'</code> &middot; '+d.date+(d.type ? ' &middot; currently <b>'+d.type+'</b>' : ''));
+    // Selects are pre-populated server-side. Only re-render from ajax data when it
+    // exists (adds leave balances / refreshes shifts) — never blank them otherwise.
     var lts = (window.__attLastData && window.__attLastData.leaveTypes) || [];
     var bals = (window.__attLastData && window.__attLastData.leaveBalances && window.__attLastData.leaveBalances[d.emp]) || {};
-    var opts = '';
-    lts.forEach(function(lt){
-      var b = bals[lt.Code];
-      var bl = (b === undefined || b === null) ? '' : ' (bal ' + (Number.isInteger(b) ? b : b.toFixed(1)) + ')';
-      opts += '<option value="'+lt.Code+'">'+lt.Code+' — '+lt.Name+bl+'</option>';
-    });
-    $('#aa_leave_code').html(opts || '<option value="">(no leave types defined)</option>');
+    if (lts.length) {
+      var opts = '';
+      lts.forEach(function(lt){
+        var b = bals[lt.Code];
+        var bl = (b === undefined || b === null) ? '' : ' (bal ' + (Number.isInteger(b) ? b : b.toFixed(1)) + ')';
+        opts += '<option value="'+lt.Code+'">'+lt.Code+' — '+lt.Name+bl+'</option>';
+      });
+      $('#aa_leave_code').html(opts);
+    }
+    var shs = (window.__attLastData && window.__attLastData.shifts) || [];
+    var curShift = '';
+    ((window.__attLastData && window.__attLastData.employees) || []).forEach(function(e){ if (String(e.id) === String(d.emp)) curShift = e.shiftNo; });
+    if (shs.length) {
+      var sopts = '<option value="">— No shift —</option>';
+      shs.forEach(function(s){ sopts += '<option value="'+s.id+'">'+s.ShiftName+'</option>'; });
+      $('#aa_shift_id').html(sopts);
+    }
+    $('#aa_shift_id').val(curShift ? String(curShift) : '');
+    $('#aa_shift_name').text(d.name);
+    $('#aa_shift_dateLbl').text(d.date);
+    $('input[name=aa_shift_mode][value=day]').prop('checked', true);
     var wd = new Date(d.date + 'T00:00:00').getDay();
     $('#aa_wo_weekday').val(String(wd));
     $('#aa_wo_dateLbl').text(d.date);
-    $('#aa_reason').val(''); $('#aa_in').val(''); $('#aa_out').val(''); $('#aa_force').val('');
+    $('#aa_reason').val(''); $('#aa_in').val(d.in||''); $('#aa_out').val(d.out||''); $('#aa_force').val('');
     $('input[name=aa_act][value=leave]').prop('checked', true);
     $('input[name=aa_wo_mode][value=date]').prop('checked', true);
     showPane('leave');
@@ -246,6 +310,7 @@ document.addEventListener('DOMContentLoaded', function(){
       if (mode === 'recurring') post({ action:'week_off_recurring', weekday:$('#aa_wo_weekday').val() });
       else                      post({ action:'week_off_date' });
     }
+    else if (act === 'shift')       post({ action:'shift_change', shift_id:$('#aa_shift_id').val(), mode:$('input[name=aa_shift_mode]:checked').val() });
   });
   $('#aa_clear').on('click', function(){ post({ action:'clear' }); });
 });
@@ -268,7 +333,7 @@ document.addEventListener('DOMContentLoaded', function(){
 #att-loader p { font-size:14px; color:#555; margin:0; }
 @keyframes attSpin { to { transform:rotate(360deg); } }
 #tblAttendance td.att-cell { padding:2px 0 !important; vertical-align:middle; position:relative; }
-#tblAttendance td.att-cell.editable { cursor:pointer; }
+#tblAttendance td.att-cell.editable { cursor:pointer; user-select:none; -webkit-user-select:none; }
 #tblAttendance td.att-cell.editable:hover { outline:2px solid #0d6efd; outline-offset:-2px; }
 .aa-dot { position:absolute; top:0; right:1px; color:#fd7e14; font-size:8px; line-height:1; }
 #tblAttendance tfoot td    { font-size:10px; padding:2px 3px !important; }
@@ -306,7 +371,15 @@ document.addEventListener('DOMContentLoaded', function(){
                +'<div style="font-size:10px;line-height:1.3;color:#555">'+(c.out||'—')+'</div>'+tot,
                '#d4edda', cls];
       }
-      case 'A': return ['<span style="font-size:9px">A</span>', '#fff0f0', 'text-danger'];
+      case 'A':
+        if (c.absPunch && c.in) {
+          // Marked absent but punches exist — show A with the (muted) punch times.
+          return ['<b style="font-size:9px">A</b>'
+                 +'<div style="font-size:9px;line-height:1.2;color:#b08">'+esc(c.in)+'</div>'
+                 +'<div style="font-size:9px;line-height:1.2;color:#c39">'+(c.out||'—')+'</div>',
+                 '#ffe0e6', 'text-danger'];
+        }
+        return ['<span style="font-size:9px">A</span>', '#fff0f0', 'text-danger'];
       default:  return ['', '', ''];
     }
   }
@@ -367,13 +440,17 @@ document.addEventListener('DOMContentLoaded', function(){
     // tbody
     html += '<tbody>';
     data.employees.forEach(function(emp){
-      html += '<tr><td class="small"><code>'+esc(emp.code||'—')+'</code></td><td class="small">'+esc(emp.name)+'</td>';
+      var srch = ((emp.code||'')+' '+(emp.name||'')).toLowerCase();
+      html += '<tr data-search="'+esc(srch)+'"><td class="small"><code>'+esc(emp.code||'—')+'</code></td><td class="small">'+esc(emp.name)
+            + (emp.fatherName ? '<div style="font-size:8px;color:#888;line-height:1.15">S/o '+esc(emp.fatherName)+'</div>' : '')
+            + (emp.designation ? '<div style="font-size:8px;color:#888;line-height:1.15">'+esc(emp.designation)+'</div>' : '')
+            + '</td>';
       data.dates.forEach(function(d){
         var cd = emp.days[d.date]||{type:''};
         var r  = renderCell(cd);
         var mark = cd.corr ? '<span class="aa-dot" title="Manually edited">&#9679;</span>' : '';
         var cls  = 'text-center att-cell ' + r[2] + (CAN_EDIT ? ' editable' : '');
-        var attrs = CAN_EDIT ? (' data-emp="'+emp.id+'" data-code="'+esc(emp.code||'')+'" data-name="'+esc(emp.name)+'" data-date="'+d.date+'" data-type="'+esc(cd.type||'')+'"') : '';
+        var attrs = CAN_EDIT ? (' data-emp="'+emp.id+'" data-code="'+esc(emp.code||'')+'" data-name="'+esc(emp.name)+'" data-date="'+d.date+'" data-type="'+esc(cd.type||'')+'" data-in="'+esc(cd.in||'')+'" data-out="'+esc(cd.out||'')+'"') : '';
         html += '<td class="'+cls+'" style="background:'+r[1]+'"'+attrs+'>'+r[0]+mark+'</td>';
       });
       var s = emp.summary;
@@ -437,13 +514,24 @@ document.addEventListener('DOMContentLoaded', function(){
 
     $('#filter-results').html(html);
     updatePrintBtns(true);
+    applyAttSearch();
   }
 
   function updatePrintBtns(show) {
-    if (!show) { $('#btnPrint,#btnGrid').addClass('d-none'); return; }
+    if (!show) { $('#btnPrint,#btnGrid').addClass('d-none'); $('#attSearchBar').addClass('d-none'); return; }
     var qs = $('#attForm').serialize();
     $('#btnPrint').attr('href', 'attendance_print.php?'+qs).removeClass('d-none');
     $('#btnGrid').attr('href',  'attendance_print_simple.php?'+qs).removeClass('d-none');
+    $('#attSearchBar').removeClass('d-none');
+  }
+
+  // Live filter of the attendance grid by employee code / name.
+  function applyAttSearch() {
+    var q = ($('#attSearch').val() || '').trim().toLowerCase();
+    $('#tblAttendance tbody tr').each(function() {
+      var s = this.getAttribute('data-search') || '';
+      this.style.display = (!q || s.indexOf(q) !== -1) ? '' : 'none';
+    });
   }
 
   function load() {
@@ -467,6 +555,7 @@ document.addEventListener('DOMContentLoaded', function(){
   window.__attReload = load;
   $(function() {
     $('#attForm').on('submit', function(e) { e.preventDefault(); load(); });
+    $('#attSearch').on('input', applyAttSearch);
     if (AUTOLOAD) load();
   });
 })();

@@ -16,6 +16,7 @@ $ap   = $activePage ?? '';
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 <style>
 /* ── Apple Design System ─────────────────────────────────────────────── */
 :root {
@@ -566,6 +567,30 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
   padding: 0 0 0 4px !important;
 }
 .ts-control .item .remove:hover { opacity: 1; color: var(--danger) !important; }
+
+/* ── Flatpickr (dd-MMM-yyyy datepicker) overrides ────────────────────── */
+.flatpickr-calendar {
+  border-radius: 10px !important;
+  border: .5px solid rgba(0,0,0,.14) !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,.11), 0 1px 4px rgba(0,0,0,.07) !important;
+  font-family: inherit;
+}
+.flatpickr-day.selected,
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+  background: var(--blue) !important;
+  border-color: var(--blue) !important;
+  color: #fff !important;
+}
+.flatpickr-day.today { border-color: var(--blue) !important; }
+.flatpickr-day:hover { background: var(--blue-lt) !important; }
+.flatpickr-months .flatpickr-month,
+.flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-weekday { color: var(--text) !important; }
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay { color: var(--text-3) !important; }
 </style>
 </head>
 <body>
@@ -622,12 +647,12 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
   $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','emp_left','print']) ? 'show' : '';
   $shiftOpen   = in_array($ap, ['shifts','shift_defaults','shift_assign','shift_cyclic','compoff']) ? 'show' : '';
   $masterOpen  = in_array($ap, ['holidays']) ? 'show' : '';
-  $attnOpen    = in_array($ap, ['overtime','leaves','leave_range','leave_types','leave_policy','leave_assign','leave_register']) ? 'show' : '';
+  $attnOpen    = in_array($ap, ['overtime','ot_approvals','mark_ot_abs','attn_import','leaves','leave_range','leave_types','leave_policy','leave_assign','leave_register']) ? 'show' : '';
   $rptOpen     = in_array($ap, ['report_active','report_attendance','report_monthly','report_swipe','report_strength','report_ot','report_leave','report_joinleft']) ? 'show' : '';
   $settingsUrl = BASE_URL . '/modules/settings/index.php';
   $punchOpen   = in_array($ap, ['punchlog','punch_correction','punch_sync']) ? 'show' : '';
   $devOpen     = in_array($ap, ['devices','device_enrollment']) ? 'show' : '';
-  $payrollOpen = in_array($ap, ['payroll_settings','payroll_components','payroll_emp_setup','payroll_run','payroll_bank']) ? 'show' : '';
+  $payrollOpen = in_array($ap, ['payroll_settings','payroll_components','payroll_emp_setup','payroll_ctc_import','payroll_run','payroll_bank']) ? 'show' : '';
   $advanceUrl  = BASE_URL . '/modules/advance/index.php';
   $notifUrl    = BASE_URL . '/modules/notifications/index.php';
   $docsOpen    = in_array($ap, ['doc_templates','doc_issue','doc_material','doc_fnf','doc_seed']) ? 'show' : '';
@@ -671,6 +696,13 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             </a>
           </div>
         </div>
+      </li>
+      <li>
+        <a class="sb-item <?= $ap==='workers'?'active':'' ?>"
+           href="<?= BASE_URL ?>/modules/workers/index.php" data-tip="Wage Workers">
+          <span class="sb-item-icon"><i class="bi bi-person-badge"></i></span>
+          <span class="sb-item-label">Wage Workers</span>
+        </a>
       </li>
 
       <!-- Tools -->
@@ -740,6 +772,15 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <div class="sb-sub">
             <a class="sb-sub-item <?= $ap==='overtime'?'active':'' ?>" href="<?= BASE_URL ?>/modules/overtime/index.php">
               <i class="bi bi-alarm-fill"></i> Overtime
+            </a>
+            <a class="sb-sub-item <?= $ap==='ot_approvals'?'active':'' ?>" href="<?= BASE_URL ?>/modules/overtime/approvals.php">
+              <i class="bi bi-check2-square"></i> OT Approvals
+            </a>
+            <a class="sb-sub-item <?= $ap==='mark_ot_abs'?'active':'' ?>" href="<?= BASE_URL ?>/modules/attendance/mark.php">
+              <i class="bi bi-check2-square"></i> Mark OT / Absent
+            </a>
+            <a class="sb-sub-item <?= $ap==='attn_import'?'active':'' ?>" href="<?= BASE_URL ?>/modules/attendance/import.php">
+              <i class="bi bi-upload"></i> Import Attendance (CSV)
             </a>
             <a class="sb-sub-item <?= $ap==='leaves'?'active':'' ?>" href="<?= BASE_URL ?>/modules/leaves/index.php">
               <i class="bi bi-calendar-x"></i> Mark Leaves
@@ -822,6 +863,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             <a class="sb-sub-item <?= $ap==='payroll_emp_setup'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/employee_setup.php">
               <i class="bi bi-person-gear"></i> Employee Setup
             </a>
+            <a class="sb-sub-item <?= $ap==='payroll_ctc_import'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/import_ctc.php">
+              <i class="bi bi-file-earmark-spreadsheet"></i> Bulk CTC Import
+            </a>
             <a class="sb-sub-item <?= $ap==='payroll_components'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/components.php">
               <i class="bi bi-list-columns-reverse"></i> Income / Deduction Heads
             </a>
@@ -891,6 +935,13 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
            href="<?= $notifUrl ?>" data-tip="Email Notifications">
           <span class="sb-item-icon"><i class="bi bi-envelope-check"></i></span>
           <span class="sb-item-label">Email Notifications</span>
+        </a>
+      </li>
+      <li>
+        <a class="sb-item <?= $ap==='sms_settings'?'active':'' ?>"
+           href="<?= BASE_URL ?>/modules/settings/sms.php" data-tip="SMS Settings">
+          <span class="sb-item-icon"><i class="bi bi-chat-dots"></i></span>
+          <span class="sb-item-label">SMS Settings (MSG91)</span>
         </a>
       </li>
 

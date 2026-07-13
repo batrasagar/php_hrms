@@ -117,6 +117,13 @@ $autoload = $fCompany ? 1 : 0;
   </div>
 </div>
 
+<div id="swSearchBar" class="mb-2 d-none no-print">
+  <div class="input-group input-group-sm" style="max-width:300px">
+    <span class="input-group-text"><i class="bi bi-search"></i></span>
+    <input type="text" id="swSearch" class="form-control" placeholder="Search code / name…" autocomplete="off">
+  </div>
+</div>
+
 <div id="filter-results">
   <div class="alert alert-info mb-0">Select a company and month to load the swipe report.</div>
 </div>
@@ -266,6 +273,7 @@ $extraJs = <<<JS
 
     if (!emps || !emps.length) {
       \$('#filter-results').html('<div class="alert alert-info">No active employees found.</div>');
+      \$('#swSearchBar').addClass('d-none');
       return;
     }
 
@@ -336,10 +344,13 @@ $extraJs = <<<JS
         dayCells += '<td class="'+r[0]+'">'+r[1]+'</td>';
       });
 
-      html += '<tr>'
-            + '<td style="font-size:10px;white-space:nowrap">'
+      var srch = ((emp.code||'')+' '+(emp.name||'')).toLowerCase();
+      html += '<tr class="sw-emp-row" data-search="'+esc(srch)+'">'
+            + '<td style="font-size:10px">'
             + '<strong>' + esc(emp.code||'') + '</strong> ' + esc(emp.name)
             + (emp.shiftNo ? '<span class="ms-1 text-muted" style="font-size:9px">S'+esc(emp.shiftNo)+'</span>' : '')
+            + (emp.fatherName ? '<div style="font-size:8px;color:#888;line-height:1.2">S/o '+esc(emp.fatherName)+'</div>' : '')
+            + (emp.designation ? '<div style="font-size:8px;color:#888;line-height:1.2">'+esc(emp.designation)+'</div>' : '')
             + '</td>'
             + dayCells
             + '<td class="sw-sum sw-sum-p">'  + (cntP  || '') + '</td>'
@@ -353,6 +364,25 @@ $extraJs = <<<JS
 
     html += '</tbody></table></div></div>';
     \$('#filter-results').html(html);
+    \$('#swSearchBar').removeClass('d-none');
+    applySwSearch();
+  }
+
+  // Live filter by employee code / name; also hides empty department headers.
+  function applySwSearch() {
+    var q = (\$('#swSearch').val() || '').trim().toLowerCase();
+    \$('#tblSwipe tbody tr.sw-emp-row').each(function() {
+      var s = this.getAttribute('data-search') || '';
+      this.style.display = (!q || s.indexOf(q) !== -1) ? '' : 'none';
+    });
+    \$('#tblSwipe tbody tr.sw-dept-row').each(function() {
+      var vis = false, n = this.nextElementSibling;
+      while (n && !n.classList.contains('sw-dept-row')) {
+        if (n.classList.contains('sw-emp-row') && n.style.display !== 'none') { vis = true; break; }
+        n = n.nextElementSibling;
+      }
+      this.style.display = vis ? '' : 'none';
+    });
   }
 
   function load() {
@@ -412,6 +442,7 @@ $extraJs = <<<JS
   \$(function() {
     \$('#swipeForm').on('submit', function(e) { e.preventDefault(); load(); });
     \$('#btnSwipeExcel').on('click', downloadExcel);
+    \$('#swSearch').on('input', applySwSearch);
     if (AUTOLOAD) load();
   });
 })();

@@ -90,7 +90,11 @@ $availableVars = [
     'Statutory' => ['uan','pf_no','esi_no','pan_no'],
     'Bank'      => ['bank_name','bank_branch','bank_account','bank_ifsc'],
     'Other'     => ['company_name','today_date','issue_date'],
+    'Signatory' => ['issuer_name','issuer_designation'],
+    'Image / Sign' => ['employee_photo','employee_signature','signature','issuer_signature'],
 ];
+// Variables that render as images / HTML blocks rather than plain text.
+$imageVars = ['employee_photo','employee_signature','signature','issuer_signature'];
 
 $pageTitle  = 'Document Templates';
 $activePage = 'doc_templates';
@@ -207,6 +211,9 @@ require_once __DIR__ . '/../../includes/header.php';
             <?php endforeach; ?>
             <div class="alert alert-info py-2 mt-3" data-no-toast style="font-size:12px">
               <strong>Tip:</strong> Click a variable to insert at cursor. Use the Table menu in the toolbar — right-click a cell for row/column options.
+            </div>
+            <div class="alert alert-secondary py-2" data-no-toast style="font-size:12px">
+              <strong>{{employee_photo}}</strong> prints the employee's photo. <strong>{{employee_signature}}</strong> (alias <strong>{{signature}}</strong>) prints the employee's signature, and <strong>{{issuer_signature}}</strong> prints the company's authorized-signatory signature. If no signature image is uploaded, a blank signing line is printed instead. These render as images/blocks, not text — place them where they should appear (e.g. inside a table cell).
             </div>
           </div>
         </div>

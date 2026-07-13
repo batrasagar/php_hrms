@@ -11,7 +11,8 @@ $user = currentUser();
 function getPayrollSettings(PDO $db, int $companyId): array {
     $def = ['WorkingDaysPerMonth'=>26,'PFEmployeeRate'=>12,'PFEmployerRate'=>12,
             'PFWageCeiling'=>15000,'ESIEmployeeRate'=>0.75,'ESIEmployerRate'=>3.25,
-            'ESIWageCeiling'=>21000,'OTMultiplier'=>1.5];
+            'ESIWageCeiling'=>21000,'OTMultiplier'=>1.5,
+            'OTApprovalRequired'=>0,'OTMonthlyCap'=>48,'OTIncentiveAsBonus'=>1];
     $s = $db->prepare("SELECT * FROM tblPayrollSettings WHERE CompanyId=? LIMIT 1");
     $s->execute([$companyId]);
     $row = $s->fetch();
@@ -27,28 +28,36 @@ function calcSalaryLine(array $ep, array $settings, array $components, array $em
     $wdays  = max(1, (float)$settings['WorkingDaysPerMonth']);
     $paid   = $P + $HP * 0.5;
 
-    // Earned basic
-    $eb = 0; $otAmt = 0;
+    // Earned basic + per-OT-hour rate
+    $eb = 0; $otPerHr = 0;
     switch ($wt) {
         case 'monthly':
-            $eb    = ($rate / $wdays) * $paid;
-            $otAmt = ($ep['OTAllowed'] && $OT > 0)
-                   ? ($rate / ($wdays * max(1,$hpd))) * $otMult * $OT : 0;
+            $eb      = ($rate / $wdays) * $paid;
+            $otPerHr = ($rate / ($wdays * max(1,$hpd))) * $otMult;
             break;
         case 'daily':
-            $eb    = $rate * $paid;
-            $otAmt = ($ep['OTAllowed'] && $OT > 0)
-                   ? ($rate / max(1,$hpd)) * $otMult * $OT : 0;
+            $eb      = $rate * $paid;
+            $otPerHr = ($rate / max(1,$hpd)) * $otMult;
             break;
         case 'hourly':
-            $eb    = $rate * ($P * $hpd + $HP * $hpd * 0.5);
-            $otAmt = ($ep['OTAllowed'] && $OT > 0) ? $rate * $otMult * $OT : 0;
+            $eb      = $rate * ($P * $hpd + $HP * $hpd * 0.5);
+            $otPerHr = $rate * $otMult;
             break;
         case 'piece_rate':
-            $eb    = $rate * $pieces;
+            $eb      = $rate * $pieces;
             break;
     }
-    $eb = round($eb, 2); $otAmt = round($otAmt, 2);
+    $eb = round($eb, 2);
+
+    // Split OT at the monthly cap: hours up to the cap are paid as OT (cash),
+    // hours above the cap are paid as a separate incentive/bonus line (legal cap).
+    $otHours   = ($ep['OTAllowed'] && $OT > 0) ? (float)$OT : 0;
+    $cap       = (float)($settings['OTMonthlyCap'] ?? 48);
+    $asBonus   = (int)($settings['OTIncentiveAsBonus'] ?? 1) === 1;
+    $otPaidHrs = ($asBonus && $cap > 0) ? min($otHours, $cap) : $otHours;
+    $incHrs    = ($asBonus && $cap > 0) ? max(0, $otHours - $cap) : 0;
+    $otAmt        = round($otPerHr * $otPaidHrs, 2);
+    $incentiveAmt = round($otPerHr * $incHrs, 2);
 
     // Earnings components
     $earns = []; $sumEarns = 0;
@@ -62,6 +71,11 @@ function calcSalaryLine(array $ep, array $settings, array $components, array $em
         };
         $earns[] = ['id'=>$c['id'],'name'=>$c['Name'],'calc'=>$c['CalcType'],'pct'=>$val,'amount'=>round($amt,2)];
         $sumEarns += $amt;
+    }
+    // OT beyond the cap → incentive/bonus earning line
+    if ($incentiveAmt > 0) {
+        $earns[] = ['id'=>0,'name'=>'OT Incentive (Bonus)','calc'=>'fixed','pct'=>0,'amount'=>$incentiveAmt];
+        $sumEarns += $incentiveAmt;
     }
     // percent_gross pass
     $preGross = $eb + $otAmt + $sumEarns;
@@ -162,7 +176,7 @@ function getOTSummary(PDO $db, int $companyId, int $year, int $mon): array {
     $monthStart = sprintf('%04d-%02d-01', $year, $mon);
     $monthEnd   = sprintf('%04d-%02d-%02d', $year, $mon, (int)date('t', mktime(0,0,0,$mon,1,$year)));
     $s = $db->prepare("SELECT EmployeeId, SUM(OTHours) as TotalOT FROM tblOvertime
-        WHERE CompanyId=? AND OTDate BETWEEN ? AND ? GROUP BY EmployeeId");
+        WHERE CompanyId=? AND OTDate BETWEEN ? AND ? AND Status='approved' GROUP BY EmployeeId");
     $s->execute([$companyId, $monthStart, $monthEnd]);
     $result = [];
     foreach ($s->fetchAll() as $r) $result[$r['EmployeeId']] = (float)$r['TotalOT'];
@@ -479,6 +493,9 @@ require_once __DIR__ . '/../../includes/header.php';
   <div class="ms-auto d-flex gap-2 flex-wrap">
     <a href="bank_advice.php?run=<?= $run['id'] ?>" class="btn btn-sm btn-outline-primary" target="_blank">
       <i class="bi bi-bank me-1"></i>Bank Advice
+    </a>
+    <a href="send_slips.php?run=<?= $run['id'] ?>" class="btn btn-sm btn-outline-success">
+      <i class="bi bi-send me-1"></i>Send Slips
     </a>
     <?php if ($user['role'] === 'superadmin' && $isDraft): ?>
     <form method="POST" class="d-inline" data-ajax onsubmit="return confirm('Delete this payroll run?')">

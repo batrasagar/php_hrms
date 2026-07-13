@@ -19,6 +19,7 @@
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script>
 /* ── Global Toast ───────────────────────────────────────────────────── */
 window.showToast = function(msg, type, duration) {
@@ -130,7 +131,8 @@ $(document).on('submit', 'form[data-filter]', function(e) {
         if ($.fn.DataTable.isDataTable(this)) $(this).DataTable().destroy();
       });
       $results.html($new.html()).css('opacity', 1).trigger('filter:done');
-      if (window.initTomSelects) window.initTomSelects($results[0]);
+      if (window.initTomSelects)  window.initTomSelects($results[0]);
+      if (window.initDatepickers) window.initDatepickers($results[0]);
     } else {
       $results.css('opacity', 1).trigger('filter:done');
     }
@@ -165,6 +167,32 @@ $(document).on('submit', 'form[data-filter]', function(e) {
   /* expose globally so pages can call initTomSelects(container) after
      dynamically adding selects (e.g. after AJAX row inserts) */
   window.initTomSelects = initTomSelects;
+})();
+
+/* ── Flatpickr auto-init: dd-MMM-yyyy display everywhere ─────────────── */
+/* Turns every <input type="date"> into a datepicker that DISPLAYS
+   dd-MMM-yyyy (e.g. 13-Jul-2026) while the real submitted value stays
+   Y-m-d, so PHP/MySQL and existing JS reading .val() are unaffected.
+   Opt out on a field with data-no-fp. */
+(function () {
+  function initDatepickers(root) {
+    if (!window.flatpickr) return;
+    (root || document).querySelectorAll('input[type="date"]').forEach(function (el) {
+      if (el._flatpickr) return;          // already initialised
+      if ('noFp' in el.dataset) return;   // opt-out via data-no-fp
+      var opts = {
+        altInput  : true,
+        altFormat : 'd-M-Y',              // 13-Jul-2026
+        dateFormat: 'Y-m-d',              // value kept for the server
+        allowInput: true,
+      };
+      if (el.getAttribute('min')) opts.minDate = el.getAttribute('min');
+      if (el.getAttribute('max')) opts.maxDate = el.getAttribute('max');
+      flatpickr(el, opts);
+    });
+  }
+  document.addEventListener('DOMContentLoaded', function () { initDatepickers(); });
+  window.initDatepickers = initDatepickers;
 })();
 </script>
 <?php if (!empty($extraJs)): ?>

@@ -56,13 +56,57 @@ $showBefDoj   = !empty($settings['show_before_doj']);
 $showAftDol   = !empty($settings['show_after_dol']);
 $showOt       = ($settings['show_ot_report'] ?? '1') !== '0';  // default: show
 
+// ── OT calculation config ─────────────────────────────────────────────────────
+$otBefore     = !empty($settings['ot_before_shift']);   // count early arrival
+$otAfter      = !empty($settings['ot_after_shift']);    // count late departure
+$otManualOnly = !empty($settings['ot_manual_only']);    // ignore punch-based OT
+$otClampOut   = !empty($settings['ot_clamp_out']);      // clamp out-punch beyond OT limit
+$otMaxHours   = array_key_exists('ot_max_hours', $settings) ? (float)$settings['ot_max_hours'] : null;
+$otMaxMin     = ($otMaxHours !== null && $otMaxHours > 0) ? (int)round($otMaxHours * 60) : null;
+$otSlabs      = json_decode($settings['ot_slabs'] ?? '', true);
+if (!is_array($otSlabs)) $otSlabs = [];
+
+/** Deterministic ±5 min jitter (stable per employee+date so the report doesn't flicker). */
+function otClampMinutes(int $boundaryMin, string $seed): int {
+    $off = (int)(crc32($seed) % 11) - 5;   // -5..+5
+    return max(0, min(1439, $boundaryMin + $off));
+}
+
+/** Lunch minutes to subtract from worked time when the employee was present through
+ *  the shift's lunch window. Returns 0 when the shift has no lunch or they weren't. */
+function otLunchDeduct(?array $shiftRec, int $inMins, int $outMins): int {
+    if (!$shiftRec || empty($shiftRec['HasLunch'])) return 0;
+    $lo = otHm2min($shiftRec['LunchOutTime'] ?? null);
+    $li = otHm2min($shiftRec['LunchInTime']  ?? null);
+    if ($lo === null || $li === null || $li <= $lo) return 0;
+    return ($inMins <= $lo && $outMins >= $li) ? ($li - $lo) : 0;
+}
+
+/** Raw OT minutes → credited OT minutes via slab rules (inclusive ranges). */
+function otApplySlab(int $raw, array $slabs): int {
+    if ($raw <= 0 || !$slabs) return 0;
+    $best = 0;
+    foreach ($slabs as $s) {
+        $from = (int)($s['from'] ?? 0); $to = (int)($s['to'] ?? 0); $cr = (int)($s['credit'] ?? 0);
+        if ($raw >= $from && $raw <= $to) return $cr;
+        if ($raw > $to) $best = $cr;   // beyond all defined ranges → highest slab credit
+    }
+    return $best;
+}
+
+/** "HH:MM[:SS]" → minutes since midnight, or null. */
+function otHm2min(?string $t): ?int {
+    if (!$t) return null;
+    return (int)substr($t, 0, 2) * 60 + (int)substr($t, 3, 2);
+}
+
 // ── Employees ─────────────────────────────────────────────────────────────────
 $where  = ['e.CompanyId = ?'];
 $params = [$fCompany];
 if ($fDept)       { $where[] = 'e.Department = ?'; $params[] = $fDept; }
 if ($fContractor) { $where[] = 'e.Contractor = ?'; $params[] = $fContractor; }
 $estmt = $db->prepare(
-    "SELECT e.id, e.EmployeeCode, e.EnrollId, e.Name, e.FatherName, e.Contractor, e.Department, e.ShiftNo, e.JoinDate, e.DOL FROM tblEmployee e
+    "SELECT e.id, e.EmployeeCode, e.EnrollId, e.Name, e.FatherName, e.Designation, e.Contractor, e.Department, e.ShiftNo, e.JoinDate, e.DOL FROM tblEmployee e
      WHERE " . implode(' AND ', $where) . " AND e.Status='active'
      ORDER BY e.Department, ISNULL(e.Sr), e.Sr, e.Name"
 );
@@ -71,7 +115,7 @@ $employees = $estmt->fetchAll();
 
 // ── Shifts ────────────────────────────────────────────────────────────────────
 $shiftMap = [];
-$sftStmt  = $db->prepare("SELECT id, HrsP, HrsHlf FROM tblShift WHERE CompanyId=? AND IsActive=1");
+$sftStmt  = $db->prepare("SELECT id, HrsP, HrsHlf, ArrivalTime, DepartureTime, HasLunch, LunchOutTime, LunchInTime FROM tblShift WHERE CompanyId=? AND IsActive=1");
 $sftStmt->execute([$fCompany]);
 foreach ($sftStmt->fetchAll() as $sr) $shiftMap[(int)$sr['id']] = $sr;
 
@@ -81,10 +125,18 @@ $leaveCodes   = [];
 $corrMap      = [];
 $holidayDates = [];
 $punchMap     = [];
+$otMap        = [];   // [EmployeeId][date] => manual OT hours
 $fetchErrors  = [];
 
 if (!empty($employees)) {
     $ids = implode(',', array_column($employees, 'id'));
+
+    foreach ($db->query(
+        "SELECT EmployeeId, OTDate, OTHours FROM tblOvertime
+         WHERE EmployeeId IN ($ids) AND OTDate BETWEEN '$fFrom' AND '$fTo'"
+    )->fetchAll() as $ot) {
+        $otMap[$ot['EmployeeId']][$ot['OTDate']] = (float)$ot['OTHours'];
+    }
 
     foreach ($db->query(
         "SELECT EmployeeId, LeaveDate, LeaveType, LeaveCode FROM tblLeave
@@ -95,7 +147,7 @@ if (!empty($employees)) {
     }
 
     // Manual corrections (override punches / force a status)
-    $corrStmt = $db->prepare("SELECT EmpCode, tDate, InTime, OutTime, AttStatus FROM tblPunchLogCorrection WHERE CompanyId=? AND tDate BETWEEN ? AND ?");
+    $corrStmt = $db->prepare("SELECT EmpCode, tDate, InTime, OutTime, AttStatus, ShiftNo FROM tblPunchLogCorrection WHERE CompanyId=? AND tDate BETWEEN ? AND ?");
     $corrStmt->execute([$fCompany, $fFrom, $fTo]);
     foreach ($corrStmt->fetchAll() as $cr) {
         $corrMap[$cr['EmpCode']][$cr['tDate']] = $cr;
@@ -273,14 +325,20 @@ foreach ($employees as $e) {
                 case 'CO':  $compOff++;     $dayTotals[$dt]['CO']++; break;
                 case 'HOL': $cell['holName'] = $holidayDates[$dt] ?? 'Holiday'; break;
             }
-            if (($ft === 'P' || $ft === 'HP') && $punch) {
+            // Keep punch times visible for present/half days AND for forced-absent
+            // days (mark-absent-but-show-punches). 'A' is flagged so the grid renders
+            // the punches under the A badge.
+            if (($ft === 'P' || $ft === 'HP' || $ft === 'A') && $punch) {
                 $inMins  = (int)substr($punch['in'], 0, 2) * 60 + (int)substr($punch['in'], 3);
                 $outMins = (int)substr($punch['out'],0, 2) * 60 + (int)substr($punch['out'],3);
                 $totMins = ($punch['count'] > 1) ? max(0, $outMins - $inMins) : 0;
+                $fShiftNo = ($corr && !empty($corr['ShiftNo'])) ? (int)$corr['ShiftNo'] : (int)($e['ShiftNo'] ?? 0);
+                $totMins = max(0, $totMins - otLunchDeduct($shiftMap[$fShiftNo] ?? null, $inMins, $outMins));
                 $cell['in']  = $punch['in'];
                 $cell['out'] = $punch['count'] > 1 ? $punch['out'] : null;
                 $cell['tot'] = attendMinsToHm($totMins);
                 $sorted = $punch['punches']; sort($sorted); $cell['punches'] = $sorted;
+                if ($ft === 'A') $cell['absPunch'] = true;
             }
             $days[$dt] = $cell; continue;
         }
@@ -306,13 +364,53 @@ foreach ($employees as $e) {
             $cell['lvCode'] = $lvCode;
             $halfLv++; $dayTotals[$dt]['HL']++;
         } elseif ($punch) {
-            $shiftRec  = $shiftMap[(int)($e['ShiftNo'] ?? 0)] ?? null;
+            // Per-date shift override (correction.ShiftNo) wins over the employee's standing shift.
+            $dayShiftNo = ($corr && !empty($corr['ShiftNo'])) ? (int)$corr['ShiftNo'] : (int)($e['ShiftNo'] ?? 0);
+            $shiftRec  = $shiftMap[$dayShiftNo] ?? null;
             $shiftHrsP = $shiftRec ? (float)$shiftRec['HrsP']   : 8.0;
             $shiftHrsH = $shiftRec ? (float)$shiftRec['HrsHlf'] : 4.0;
             $inMins    = (int)substr($punch['in'],  0, 2) * 60 + (int)substr($punch['in'],  3);
             $outMins   = (int)substr($punch['out'], 0, 2) * 60 + (int)substr($punch['out'], 3);
+
+            // ── Clamp out-punch beyond the OT limit ───────────────────────────
+            // If out is later than shift-end + max OT hours, replace the shown out
+            // time with one near that limit (±5 min), which also caps the OT.
+            $depMinC = otHm2min($shiftRec['DepartureTime'] ?? null);
+            if ($otClampOut && $otMaxMin !== null && $depMinC !== null && $punch['count'] > 1) {
+                $boundary = $depMinC + $otMaxMin;
+                if ($outMins > $boundary) {
+                    $outMins = otClampMinutes($boundary, ($e['EmployeeCode'] ?? '') . $dt);
+                    $newOut  = sprintf('%02d:%02d', intdiv($outMins, 60), $outMins % 60);
+                    $punch['out'] = $newOut;
+                    if (!empty($punch['punches'])) $punch['punches'][count($punch['punches']) - 1] = $newOut;
+                }
+            }
+
             $totMins   = ($punch['count'] > 1) ? max(0, $outMins - $inMins) : 0;
-            $otMins    = ($shiftHrsP > 0 && $totMins > 0) ? max(0, $totMins - (int)round($shiftHrsP * 60)) : 0;
+            $totMins   = max(0, $totMins - otLunchDeduct($shiftRec, $inMins, $outMins));  // net of lunch
+
+            // ── Overtime ──────────────────────────────────────────────────────
+            // Manual OT (tblOvertime) always wins for a day it is set on. Otherwise,
+            // if not manual-only, compute from punches: minutes before shift start
+            // (if enabled) + minutes after shift end (if enabled), rounded via slabs.
+            $manualOtHrs = $otMap[$e['id']][$dt] ?? null;
+            if ($manualOtHrs !== null) {
+                $otMins = (int)round($manualOtHrs * 60);   // manual OT: used as entered (not capped)
+            } elseif ($otManualOnly) {
+                $otMins = 0;
+            } else {
+                if ($otSlabs && ($otBefore || $otAfter)) {
+                    $arrMin = otHm2min($shiftRec['ArrivalTime']   ?? null);
+                    $depMin = otHm2min($shiftRec['DepartureTime'] ?? null);
+                    $early  = ($otBefore && $arrMin !== null && $punch['count'] > 1) ? max(0, $arrMin - $inMins)  : 0;
+                    $late   = ($otAfter  && $depMin !== null && $punch['count'] > 1) ? max(0, $outMins - $depMin) : 0;
+                    $otMins = otApplySlab($early + $late, $otSlabs);
+                } else {
+                    // Legacy fallback: minutes worked beyond the shift's full-day hours.
+                    $otMins = ($shiftHrsP > 0 && $totMins > 0) ? max(0, $totMins - (int)round($shiftHrsP * 60)) : 0;
+                }
+                if ($otMaxMin !== null) $otMins = min($otMins, $otMaxMin);   // cap auto OT
+            }
 
             if ($shiftRec && $totMins > 0 && $totMins < $shiftHrsH * 60) {
                 $code = 'HP'; $hpDays++; $dayTotals[$dt]['HP']++;
@@ -324,7 +422,7 @@ foreach ($employees as $e) {
             $cell['out']    = $punch['count'] > 1 ? $punch['out'] : null;
             $cell['tot']    = attendMinsToHm($totMins);
             $cell['ot']     = $showOt ? attendMinsToHm($otMins) : '';
-            $cell['shift']  = $e['ShiftNo'] ? 'S' . $e['ShiftNo'] : '';
+            $cell['shift']  = $dayShiftNo ? 'S' . $dayShiftNo : '';
             $sorted = $punch['punches']; sort($sorted);
             $cell['punches'] = $sorted;
         } elseif (!$isFut) {
@@ -350,6 +448,7 @@ foreach ($employees as $e) {
         'code'       => $e['EmployeeCode'],
         'name'       => $e['Name'],
         'fatherName' => $e['FatherName'] ?? '',
+        'designation'=> $e['Designation'] ?? '',
         'contractor' => $e['Contractor'] ?? '',
         'department' => $e['Department'] ?? '',
         'shiftNo'    => $e['ShiftNo'] ?? '',
@@ -366,11 +465,17 @@ $pctA        = $maxPossible > 0 ? round($grand['A'] / $maxPossible * 100) : 0;
 
 // Leave types for this company (for the grid's quick-action leave dropdown)
 $leaveTypesOut = [];
+$shiftsOut     = [];
 $leaveBalances = [];
 try {
     $ltStmt = $db->prepare("SELECT Code, Name FROM tblLeaveType WHERE CompanyId=? AND IsActive=1 ORDER BY Code");
     $ltStmt->execute([$fCompany]);
     $leaveTypesOut = $ltStmt->fetchAll();
+
+    // Shifts for this company (for the grid's quick-action shift dropdown)
+    $shStmt = $db->prepare("SELECT id, ShiftName FROM tblShift WHERE CompanyId=? AND IsActive=1 ORDER BY ShiftName");
+    $shStmt->execute([$fCompany]);
+    $shiftsOut = $shStmt->fetchAll();
 
     // Per-employee remaining balance by leave code (for the dropdown ledger hint)
     $balYear = (int)substr($fFrom, 0, 4);
@@ -399,6 +504,7 @@ echo json_encode([
     'dayTotals'    => $dayTotals,
     'grand'        => $grand,
     'leaveTypes'   => $leaveTypesOut,
+    'shifts'       => $shiftsOut,
     'leaveBalances'=> $leaveBalances,
     'totalEmps'    => $totalEmps,
     'workingDays'  => $workingDays,

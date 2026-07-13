@@ -79,9 +79,9 @@ body {
 .report-title p  { font-size: 9px; color: #444; margin-top: 2px; }
 
 /* ── Table ── */
-/* table-layout:fixed with compact fixed column widths. The table width is
-   set inline (in JS) to the exact sum of its columns, so ~15 days per page
-   stay tight instead of stretching to fill the page. */
+/* table-layout:fixed with compact fixed column widths. The table width and the
+   per-day column width are set inline (in JS) to the exact sum of the columns,
+   so the full month fits across one landscape page instead of stretching. */
 table { border-collapse: collapse; table-layout: fixed; }
 th, td { border: 1px solid #555; text-align: center; padding: 1px 1px; line-height: 1.15; vertical-align: middle; overflow: hidden; }
 th { background: #222; color: #fff; font-size: 7px; font-weight: 700; }
@@ -210,16 +210,17 @@ td.col-sum { font-weight: 700; font-size: 9px; }
 
   // Build one table for a slice of days. The P/HP/A/L/HL columns show the
   // FULL-month totals (emp.summary), so each half-page stays meaningful.
-  function buildTable(data, dates) {
+  function buildTable(data, dates, dayW) {
     var emps = data.employees;
     var cols = dates.length + 7;
-    // Exact table width = name(92) + days*34 + 6 summary cols*22
-    var tableW = 92 + dates.length * 34 + 6 * 22;
+    dayW = dayW || 34;
+    // Exact table width = name(92) + days*dayW + 6 summary cols*22
+    var tableW = 92 + dates.length * dayW + 6 * 22;
 
     var html = '<table style="width:' + tableW + 'px"><thead><tr><th class="col-name" style="text-align:left">Employee</th>';
     dates.forEach(function(d) {
       var bg = d.isSun ? 'background:#555' : (d.isHol ? 'background:#2e7d32' : '');
-      html += '<th class="col-day" style="' + bg + '">' + parseInt(d.dayNum,10) + '</th>';
+      html += '<th class="col-day" style="width:' + dayW + 'px;' + bg + '">' + parseInt(d.dayNum,10) + '</th>';
     });
     html += '<th class="col-sum" title="Present">P</th>'
           + '<th class="col-sum" title="Half Present">HP</th>'
@@ -271,7 +272,7 @@ td.col-sum { font-weight: 700; font-size: 9px; }
   }
 
   // One printed page: repeated title (with day-range) + the sliced table.
-  function pageBlock(data, dates, rangeLabel, monthLabel, withLegend) {
+  function pageBlock(data, dates, rangeLabel, monthLabel, withLegend, dayW) {
     var html = '<div class="report-page">';
     html += '<div class="report-title">'
           + '<h2>Department-wise Swipe Report</h2>'
@@ -280,7 +281,7 @@ td.col-sum { font-weight: 700; font-size: 9px; }
     if (data.fContractor) html += ' &nbsp;|&nbsp; ' + esc(data.fContractor);
     html += ' &nbsp;|&nbsp; ' + rangeLabel
           + ' &nbsp;|&nbsp; Printed: ' + PRINTED_AT + '</p></div>';
-    html += buildTable(data, dates);
+    html += buildTable(data, dates, dayW);
     if (withLegend) html += legendHtml();
     html += '</div>';
     return html;
@@ -317,17 +318,11 @@ td.col-sum { font-weight: 700; font-size: 9px; }
       show(); return;
     }
 
-    // Split the month into two printed pages: days 1–15 and 16–end.
-    var firstHalf  = dates.filter(function(d){ return parseInt(d.dayNum,10) <= 15; });
-    var secondHalf = dates.filter(function(d){ return parseInt(d.dayNum,10) >  15; });
-
-    if (secondHalf.length) {
-      var lastDay = parseInt(secondHalf[secondHalf.length-1].dayNum, 10);
-      html += pageBlock(data, firstHalf,  'Days 1&ndash;15', monthLabel, false);
-      html += pageBlock(data, secondHalf, 'Days 16&ndash;' + lastDay, monthLabel, true);
-    } else {
-      html += pageBlock(data, firstHalf, 'Days 1&ndash;' + (firstHalf.length ? parseInt(firstHalf[firstHalf.length-1].dayNum,10) : 15), monthLabel, true);
-    }
+    // Show the FULL month in a single table. Shrink the per-day column width so
+    // every day fits across one A4-landscape page (no more 1–15 / 16–end split).
+    var lastDay = dates.length ? parseInt(dates[dates.length-1].dayNum, 10) : DAYS_IN_MONTH;
+    var dayW    = Math.min(34, Math.floor((1040 - 92 - 6 * 22) / Math.max(dates.length, 1)));
+    html += pageBlock(data, dates, 'Days 1&ndash;' + lastDay, monthLabel, true, dayW);
 
     html += '</div>';
 

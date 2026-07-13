@@ -26,6 +26,7 @@ $defaults = [
     'WorkingDaysPerMonth' => 26, 'PFEmployeeRate' => 12.00, 'PFEmployerRate' => 12.00,
     'PFWageCeiling' => 15000, 'ESIEmployeeRate' => 0.75, 'ESIEmployerRate' => 3.25,
     'ESIWageCeiling' => 21000, 'OTMultiplier' => 1.50,
+    'OTApprovalRequired' => 0, 'OTMonthlyCap' => 48, 'OTIncentiveAsBonus' => 1, 'HRManagerMobile' => '',
 ];
 
 $settings = $defaults;
@@ -56,20 +57,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
     $settings['ESIEmployerRate']     = max(0, min(100, (float)$_POST['ESIEmployerRate']));
     $settings['ESIWageCeiling']      = max(0, (int)$_POST['ESIWageCeiling']);
     $settings['OTMultiplier']        = max(1, (float)$_POST['OTMultiplier']);
+    $settings['OTApprovalRequired']  = isset($_POST['OTApprovalRequired']) ? 1 : 0;
+    $settings['OTMonthlyCap']        = max(0, (int)($_POST['OTMonthlyCap'] ?? 48));
+    $settings['OTIncentiveAsBonus']  = isset($_POST['OTIncentiveAsBonus']) ? 1 : 0;
+    $settings['HRManagerMobile']     = preg_replace('/[^\d+]/', '', trim($_POST['HRManagerMobile'] ?? ''));
 
     $db->prepare(
         "INSERT INTO tblPayrollSettings (CompanyId,WorkingDaysPerMonth,PFEmployeeRate,PFEmployerRate,
-            PFWageCeiling,ESIEmployeeRate,ESIEmployerRate,ESIWageCeiling,OTMultiplier)
-         VALUES (?,?,?,?,?,?,?,?,?)
+            PFWageCeiling,ESIEmployeeRate,ESIEmployerRate,ESIWageCeiling,OTMultiplier,
+            OTApprovalRequired,OTMonthlyCap,OTIncentiveAsBonus,HRManagerMobile)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
          ON DUPLICATE KEY UPDATE WorkingDaysPerMonth=VALUES(WorkingDaysPerMonth),
             PFEmployeeRate=VALUES(PFEmployeeRate), PFEmployerRate=VALUES(PFEmployerRate),
             PFWageCeiling=VALUES(PFWageCeiling), ESIEmployeeRate=VALUES(ESIEmployeeRate),
             ESIEmployerRate=VALUES(ESIEmployerRate), ESIWageCeiling=VALUES(ESIWageCeiling),
-            OTMultiplier=VALUES(OTMultiplier)"
+            OTMultiplier=VALUES(OTMultiplier), OTApprovalRequired=VALUES(OTApprovalRequired),
+            OTMonthlyCap=VALUES(OTMonthlyCap), OTIncentiveAsBonus=VALUES(OTIncentiveAsBonus),
+            HRManagerMobile=VALUES(HRManagerMobile)"
     )->execute([
         $fCompany, $settings['WorkingDaysPerMonth'], $settings['PFEmployeeRate'],
         $settings['PFEmployerRate'], $settings['PFWageCeiling'], $settings['ESIEmployeeRate'],
         $settings['ESIEmployerRate'], $settings['ESIWageCeiling'], $settings['OTMultiplier'],
+        $settings['OTApprovalRequired'], $settings['OTMonthlyCap'], $settings['OTIncentiveAsBonus'],
+        $settings['HRManagerMobile'],
     ]);
     $msg = 'Payroll settings saved.';
     if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'message'=>$msg]); exit; }
@@ -156,6 +166,32 @@ require_once __DIR__ . '/../../includes/header.php';
             <input type="number" name="ESIWageCeiling" class="form-control" value="<?= $settings['ESIWageCeiling'] ?>" min="0" required>
             <div class="form-text">ESI applies only when monthly gross ≤ this limit.</div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-alarm me-2 text-warning"></i>Overtime &amp; Incentive</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Monthly OT Cap (hours)</label>
+          <input type="number" name="OTMonthlyCap" class="form-control" value="<?= (int)$settings['OTMonthlyCap'] ?>" min="0" max="200">
+          <div class="form-text">OT beyond this many hours in a month is paid as a separate incentive line (legal cap, e.g. 48).</div>
+        </div>
+        <div class="form-check mb-2">
+          <input type="checkbox" name="OTIncentiveAsBonus" id="chkIncBonus" class="form-check-input" <?= ($settings['OTIncentiveAsBonus'] ?? 1) ? 'checked' : '' ?>>
+          <label class="form-check-label" for="chkIncBonus">Pay OT above the cap as incentive / bonus</label>
+        </div>
+        <div class="form-check mb-3">
+          <input type="checkbox" name="OTApprovalRequired" id="chkOTAppr" class="form-check-input" <?= ($settings['OTApprovalRequired'] ?? 0) ? 'checked' : '' ?>>
+          <label class="form-check-label" for="chkOTAppr">Require OT approval before it is counted in payroll</label>
+        </div>
+        <div class="mb-1">
+          <label class="form-label">HR Manager Mobile <small class="text-muted">(for OT SMS)</small></label>
+          <input type="text" name="HRManagerMobile" class="form-control" value="<?= htmlspecialchars($settings['HRManagerMobile'] ?? '') ?>" placeholder="10-digit mobile">
+          <div class="form-text">SMS is sent here when OT is entered and approved (needs MSG91 configured under <a href="<?= BASE_URL ?>/modules/settings/sms.php">SMS Settings</a>).</div>
         </div>
       </div>
     </div>

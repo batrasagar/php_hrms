@@ -887,6 +887,87 @@ $migrations = [
             ) ENGINE=InnoDB",
         ],
     ],
+    [
+        'id'    => 'M019',
+        'desc'  => 'Per-date shift override — add ShiftNo to tblPunchLogCorrection (attendance grid "mark for day" shift)',
+        'check' => "SELECT `ShiftNo` FROM `tblPunchLogCorrection` LIMIT 1",
+        'stmts' => [
+            "ALTER TABLE `tblPunchLogCorrection`
+                ADD COLUMN `ShiftNo` INT UNSIGNED NULL DEFAULT NULL COMMENT 'Per-date shift override → tblShift.id' AFTER `AttStatus`",
+        ],
+    ],
+    [
+        'id'    => 'M023',
+        'desc'  => 'Full & Final payment lines — tblFnFPayItem (earnings/deductions for settlement statement)',
+        'check' => "SELECT 1 FROM `tblFnFPayItem` LIMIT 1",
+        'stmts' => [
+            "CREATE TABLE IF NOT EXISTS `tblFnFPayItem` (
+                `id`           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `SettlementId` INT UNSIGNED NOT NULL,
+                `Label`        VARCHAR(150) NOT NULL,
+                `Type`         ENUM('earning','deduction') NOT NULL DEFAULT 'earning',
+                `Amount`       DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                `SortOrder`    INT NOT NULL DEFAULT 0,
+                INDEX `idx_settlement` (`SettlementId`)
+            ) ENGINE=InnoDB",
+        ],
+    ],
+    [
+        'id'    => 'M022',
+        'desc'  => 'Overtime approval + monthly-cap→incentive settings + HR SMS (MSG91)',
+        'check' => "SELECT `Status` FROM `tblOvertime` LIMIT 1",
+        'stmts' => [
+            "ALTER TABLE `tblOvertime`
+                ADD COLUMN `Status`     ENUM('pending','approved','rejected') NOT NULL DEFAULT 'approved' AFTER `Reason`,
+                ADD COLUMN `ApprovedBy` INT UNSIGNED NULL DEFAULT NULL,
+                ADD COLUMN `ApprovedAt` DATETIME NULL DEFAULT NULL",
+            "ALTER TABLE `tblPayrollSettings`
+                ADD COLUMN `OTApprovalRequired` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'OT needs approval before it counts',
+                ADD COLUMN `OTMonthlyCap`       INT NOT NULL DEFAULT 48 COMMENT 'OT hours/month above which OT is paid as incentive',
+                ADD COLUMN `OTIncentiveAsBonus` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Pay OT above the cap as a separate incentive/bonus line',
+                ADD COLUMN `HRManagerMobile`    VARCHAR(20) NULL DEFAULT NULL COMMENT 'Mobile for OT SMS notifications'",
+        ],
+    ],
+    [
+        'id'    => 'M021',
+        'desc'  => 'Signatures — tblEmployee.Signature (employee sign) + tblCompany authorized-signatory (SignImage/SignName/SignDesignation)',
+        'check' => "SELECT `Signature` FROM `tblEmployee` LIMIT 1",
+        'stmts' => [
+            "ALTER TABLE `tblEmployee`
+                ADD COLUMN `Signature` VARCHAR(255) NULL DEFAULT NULL COMMENT 'filename in uploads/employees/' AFTER `Photo`",
+            "ALTER TABLE `tblCompany`
+                ADD COLUMN `SignImage`       VARCHAR(255) NULL DEFAULT NULL COMMENT 'Authorized signatory sign, filename in uploads/company/',
+                ADD COLUMN `SignName`        VARCHAR(150) NULL DEFAULT NULL COMMENT 'Authorized signatory name',
+                ADD COLUMN `SignDesignation` VARCHAR(100) NULL DEFAULT NULL COMMENT 'Authorized signatory designation'",
+        ],
+    ],
+    [
+        'id'    => 'M020',
+        'desc'  => 'Quick wage-worker register — tblWageWorker (daily/hourly/monthly workers, minimal entry)',
+        'check' => "SELECT 1 FROM `tblWageWorker` LIMIT 1",
+        'stmts' => [
+            "CREATE TABLE IF NOT EXISTS `tblWageWorker` (
+                `id`           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `CompanyId`    INT UNSIGNED NOT NULL,
+                `Department`   VARCHAR(100) NULL DEFAULT NULL,
+                `EmployeeCode` VARCHAR(50)  NOT NULL DEFAULT '',
+                `Name`         VARCHAR(100) NOT NULL,
+                `Activity`     VARCHAR(150) NULL DEFAULT NULL COMMENT 'Work/task performed',
+                `EmpType`      VARCHAR(50)  NULL DEFAULT NULL COMMENT 'e.g. daily-wage, contract, casual',
+                `Mobile`       VARCHAR(20)  NULL DEFAULT NULL,
+                `Address`      TEXT         NULL DEFAULT NULL,
+                `AadharNo`     VARCHAR(20)  NULL DEFAULT NULL,
+                `WageType`     ENUM('hourly','daily','monthly','piece_rate') NOT NULL DEFAULT 'daily',
+                `WageRate`     DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                `ShiftId`      INT UNSIGNED NULL DEFAULT NULL COMMENT '→ tblShift.id (working timings)',
+                `Status`       ENUM('active','inactive') NOT NULL DEFAULT 'active',
+                `CreatedBy`    INT UNSIGNED NOT NULL DEFAULT 0,
+                `CreatedAt`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `UpdatedAt`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX `idx_company` (`CompanyId`)
+            ) ENGINE=InnoDB",
+        ],
+    ],
 ];
 
 // ── DB connection ─────────────────────────────────────────────────────────────
