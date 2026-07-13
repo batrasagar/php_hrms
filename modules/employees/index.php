@@ -159,6 +159,10 @@ require_once __DIR__ . '/../../includes/header.php';
 </div>
 
 <div id="filter-results">
+<style>
+  /* Non-compliance employees get a subtle dull row background (hover still works) */
+  #tblEmployees tbody tr.emp-noncomp { --bs-table-bg: #f0f0ee; }
+</style>
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-semibold">Employees <span class="badge bg-secondary"><?= count($employees) ?></span></span>
@@ -199,7 +203,7 @@ require_once __DIR__ . '/../../includes/header.php';
             ? BASE_URL . '/uploads/employees/' . htmlspecialchars($e['Photo'])
             : BASE_URL . '/assets/img/no-photo.png';
       ?>
-      <tr>
+      <tr<?= empty($e['Compliance']) ? ' class="emp-noncomp"' : '' ?>>
         <td style="width:40px">
           <img src="<?= $photoSrc ?>"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
