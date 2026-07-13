@@ -897,6 +897,29 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M025',
+        'desc'  => 'Development issue log — tblDevIssue (bug tracker: url, detail, snapshot, expected, AI prompt, status)',
+        'check' => "SELECT 1 FROM `tblDevIssue` LIMIT 1",
+        'stmts' => [
+            "CREATE TABLE IF NOT EXISTS `tblDevIssue` (
+                `id`        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `CompanyId` INT UNSIGNED NOT NULL,
+                `Url`       VARCHAR(1000) NULL DEFAULT NULL,
+                `Detail`    TEXT NOT NULL,
+                `Snapshot`  VARCHAR(255) NULL DEFAULT NULL COMMENT 'filename in uploads/dev-issues/',
+                `Expected`  TEXT NULL DEFAULT NULL,
+                `AiPrompt`  MEDIUMTEXT NULL DEFAULT NULL,
+                `Status`    VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+                `ClosedAt`  DATETIME NULL DEFAULT NULL,
+                `CreatedBy` INT UNSIGNED NOT NULL DEFAULT 0,
+                `CreatedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `UpdatedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX `idx_company` (`CompanyId`),
+                INDEX `idx_status`  (`Status`)
+            ) ENGINE=InnoDB",
+        ],
+    ],
+    [
         'id'    => 'M024',
         'desc'  => 'Two-factor auth — tblUser.TwoFactorEnabled (opt-in email OTP second factor at login)',
         'check' => "SELECT `TwoFactorEnabled` FROM `tblUser` LIMIT 1",

@@ -944,6 +944,13 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">SMS Settings (MSG91)</span>
         </a>
       </li>
+      <li>
+        <a class="sb-item <?= $ap==='dev_issues'?'active':'' ?>"
+           href="<?= BASE_URL ?>/modules/dev_issues/index.php" data-tip="Dev Issues">
+          <span class="sb-item-icon"><i class="bi bi-bug"></i></span>
+          <span class="sb-item-label">Dev Issues</span>
+        </a>
+      </li>
 
       <!-- Masters -->
       <div class="sb-section-label">Masters</div>
@@ -1021,6 +1028,14 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
            href="<?= BASE_URL ?>/modules/punchlog/view.php" data-tip="Punch Log">
           <span class="sb-item-icon"><i class="bi bi-clock-history"></i></span>
           <span class="sb-item-label">Punch Log</span>
+        </a>
+      </li>
+      <div class="sb-section-label">Support</div>
+      <li>
+        <a class="sb-item <?= $ap==='dev_issues'?'active':'' ?>"
+           href="<?= BASE_URL ?>/modules/dev_issues/index.php" data-tip="Dev Issues">
+          <span class="sb-item-icon"><i class="bi bi-bug"></i></span>
+          <span class="sb-item-label">Dev Issues</span>
         </a>
       </li>
 <?php endif; ?>
