@@ -28,7 +28,9 @@ if ($editId) {
     $s = $db->prepare("SELECT * FROM tblDevIssue WHERE id=?");
     $s->execute([$editId]);
     $f = $s->fetch();
-    if (!$f || !di_can_access($scopeIds, (int)$f['CompanyId'])) { header('Location: index.php'); exit; }
+    // Superadmin may open any issue; everyone else only the ones they created.
+    $ownOk = $isSuper || (int)($f['CreatedBy'] ?? 0) === (int)$user['id'];
+    if (!$f || !$ownOk) { header('Location: index.php'); exit; }
     $rec = $f;
 }
 

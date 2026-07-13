@@ -15,13 +15,14 @@ $isSuper  = $user['role'] === 'superadmin';
 $scopeIds = di_scope_ids($db, $user);
 $msg = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 
-/** Load one issue if it's in scope, else null. */
-function di_load(PDO $db, int $id, array $scopeIds): ?array {
+/** Load one issue the user may act on. Superadmin: any; everyone else: only their own. */
+function di_load(PDO $db, int $id, array $user): ?array {
     $s = $db->prepare("SELECT * FROM tblDevIssue WHERE id=?");
     $s->execute([$id]);
     $row = $s->fetch();
     if (!$row) return null;
-    return di_can_access($scopeIds, (int)$row['CompanyId']) ? $row : null;
+    if ($user['role'] === 'superadmin') return $row;
+    return (int)$row['CreatedBy'] === (int)$user['id'] ? $row : null;
 }
 
 // ── POST actions (status change / approve / reject / delete) ────────────────────
@@ -29,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
     $action = $_POST['action'] ?? '';
     $id     = (int)($_POST['id'] ?? 0);
-    $issue  = $id ? di_load($db, $id, $scopeIds) : null;
+    $issue  = $id ? di_load($db, $id, $user) : null;
 
     if ($issue) {
         if ($action === 'set_status') {
@@ -67,9 +68,9 @@ $fSearch  = trim($_GET['search'] ?? '');
 $fCompany = (int)($_GET['company'] ?? 0);
 
 $where = []; $params = [];
-if ($scopeIds !== ['*']) {
-    if (!$scopeIds) { $where[] = '1=0'; }
-    else { $in = implode(',', array_fill(0, count($scopeIds), '?')); $where[] = "d.CompanyId IN ($in)"; $params = array_merge($params, $scopeIds); }
+if (!$isSuper) {                              // non-superadmin: only issues they created
+    $where[] = 'd.CreatedBy = ?';
+    $params[] = (int)$user['id'];
 }
 if ($isSuper && $fCompany) { $where[] = 'd.CompanyId = ?'; $params[] = $fCompany; }
 if ($fSearch !== '') {
