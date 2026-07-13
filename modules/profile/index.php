@@ -138,6 +138,7 @@ require_once __DIR__ . '/../../includes/header.php';
         Tick none to turn 2FA off.
       </p>
       <form method="POST">
+        <?= csrf_field() ?>
         <input type="hidden" name="action" value="toggle_2fa">
         <div class="mb-2 fw-semibold" style="font-size:13px">Delivery channels</div>
         <div class="d-flex flex-wrap gap-4 mb-3">
