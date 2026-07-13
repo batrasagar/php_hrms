@@ -897,6 +897,26 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M028',
+        'desc'  => 'Department master — tblDepartment (per-company) + seed from existing tblEmployee departments',
+        'check' => "SELECT 1 FROM `tblDepartment` LIMIT 1",
+        'stmts' => [
+            "CREATE TABLE IF NOT EXISTS `tblDepartment` (
+                `id`        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `CompanyId` INT UNSIGNED NOT NULL,
+                `Name`      VARCHAR(100) NOT NULL,
+                `IsActive`  TINYINT(1) NOT NULL DEFAULT 1,
+                `CreatedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX `idx_company` (`CompanyId`),
+                UNIQUE KEY `uq_company_name` (`CompanyId`, `Name`)
+            ) ENGINE=InnoDB",
+            // Pre-populate the master from departments already used on employees.
+            "INSERT IGNORE INTO `tblDepartment` (`CompanyId`, `Name`)
+                SELECT DISTINCT `CompanyId`, TRIM(`Department`) FROM `tblEmployee`
+                WHERE `Department` IS NOT NULL AND TRIM(`Department`) <> ''",
+        ],
+    ],
+    [
         'id'    => 'M027',
         'desc'  => '2FA delivery channels — tblUser.TwoFactorChannels (email/whatsapp/sms) + Mobile for OTP delivery',
         'check' => "SELECT `TwoFactorChannels` FROM `tblUser` LIMIT 1",

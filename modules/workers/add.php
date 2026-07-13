@@ -40,6 +40,16 @@ if ($companyIds) {
     $shifts = [];
 }
 
+// Departments (master) in scope
+if ($companyIds) {
+    $in = implode(',', array_fill(0, count($companyIds), '?'));
+    $dq = $db->prepare("SELECT DISTINCT Name FROM tblDepartment WHERE CompanyId IN ($in) AND IsActive=1 ORDER BY Name");
+    $dq->execute($companyIds);
+    $departments = array_column($dq->fetchAll(), 'Name');
+} else {
+    $departments = [];
+}
+
 if ($editId) {
     if ($user['role'] === 'superadmin') {
         $q = $db->prepare("SELECT * FROM tblWageWorker WHERE id=?");
@@ -163,8 +173,22 @@ require_once __DIR__ . '/../../includes/header.php';
           </select>
         </div>
         <div class="col-md-6">
-          <label class="form-label">Department</label>
-          <input type="text" name="department" class="form-control" value="<?= htmlspecialchars($rec['Department']) ?>" placeholder="e.g. Production">
+          <div class="d-flex justify-content-between align-items-center">
+            <label class="form-label mb-1">Department</label>
+            <a href="<?= BASE_URL ?>/modules/departments/index.php" target="_blank" class="small text-decoration-none">
+              <i class="bi bi-gear"></i> Manage Departments
+            </a>
+          </div>
+          <select name="department" class="form-select">
+            <option value="">— Select —</option>
+            <?php foreach ($departments as $dn): ?>
+            <option value="<?= htmlspecialchars($dn) ?>" <?= $rec['Department']===$dn?'selected':'' ?>><?= htmlspecialchars($dn) ?></option>
+            <?php endforeach; ?>
+            <?php if ($rec['Department'] !== '' && !in_array($rec['Department'], $departments, true)): ?>
+            <option value="<?= htmlspecialchars($rec['Department']) ?>" selected><?= htmlspecialchars($rec['Department']) ?> (current)</option>
+            <?php endif; ?>
+          </select>
+          <?php if (!$departments): ?><div class="form-text text-danger">No departments defined. Add them via Manage Departments.</div><?php endif; ?>
         </div>
 
         <div class="col-md-4">
