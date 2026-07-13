@@ -8,6 +8,11 @@ config/db.php
 # User uploads
 uploads/
 
+# Migration artifacts — exported employee CSVs (PII) & run logs
+logs/
+marvel_employees*.csv
+*_employees*.csv
+
 # OS / editor noise
 .DS_Store
 Thumbs.db
