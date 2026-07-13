@@ -1058,6 +1058,13 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
     </button>
     <div class="topbar-title"><?= htmlspecialchars($pageTitle ?? '') ?></div>
 
+    <!-- Menu search (Ctrl+M) -->
+    <button type="button" class="cmdk-trigger" onclick="window.openMenuPalette && window.openMenuPalette()" title="Search menu (Ctrl+M)">
+      <i class="bi bi-search"></i>
+      <span class="cmdk-trigger-text">Search menu</span>
+      <kbd>Ctrl&nbsp;M</kbd>
+    </button>
+
     <!-- Profile dropdown -->
     <div class="dropdown" style="flex-shrink:0">
       <button class="topbar-profile-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Profile">

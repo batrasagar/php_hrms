@@ -243,5 +243,157 @@ $(document).on('submit', 'form[data-filter]', function(e) {
   });
 })();
 </script>
+
+<!-- ── Command palette / menu search (Ctrl+M) ──────────────────────────── -->
+<style>
+.cmdk-trigger{display:inline-flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text-2);cursor:pointer;font-size:13px;font-family:inherit;transition:background .15s;}
+.cmdk-trigger:hover{background:rgba(0,0,0,.06);color:var(--text);}
+.cmdk-trigger kbd{background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:1px 6px;font-size:11px;color:var(--text-2);font-family:inherit;}
+@media (max-width:575.98px){.cmdk-trigger-text{display:none;}.cmdk-trigger kbd{display:none;}}
+.cmdk-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:11050;display:none;align-items:flex-start;justify-content:center;padding-top:70px;animation:cmdkFade .15s ease;}
+.cmdk-overlay.open{display:flex;}
+@keyframes cmdkFade{from{opacity:0}to{opacity:1}}
+.cmdk-modal{background:var(--surface);border-radius:14px;box-shadow:0 24px 64px rgba(0,0,0,.22),0 0 0 1px rgba(0,0,0,.06);width:600px;max-width:calc(100vw - 32px);max-height:calc(100vh - 120px);display:flex;flex-direction:column;overflow:hidden;}
+.cmdk-inrow{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.cmdk-inrow>i{color:var(--text-3);font-size:16px;}
+.cmdk-input{flex:1;border:none!important;outline:none!important;box-shadow:none!important;font-size:15px;background:transparent!important;color:var(--text)!important;padding:0!important;font-family:inherit;}
+.cmdk-input::placeholder{color:var(--text-3);}
+.cmdk-esc{font-size:11px;background:var(--bg);color:var(--text-2);border:1px solid var(--border);border-radius:5px;padding:2px 7px;cursor:pointer;flex-shrink:0;font-family:inherit;}
+.cmdk-body{overflow-y:auto;flex:1;padding:6px 0 4px;}
+.cmdk-sec{display:flex;align-items:center;gap:7px;padding:10px 18px 4px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);}
+.cmdk-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.cmdk-item{display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 18px;border:none;background:transparent;text-align:left;cursor:pointer;gap:10px;font-family:inherit;transition:background .1s;}
+.cmdk-item.hi{background:var(--blue-lt);}
+.cmdk-label{font-size:14px;color:var(--text);font-weight:500;flex:1;}
+.cmdk-badge{font-size:11px;border-radius:20px;padding:2px 9px;font-weight:600;flex-shrink:0;}
+.cmdk-arrow{color:var(--text-3);opacity:0;}
+.cmdk-item.hi .cmdk-arrow{opacity:1;}
+.cmdk-empty{padding:32px 18px;text-align:center;font-size:14px;color:var(--text-3);}
+.cmdk-footer{display:flex;gap:16px;padding:8px 18px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3);flex-shrink:0;}
+.cmdk-footer kbd{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11px;font-family:inherit;color:var(--text-2);margin-right:2px;}
+</style>
+<script>
+(function () {
+  var idx = null, overlay = null, input = null, body = null, results = [], hi = 0, query = '';
+
+  function hue(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return h%360;}
+  function color(s){return 'hsl(' + hue(s) + ',60%,52%)';}
+  function esc(s){return (s+'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  // Build the menu index by scraping the rendered sidebar (respects role visibility).
+  function buildIndex(){
+    var out = [], nav = document.getElementById('sbNav');
+    if (!nav) return out;
+    var group = 'Quick Access', seen = {};
+    nav.querySelectorAll('.sb-section-label, a.sb-item, a.sb-sub-item').forEach(function(el){
+      if (el.classList.contains('sb-section-label')) { group = el.textContent.trim() || group; return; }
+      if (el.hasAttribute('data-bs-toggle')) return;            // collapse toggles aren't destinations
+      var href = el.getAttribute('href');
+      if (!href || href === '#') return;
+      var lbl = el.querySelector('.sb-item-label');
+      var label = (lbl ? lbl.textContent : el.textContent).replace(/\s+/g,' ').trim();
+      if (!label) return;
+      var key = href + '|' + label;
+      if (seen[key]) return; seen[key] = 1;
+      out.push({ label: label, href: href, group: group, target: el.getAttribute('target') || '' });
+    });
+    return out;
+  }
+
+  function ensure(){
+    if (overlay) return;
+    overlay = document.createElement('div');
+    overlay.className = 'cmdk-overlay';
+    overlay.innerHTML =
+      '<div class="cmdk-modal" role="dialog" aria-label="Menu search">' +
+        '<div class="cmdk-inrow"><i class="bi bi-search"></i>' +
+        '<input class="cmdk-input" type="text" placeholder="Search menu…" autocomplete="off" spellcheck="false">' +
+        '<kbd class="cmdk-esc">esc</kbd></div>' +
+        '<div class="cmdk-body"></div>' +
+        '<div class="cmdk-footer"><span><kbd>↑</kbd><kbd>↓</kbd>navigate</span><span><kbd>↵</kbd>open</span><span><kbd>esc</kbd>close</span></div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    input = overlay.querySelector('.cmdk-input');
+    body  = overlay.querySelector('.cmdk-body');
+    overlay.addEventListener('mousedown', function(e){ if (e.target === overlay) close(); });
+    overlay.querySelector('.cmdk-esc').addEventListener('click', close);
+    input.addEventListener('input', function(){ query = input.value; hi = 0; render(); });
+    input.addEventListener('keydown', onKey);
+  }
+
+  function filtered(){
+    var q = query.trim().toLowerCase();
+    if (!q) return null;
+    var terms = q.split(/\s+/).filter(Boolean);
+    return idx.filter(function(r){
+      var hay = (r.label + ' ' + r.group).toLowerCase();
+      return terms.every(function(t){ return hay.indexOf(t) > -1; });
+    });
+  }
+
+  function itemHtml(r, i, badge){
+    return '<button class="cmdk-item" data-i="'+i+'"><span class="cmdk-label">'+esc(r.label)+'</span>' +
+      (badge
+        ? '<span class="cmdk-badge" style="background:'+color(r.group)+'22;color:'+color(r.group)+'">'+esc(r.group)+'</span>'
+        : '<i class="bi bi-arrow-right cmdk-arrow"></i>') +
+      '</button>';
+  }
+
+  function render(){
+    var res = filtered(), html = '';
+    if (res === null) {
+      var groups = {}, order = [];
+      idx.forEach(function(r){ if (!groups[r.group]) { groups[r.group] = []; order.push(r.group); } groups[r.group].push(r); });
+      var flat = [], i = 0;
+      order.forEach(function(g){
+        html += '<div class="cmdk-sec"><span class="cmdk-dot" style="background:'+color(g)+'"></span>'+esc(g)+'</div>';
+        groups[g].forEach(function(r){ html += itemHtml(r, i, false); flat.push(r); i++; });
+      });
+      results = flat;
+    } else if (res.length) {
+      results = res;
+      res.forEach(function(r, i){ html += itemHtml(r, i, true); });
+    } else {
+      results = [];
+      html = '<div class="cmdk-empty">No menu items match “'+esc(query.trim())+'”.</div>';
+    }
+    body.innerHTML = html;
+    bindItems();
+    highlight();
+  }
+
+  function bindItems(){
+    body.querySelectorAll('.cmdk-item').forEach(function(btn){
+      var i = +btn.getAttribute('data-i');
+      btn.addEventListener('mousemove', function(){ if (hi !== i) { hi = i; highlight(); } });
+      btn.addEventListener('mousedown', function(e){ e.preventDefault(); go(results[i]); });
+    });
+  }
+  function highlight(){
+    body.querySelectorAll('.cmdk-item').forEach(function(btn){
+      var i = +btn.getAttribute('data-i'), on = (i === hi);
+      btn.classList.toggle('hi', on);
+      if (on) btn.scrollIntoView({ block: 'nearest' });
+    });
+  }
+  function onKey(e){
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); hi = Math.min(hi + 1, results.length - 1); highlight(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); hi = Math.max(hi - 1, 0); highlight(); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (results[hi]) go(results[hi]); }
+  }
+  function go(r){ if (!r) return; if (r.target === '_blank') window.open(r.href, '_blank'); else window.location.href = r.href; close(); }
+  function open(){ ensure(); if (!idx) idx = buildIndex(); query = ''; hi = 0; input.value = ''; render(); overlay.classList.add('open'); setTimeout(function(){ input.focus(); }, 20); }
+  function close(){ if (overlay) overlay.classList.remove('open'); }
+
+  window.addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'm' || e.key === 'M')) {
+      e.preventDefault();
+      (overlay && overlay.classList.contains('open')) ? close() : open();
+    }
+  });
+  window.openMenuPalette = open;
+})();
+</script>
 </body>
 </html>
