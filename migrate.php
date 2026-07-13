@@ -897,6 +897,15 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M024',
+        'desc'  => 'Two-factor auth — tblUser.TwoFactorEnabled (opt-in email OTP second factor at login)',
+        'check' => "SELECT `TwoFactorEnabled` FROM `tblUser` LIMIT 1",
+        'stmts' => [
+            "ALTER TABLE `tblUser`
+                ADD COLUMN `TwoFactorEnabled` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Require email OTP as a 2nd factor after password'",
+        ],
+    ],
+    [
         'id'    => 'M023',
         'desc'  => 'Full & Final payment lines — tblFnFPayItem (earnings/deductions for settlement statement)',
         'check' => "SELECT 1 FROM `tblFnFPayItem` LIMIT 1",

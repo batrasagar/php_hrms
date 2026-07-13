@@ -8,9 +8,9 @@ if (!empty($_SESSION['user_id'])) {
     header('Location: index.php'); exit;
 }
 
-// Clear OTP state on request (user switches to password tab)
+// Clear OTP / 2FA state on request (user switches to password tab or cancels 2FA)
 if (isset($_GET['reset'])) {
-    unset($_SESSION['otp_email']);
+    unset($_SESSION['otp_email'], $_SESSION['2fa_uid'], $_SESSION['2fa_email']);
     header('Location: ' . BASE_URL . '/login.php'); exit;
 }
 
@@ -57,10 +57,39 @@ if ($isLocked && $oldestAttempt) {
     $minsLeft = max(1, (int)ceil(($unlockTs - time()) / 60));
 }
 
-$error     = '';
-$warning   = '';
-$otpSent   = !empty($_SESSION['otp_email']);
-$activeTab = $otpSent ? 'otp' : 'password';
+$error        = '';
+$warning      = '';
+$otpSent      = !empty($_SESSION['otp_email']);
+$twofaPending = !empty($_SESSION['2fa_uid']);   // password verified, awaiting 2FA code
+$activeTab    = $otpSent ? 'otp' : 'password';
+
+// Populate the login session from a user row (used after password or 2FA success).
+$loginUser = function (array $row) {
+    $_SESSION['user_id']              = $row['id'];
+    $_SESSION['user_name']            = $row['Name'];
+    $_SESSION['user_role']            = $row['Role'];
+    $_SESSION['user_company_limit']   = $row['CompanyLimit'];
+    $_SESSION['user_machines_limit']  = $row['MachinesLimit'];
+    $_SESSION['user_emp_limit']       = $row['EmpLimit'];
+    $_SESSION['user_parent_admin_id'] = $row['ParentAdminId'] ?? 0;
+    $_SESSION['user_company_id']      = $row['CompanyId'] ?? 0;
+};
+
+// Generate + email a 2FA one-time code (reuses tblEmailOtp). Returns bool sent.
+$send2faOtp = function (string $email) use ($db) {
+    $otp = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $db->prepare("DELETE FROM tblEmailOtp WHERE email=?")->execute([$email]);
+    $db->prepare("INSERT INTO tblEmailOtp (email,otp,expires_at) VALUES (?,?,DATE_ADD(NOW(),INTERVAL 10 MINUTE))")
+       ->execute([$email, $otp]);
+    return sendSystemMail($email, 'HRMS — Two-Factor Login Code',
+        "<p>Hello,</p><p>Your two-factor login code is:</p>"
+      . "<div style='text-align:center;margin:24px 0;'>"
+      .   "<span style='font-size:2.5rem;font-weight:700;letter-spacing:0.3rem;color:#1e2a3a;'>{$otp}</span>"
+      . "</div>"
+      . "<p style='color:#888;font-size:12px;'>This code expires in <strong>10 minutes</strong>. "
+      . "If you did not just sign in, please change your password.</p>"
+    );
+};
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'login';
@@ -88,15 +117,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } elseif ($row['Status'] === 'rejected') {
                         $error = 'Your account registration was rejected. Please contact support.';
                     } else {
-                        $_SESSION['user_id']               = $row['id'];
-                        $_SESSION['user_name']             = $row['Name'];
-                        $_SESSION['user_role']             = $row['Role'];
-                        $_SESSION['user_company_limit']    = $row['CompanyLimit'];
-                        $_SESSION['user_machines_limit']   = $row['MachinesLimit'];
-                        $_SESSION['user_emp_limit']        = $row['EmpLimit'];
-                        $_SESSION['user_parent_admin_id']  = $row['ParentAdminId'] ?? 0;
-                        $_SESSION['user_company_id']       = $row['CompanyId'] ?? 0;
-                        header('Location: index.php'); exit;
+                        // Opt-in second factor. Read defensively so login still works
+                        // if the M024 migration has not been applied yet.
+                        $twofaOn = false;
+                        try {
+                            $tq = $db->prepare("SELECT TwoFactorEnabled FROM tblUser WHERE id=?");
+                            $tq->execute([$row['id']]);
+                            $twofaOn = (int)$tq->fetchColumn() === 1;
+                        } catch (PDOException $e) { $twofaOn = false; }
+
+                        if ($twofaOn) {
+                            if ($send2faOtp($email)) {
+                                $_SESSION['2fa_uid']   = (int)$row['id'];
+                                $_SESSION['2fa_email'] = $email;
+                                $twofaPending = true;
+                            } else {
+                                $error = 'Could not send your two-factor code. Please try again.';
+                            }
+                        } else {
+                            $loginUser($row);
+                            header('Location: index.php'); exit;
+                        }
                     }
                 } else {
                     $db->prepare("INSERT INTO tblLoginAttempts (IpAddress, Email) VALUES (?,?)")->execute([$ip, $email]);
@@ -201,6 +242,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
         }
+
+    // ── Verify 2FA code (second factor after password) ────────────────────
+    } elseif ($action === 'verify_2fa') {
+        $twofaPending = true;
+        $uid   = (int)($_SESSION['2fa_uid'] ?? 0);
+        $email = $_SESSION['2fa_email'] ?? '';
+        if (!$uid || !$email) {
+            $error = 'Your session expired. Please log in again.';
+            $twofaPending = false;
+        } elseif ($isLocked) {
+            $error = "Too many failed attempts. Please wait {$minsLeft} minute(s) before trying again.";
+        } else {
+            $code = trim(preg_replace('/\D/', '', $_POST['otp_code'] ?? ''));
+            $stmt = $db->prepare("SELECT id FROM tblEmailOtp WHERE email=? AND otp=? AND used=0 AND expires_at>NOW()");
+            $stmt->execute([$email, $code]);
+            if ($stmt->fetch()) {
+                $db->prepare("UPDATE tblEmailOtp SET used=1 WHERE email=?")->execute([$email]);
+                $db->prepare("DELETE FROM tblLoginAttempts WHERE IpAddress=?")->execute([$ip]);
+                $uStmt = $db->prepare("SELECT id,Name,Role,Status,CompanyLimit,MachinesLimit,EmpLimit,ParentAdminId,CompanyId FROM tblUser WHERE id=? AND IsActive=1");
+                $uStmt->execute([$uid]);
+                $urow = $uStmt->fetch();
+                if ($urow && $urow['Status'] === 'active') {
+                    unset($_SESSION['2fa_uid'], $_SESSION['2fa_email']);
+                    $loginUser($urow);
+                    header('Location: index.php'); exit;
+                } else {
+                    $error = 'Account not active. Contact your administrator.';
+                }
+            } else {
+                $db->prepare("INSERT INTO tblLoginAttempts (IpAddress, Email) VALUES (?,?)")->execute([$ip, $email]);
+                $attemptCount++;
+                $remaining = BF_MAX_ATTEMPTS - $attemptCount;
+                if ($remaining <= 0) {
+                    $isLocked = true; $minsLeft = BF_WINDOW_MINS;
+                    $error = "Too many failed attempts. Please wait {$minsLeft} minute(s).";
+                } else {
+                    $error = 'Invalid or expired code.' . ($remaining <= 2 ? " ({$remaining} attempt(s) left)" : '');
+                }
+            }
+        }
+
+    // ── Resend 2FA code ───────────────────────────────────────────────────
+    } elseif ($action === 'resend_2fa') {
+        $twofaPending = true;
+        $email = $_SESSION['2fa_email'] ?? '';
+        if (!$email || empty($_SESSION['2fa_uid'])) {
+            $error = 'Your session expired. Please log in again.';
+            $twofaPending = false;
+        } elseif ($isLocked) {
+            $error = "Too many failed attempts. Please wait {$minsLeft} minute(s) before trying again.";
+        } elseif ($send2faOtp($email)) {
+            $warning = 'A new code has been sent to your email.';
+        } else {
+            $error = 'Could not resend the code. Please try again.';
+        }
     }
 }
 ?>
@@ -237,6 +333,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="alert alert-warning py-2 small"><?= htmlspecialchars($warning) ?></div>
   <?php endif; ?>
 
+  <?php if ($twofaPending): ?>
+  <!-- Two-Factor verification -->
+  <div class="text-center mb-2"><i class="bi bi-shield-lock fs-1 text-primary"></i></div>
+  <h6 class="text-center mb-2">Two-Factor Authentication</h6>
+  <p class="small text-muted text-center mb-3">
+    A 6-digit code was sent to <strong><?= htmlspecialchars($_SESSION['2fa_email'] ?? '') ?></strong>.
+    Enter it to finish signing in.
+  </p>
+  <form method="POST" autocomplete="off">
+    <input type="hidden" name="action" value="verify_2fa">
+    <div class="mb-3">
+      <label class="form-label">Verification Code</label>
+      <input type="text" name="otp_code" class="form-control form-control-lg text-center"
+             maxlength="6" pattern="\d{6}" inputmode="numeric" required autofocus placeholder="&bull;&bull;&bull;&bull;&bull;&bull;">
+    </div>
+    <button type="submit" class="btn btn-success w-100 mb-2" <?= $isLocked ? 'disabled' : '' ?>>
+      <i class="bi bi-shield-check me-1"></i>Verify &amp; Sign In
+    </button>
+  </form>
+  <div class="d-flex justify-content-between align-items-center">
+    <form method="POST" class="m-0">
+      <input type="hidden" name="action" value="resend_2fa">
+      <button type="submit" class="btn btn-link btn-sm text-muted text-decoration-none p-0" <?= $isLocked ? 'disabled' : '' ?>>
+        <i class="bi bi-arrow-repeat me-1"></i>Resend code
+      </button>
+    </form>
+    <a href="<?= BASE_URL ?>/login.php?reset=1" class="small text-muted text-decoration-none">Cancel</a>
+  </div>
+  <?php else: ?>
   <!-- Tab nav -->
   <ul class="nav nav-tabs mb-3" id="loginTabs">
     <li class="nav-item">
@@ -317,6 +442,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <?php endif; ?>
   </div>
+  <?php endif; // end twofaPending / normal tabs ?>
 
   <hr class="my-3">
   <div class="text-center">

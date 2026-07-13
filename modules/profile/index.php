@@ -14,6 +14,31 @@ $row = $db->prepare("SELECT Email FROM tblUser WHERE id = ? LIMIT 1");
 $row->execute([$user['id']]);
 $dbUser = $row->fetch() ?: [];
 
+// Current 2FA state (defensive — column may not be migrated yet)
+$twofaOn  = false;
+$twofaMsg = '';
+try {
+    $t = $db->prepare("SELECT TwoFactorEnabled FROM tblUser WHERE id=?");
+    $t->execute([$user['id']]);
+    $twofaOn = (int)$t->fetchColumn() === 1;
+} catch (PDOException $e) { $twofaOn = false; }
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_2fa') {
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+              strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+    csrf_verify();
+    $enable = isset($_POST['enable_2fa']) ? 1 : 0;
+    try {
+        $db->prepare("UPDATE tblUser SET TwoFactorEnabled=? WHERE id=?")->execute([$enable, $user['id']]);
+        $twofaOn  = $enable === 1;
+        $twofaMsg = $enable ? 'Two-factor authentication enabled.' : 'Two-factor authentication disabled.';
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'message'=>$twofaMsg]); exit; }
+    } catch (PDOException $e) {
+        $twofaMsg = 'Could not update 2FA setting. Ensure migrations have been applied.';
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>false,'errors'=>[$twofaMsg]]); exit; }
+    }
+}
+
 $pwdError   = '';
 $pwdSuccess = false;
 
@@ -88,6 +113,28 @@ require_once __DIR__ . '/../../includes/header.php';
     </div>
   </div>
   <?php endif; ?>
+
+  <!-- Two-Factor Authentication -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <span>Two-Factor Authentication</span>
+      <span class="badge bg-<?= $twofaOn ? 'success' : 'secondary' ?>"><?= $twofaOn ? 'On' : 'Off' ?></span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted mb-3" style="font-size:13px">
+        When enabled, after your password you'll be emailed a 6-digit one-time code to
+        <strong><?= htmlspecialchars($dbUser['Email'] ?? '') ?></strong> to complete sign-in.
+      </p>
+      <form method="POST" data-ajax>
+        <input type="hidden" name="action" value="toggle_2fa">
+        <div class="form-check form-switch mb-3">
+          <input type="checkbox" role="switch" class="form-check-input" id="enable2fa" name="enable_2fa" <?= $twofaOn ? 'checked' : '' ?>>
+          <label class="form-check-label" for="enable2fa">Require an email OTP at login</label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-shield-lock me-1"></i>Save 2FA Setting</button>
+      </form>
+    </div>
+  </div>
 
   <!-- Change Password -->
   <div class="card mb-4">
