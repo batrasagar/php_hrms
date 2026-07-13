@@ -72,7 +72,7 @@ $findUserByMobile = function (string $phone) use ($db) {
     $norm = waNormalizePhone($phone);
     if (strlen($norm) < 10) return null;
     try {
-        $rows = $db->query("SELECT id,Name,Role,Status,CompanyLimit,MachinesLimit,EmpLimit,ParentAdminId,CompanyId,Mobile
+        $rows = $db->query("SELECT id,Name,Email,Role,Status,CompanyLimit,MachinesLimit,EmpLimit,ParentAdminId,CompanyId,Mobile
                             FROM tblUser WHERE IsActive=1 AND Status='active' AND Mobile IS NOT NULL AND Mobile<>''")->fetchAll();
     } catch (\Throwable $e) { return null; }
     foreach ($rows as $r) if (waNormalizePhone($r['Mobile']) === $norm) return $r;
@@ -93,6 +93,14 @@ $sendWaLoginOtp = function (array $u, string $phone) use ($db) {
     if (!$cfg)          return ['ok'=>false,'message'=>'WhatsApp OTP is not available (no active WhatsApp channel).'];
     if ($tpl === '')    return ['ok'=>false,'message'=>'WhatsApp OTP is not available (OTP template not configured).'];
     return waSendTemplate($cfg, $phone, $tpl, $lang, [$code], [$code]);
+};
+
+// Persistent login-audit log (never blocks login on failure).
+$logLogin = function (?int $uid, string $email, string $method, string $status) use ($db, $ip) {
+    try {
+        $db->prepare("INSERT INTO tblLoginLog (UserId,Email,IpAddress,UserAgent,Method,Status) VALUES (?,?,?,?,?,?)")
+           ->execute([$uid ?: null, $email, $ip, substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255), $method, $status]);
+    } catch (\Throwable $e) { /* logging must never break sign-in */ }
 };
 
 // Populate the login session from a user row (used after password or 2FA success).
@@ -217,12 +225,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $error = 'Could not send your two-factor code.' . $why;
                             }
                         } else {
+                            $logLogin((int)$row['id'], $email, 'password', 'success');
                             $loginUser($row);
                             header('Location: index.php'); exit;
                         }
                     }
                 } else {
                     $db->prepare("INSERT INTO tblLoginAttempts (IpAddress, Email) VALUES (?,?)")->execute([$ip, $email]);
+                    $logLogin(null, $email, 'password', 'failed');
                     $attemptCount++;
                     $remaining = BF_MAX_ATTEMPTS - $attemptCount;
                     if ($remaining <= 0) {
@@ -300,6 +310,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $row = $uStmt->fetch();
                 if ($row && $row['Status'] === 'active') {
                     unset($_SESSION['otp_email']);
+                    $logLogin((int)$row['id'], $email, 'email_otp', 'success');
                     $_SESSION['user_id']               = $row['id'];
                     $_SESSION['user_name']             = $row['Name'];
                     $_SESSION['user_role']             = $row['Role'];
@@ -348,6 +359,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($urow && $urow['Status'] === 'active') {
                     unset($_SESSION['2fa_uid'], $_SESSION['2fa_email'], $_SESSION['2fa_channels'],
                           $_SESSION['2fa_mobile'], $_SESSION['2fa_company'], $_SESSION['2fa_sent']);
+                    $logLogin((int)$urow['id'], $urow['Email'] ?? $email, 'password_2fa', 'success');
                     $loginUser($urow);
                     header('Location: index.php'); exit;
                 } else {
@@ -422,6 +434,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $u = $findUserByMobile($phone);
                 if ($u && $u['Status'] === 'active') {
                     unset($_SESSION['wa_otp_phone']);
+                    $logLogin((int)$u['id'], $u['Email'] ?? $phone, 'whatsapp_otp', 'success');
                     $loginUser($u);
                     header('Location: index.php'); exit;
                 } else {

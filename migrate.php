@@ -897,6 +897,25 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M029',
+        'desc'  => 'Login log — tblLoginLog (successful & failed sign-ins, for admin/superadmin audit)',
+        'check' => "SELECT 1 FROM `tblLoginLog` LIMIT 1",
+        'stmts' => [
+            "CREATE TABLE IF NOT EXISTS `tblLoginLog` (
+                `id`        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `UserId`    INT UNSIGNED NULL DEFAULT NULL,
+                `Email`     VARCHAR(150) NOT NULL DEFAULT '',
+                `IpAddress` VARCHAR(45)  NOT NULL DEFAULT '',
+                `UserAgent` VARCHAR(255) NOT NULL DEFAULT '',
+                `Method`    VARCHAR(30)  NOT NULL DEFAULT 'password' COMMENT 'password/email_otp/whatsapp_otp/password_2fa',
+                `Status`    ENUM('success','failed') NOT NULL DEFAULT 'success',
+                `LoggedAt`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX `idx_user` (`UserId`),
+                INDEX `idx_time` (`LoggedAt`)
+            ) ENGINE=InnoDB",
+        ],
+    ],
+    [
         'id'    => 'M028',
         'desc'  => 'Department master — tblDepartment (per-company) + seed from existing tblEmployee departments',
         'check' => "SELECT 1 FROM `tblDepartment` LIMIT 1",

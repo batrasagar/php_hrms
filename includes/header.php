@@ -951,6 +951,15 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">WhatsApp Settings</span>
         </a>
       </li>
+      <?php if (in_array($user['role'], ['admin','superadmin'], true)): ?>
+      <li>
+        <a class="sb-item <?= $ap==='login_log'?'active':'' ?>"
+           href="<?= BASE_URL ?>/modules/users/login_log.php" data-tip="Login Log">
+          <span class="sb-item-icon"><i class="bi bi-clock-history"></i></span>
+          <span class="sb-item-label">Login Log</span>
+        </a>
+      </li>
+      <?php endif; ?>
       <li>
         <a class="sb-item <?= $ap==='dev_issues'?'active':'' ?>"
            href="<?= BASE_URL ?>/modules/dev_issues/index.php" data-tip="Dev Issues">
