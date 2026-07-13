@@ -103,6 +103,12 @@ if ($user['role'] === 'user') {
     $depts       = array_filter(array_column($db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(), 'Department'));
     $contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor FROM tblEmployee e $scopeJoin ORDER BY Contractor")->fetchAll(), 'Contractor'));
 }
+// Headcount split for the current (filtered) view
+$empTotal = count($employees);
+$empComp  = 0;
+foreach ($employees as $e) if (!empty($e['Compliance'])) $empComp++;
+$empNonComp = $empTotal - $empComp;
+
 $pageTitle  = 'Employees';
 $activePage = 'employees';
 require_once __DIR__ . '/../../includes/header.php';
@@ -184,7 +190,14 @@ require_once __DIR__ . '/../../includes/header.php';
 <?php else: ?>
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
-    <span class="fw-semibold">Employees <span class="badge bg-secondary"><?= count($employees) ?></span></span>
+    <span class="fw-semibold d-flex flex-wrap align-items-center gap-1">
+      Employees <span class="badge bg-primary"><?= $empTotal ?></span>
+      <?php if (!isCompliance()): ?>
+      <span class="text-muted mx-1">—</span>
+      <span class="badge bg-success">Compliance <?= $empComp ?></span>
+      <span class="badge bg-secondary">Non-Compliance <?= $empNonComp ?></span>
+      <?php endif; ?>
+    </span>
     <?php if (!in_array($user['role'], ['user','compliance'], true)): ?>
     <div class="d-flex gap-2">
       <a href="import.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-upload"></i> Import</a>
