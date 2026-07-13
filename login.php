@@ -12,7 +12,7 @@ if (!empty($_SESSION['user_id'])) {
 
 // Clear OTP / 2FA state on request (user switches to password tab or cancels 2FA)
 if (isset($_GET['reset'])) {
-    unset($_SESSION['otp_email'], $_SESSION['2fa_uid'], $_SESSION['2fa_email'],
+    unset($_SESSION['otp_email'], $_SESSION['wa_otp_phone'], $_SESSION['2fa_uid'], $_SESSION['2fa_email'],
           $_SESSION['2fa_channels'], $_SESSION['2fa_mobile'], $_SESSION['2fa_company'], $_SESSION['2fa_sent']);
     header('Location: ' . BASE_URL . '/login.php'); exit;
 }
@@ -63,8 +63,37 @@ if ($isLocked && $oldestAttempt) {
 $error        = '';
 $warning      = '';
 $otpSent      = !empty($_SESSION['otp_email']);
+$waOtpSent    = !empty($_SESSION['wa_otp_phone']);
 $twofaPending = !empty($_SESSION['2fa_uid']);   // password verified, awaiting 2FA code
-$activeTab    = $otpSent ? 'otp' : 'password';
+$activeTab    = $waOtpSent ? 'wa' : ($otpSent ? 'otp' : 'password');
+
+// Find an active user by mobile (normalised digit comparison against tblUser.Mobile).
+$findUserByMobile = function (string $phone) use ($db) {
+    $norm = waNormalizePhone($phone);
+    if (strlen($norm) < 10) return null;
+    try {
+        $rows = $db->query("SELECT id,Name,Role,Status,CompanyLimit,MachinesLimit,EmpLimit,ParentAdminId,CompanyId,Mobile
+                            FROM tblUser WHERE IsActive=1 AND Status='active' AND Mobile IS NOT NULL AND Mobile<>''")->fetchAll();
+    } catch (\Throwable $e) { return null; }
+    foreach ($rows as $r) if (waNormalizePhone($r['Mobile']) === $norm) return $r;
+    return null;
+};
+
+// Generate + send a passwordless login OTP over WhatsApp (keyed by phone in tblEmailOtp).
+$sendWaLoginOtp = function (array $u, string $phone) use ($db) {
+    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $db->prepare("DELETE FROM tblEmailOtp WHERE email=?")->execute([$phone]);
+    $db->prepare("INSERT INTO tblEmailOtp (email,otp,expires_at) VALUES (?,?,DATE_ADD(NOW(),INTERVAL 10 MINUTE))")->execute([$phone, $code]);
+    $cfg = waActiveFor($db, (int)($u['CompanyId'] ?? 0));
+    $tpl = ''; $lang = 'en';
+    try {
+        $s = $db->query("SELECT SettingKey,SettingValue FROM tblSettings WHERE CompanyId=0 AND SettingKey IN ('wa_otp_template','wa_otp_lang')")->fetchAll(PDO::FETCH_KEY_PAIR);
+        $tpl = $s['wa_otp_template'] ?? ''; $lang = ($s['wa_otp_lang'] ?? '') ?: 'en';
+    } catch (\Throwable $e) {}
+    if (!$cfg)          return ['ok'=>false,'message'=>'WhatsApp OTP is not available (no active WhatsApp channel).'];
+    if ($tpl === '')    return ['ok'=>false,'message'=>'WhatsApp OTP is not available (OTP template not configured).'];
+    return waSendTemplate($cfg, $phone, $tpl, $lang, [$code], [$code]);
+};
 
 // Populate the login session from a user row (used after password or 2FA success).
 $loginUser = function (array $row) {
@@ -86,37 +115,50 @@ $deliver2faOtp = function (string $email, array $channels, string $mobile, int $
     $db->prepare("INSERT INTO tblEmailOtp (email,otp,expires_at) VALUES (?,?,DATE_ADD(NOW(),INTERVAL 10 MINUTE))")
        ->execute([$email, $otp]);
 
-    $sent = [];
-    if (in_array('email', $channels, true)) {
-        $ok = sendSystemMail($email, 'HRMS — Two-Factor Login Code',
+    $emailOtp = function () use ($email, $otp) {
+        return sendSystemMail($email, 'HRMS — Two-Factor Login Code',
             "<p>Hello,</p><p>Your two-factor login code is:</p>"
           . "<div style='text-align:center;margin:24px 0;'>"
           .   "<span style='font-size:2.5rem;font-weight:700;letter-spacing:0.3rem;color:#1e2a3a;'>{$otp}</span>"
           . "</div>"
           . "<p style='color:#888;font-size:12px;'>This code expires in <strong>10 minutes</strong>. "
           . "If you did not just sign in, please change your password.</p>");
-        if ($ok) $sent[] = 'Email';
+    };
+
+    $sent = []; $errors = [];
+    if (in_array('email', $channels, true)) {
+        if ($emailOtp()) $sent[] = 'Email'; else $errors[] = 'Email send failed';
     }
-    if (in_array('sms', $channels, true) && $mobile !== '') {
-        $r = sendSms($mobile, "$otp is your HRMS login code. Valid for 10 minutes.");
-        if (!empty($r['ok'])) $sent[] = 'SMS';
+    if (in_array('sms', $channels, true)) {
+        if ($mobile === '') { $errors[] = 'SMS: no mobile on file'; }
+        else {
+            $r = sendSms($mobile, "$otp is your HRMS login code. Valid for 10 minutes.");
+            if (!empty($r['ok'])) $sent[] = 'SMS'; else $errors[] = 'SMS: ' . ($r['error'] ?? 'failed');
+        }
     }
-    if (in_array('whatsapp', $channels, true) && $mobile !== '') {
-        $cfg = waActiveFor($db, $companyId);
-        if ($cfg) {
-            // OTP is sent through a pre-approved authentication template, configured globally.
+    if (in_array('whatsapp', $channels, true)) {
+        if ($mobile === '') { $errors[] = 'WhatsApp: no mobile on file'; }
+        else {
+            $cfg = waActiveFor($db, $companyId);
             $tpl = ''; $lang = 'en';
             try {
                 $s = $db->query("SELECT SettingKey, SettingValue FROM tblSettings WHERE CompanyId=0 AND SettingKey IN ('wa_otp_template','wa_otp_lang')")->fetchAll(PDO::FETCH_KEY_PAIR);
-                $tpl = $s['wa_otp_template'] ?? ''; $lang = $s['wa_otp_lang'] ?: 'en';
+                $tpl = $s['wa_otp_template'] ?? ''; $lang = ($s['wa_otp_lang'] ?? '') ?: 'en';
             } catch (\Throwable $e) {}
-            if ($tpl !== '') {
+            if (!$cfg)          { $errors[] = 'WhatsApp: no active channel'; }
+            elseif ($tpl === '') { $errors[] = 'WhatsApp: OTP template not set'; }
+            else {
                 $r = waSendTemplate($cfg, $mobile, $tpl, $lang, [$otp], [$otp]);
-                if (!empty($r['ok'])) $sent[] = 'WhatsApp';
+                if (!empty($r['ok'])) $sent[] = 'WhatsApp'; else $errors[] = 'WhatsApp: ' . ($r['message'] ?? 'failed');
             }
         }
     }
-    return $sent;
+
+    // Anti-lockout: if nothing selected succeeded, always fall back to email.
+    if (!$sent && !in_array('email', $channels, true)) {
+        if ($emailOtp()) $sent[] = 'Email (fallback)';
+    }
+    return ['sent' => $sent, 'errors' => $errors];
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -161,17 +203,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         if ($twofaOn) {
                             $companyId = (int)($row['CompanyId'] ?? 0);
-                            $sent = $deliver2faOtp($email, $twofaChannels, $twofaMobile, $companyId);
-                            if ($sent) {
+                            $res = $deliver2faOtp($email, $twofaChannels, $twofaMobile, $companyId);
+                            if ($res['sent']) {
                                 $_SESSION['2fa_uid']      = (int)$row['id'];
                                 $_SESSION['2fa_email']    = $email;
                                 $_SESSION['2fa_channels'] = $twofaChannels;
                                 $_SESSION['2fa_mobile']   = $twofaMobile;
                                 $_SESSION['2fa_company']  = $companyId;
-                                $_SESSION['2fa_sent']     = implode(', ', $sent);
+                                $_SESSION['2fa_sent']     = implode(', ', $res['sent']);
                                 $twofaPending = true;
                             } else {
-                                $error = 'Could not send your two-factor code via the selected channel(s). Please try again.';
+                                $why = $res['errors'] ? ' (' . implode('; ', $res['errors']) . ')' : '';
+                                $error = 'Could not send your two-factor code.' . $why;
                             }
                         } else {
                             $loginUser($row);
@@ -333,9 +376,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($isLocked) {
             $error = "Too many failed attempts. Please wait {$minsLeft} minute(s) before trying again.";
         } else {
-            $sent = $deliver2faOtp($email, $_SESSION['2fa_channels'] ?? ['email'], $_SESSION['2fa_mobile'] ?? '', (int)($_SESSION['2fa_company'] ?? 0));
-            if ($sent) { $_SESSION['2fa_sent'] = implode(', ', $sent); $warning = 'A new code has been sent via ' . $_SESSION['2fa_sent'] . '.'; }
-            else       { $error = 'Could not resend the code. Please try again.'; }
+            $res = $deliver2faOtp($email, $_SESSION['2fa_channels'] ?? ['email'], $_SESSION['2fa_mobile'] ?? '', (int)($_SESSION['2fa_company'] ?? 0));
+            if ($res['sent']) { $_SESSION['2fa_sent'] = implode(', ', $res['sent']); $warning = 'A new code has been sent via ' . $_SESSION['2fa_sent'] . '.'; }
+            else              { $error = 'Could not resend the code.' . ($res['errors'] ? ' (' . implode('; ', $res['errors']) . ')' : ''); }
+        }
+
+    // ── Send passwordless WhatsApp login OTP ──────────────────────────────
+    } elseif ($action === 'send_wa_otp') {
+        $activeTab = 'wa';
+        if ($isLocked) {
+            $error = "Too many failed attempts. Please wait {$minsLeft} minute(s) before trying again.";
+        } else {
+            $mobile = trim($_POST['wa_mobile'] ?? '');
+            $phone  = waNormalizePhone($mobile);
+            if (strlen($phone) < 10) {
+                $error = 'Please enter a valid mobile number.';
+            } else {
+                $u = $findUserByMobile($phone);
+                if (!$u) {
+                    usleep(100000);
+                    $error = 'No active account found with that mobile number.';
+                } else {
+                    $r = $sendWaLoginOtp($u, $phone);
+                    if (!empty($r['ok'])) { $_SESSION['wa_otp_phone'] = $phone; $waOtpSent = true; }
+                    else { $error = $r['message'] ?? 'Could not send WhatsApp OTP.'; }
+                }
+            }
+        }
+
+    // ── Verify WhatsApp login OTP ─────────────────────────────────────────
+    } elseif ($action === 'verify_wa_otp') {
+        $activeTab = 'wa'; $waOtpSent = true;
+        $phone = $_SESSION['wa_otp_phone'] ?? '';
+        if (!$phone) {
+            $error = 'Session expired. Please request a new OTP.'; $waOtpSent = false;
+        } elseif ($isLocked) {
+            $error = "Too many failed attempts. Please wait {$minsLeft} minute(s) before trying again.";
+        } else {
+            $code = trim(preg_replace('/\D/', '', $_POST['otp_code'] ?? ''));
+            $stmt = $db->prepare("SELECT id FROM tblEmailOtp WHERE email=? AND otp=? AND used=0 AND expires_at>NOW()");
+            $stmt->execute([$phone, $code]);
+            if ($stmt->fetch()) {
+                $db->prepare("UPDATE tblEmailOtp SET used=1 WHERE email=?")->execute([$phone]);
+                $db->prepare("DELETE FROM tblLoginAttempts WHERE IpAddress=?")->execute([$ip]);
+                $u = $findUserByMobile($phone);
+                if ($u && $u['Status'] === 'active') {
+                    unset($_SESSION['wa_otp_phone']);
+                    $loginUser($u);
+                    header('Location: index.php'); exit;
+                } else {
+                    $error = 'Account not active. Contact your administrator.';
+                }
+            } else {
+                $db->prepare("INSERT INTO tblLoginAttempts (IpAddress, Email) VALUES (?,?)")->execute([$ip, $phone]);
+                $attemptCount++;
+                $remaining = BF_MAX_ATTEMPTS - $attemptCount;
+                if ($remaining <= 0) { $isLocked = true; $minsLeft = BF_WINDOW_MINS; $error = "Too many failed attempts. Please wait {$minsLeft} minute(s)."; }
+                else { $error = 'Invalid or expired OTP.' . ($remaining <= 2 ? " ({$remaining} attempt(s) left)" : ''); }
+            }
         }
     }
 }
@@ -406,7 +504,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <ul class="nav nav-tabs mb-3" id="loginTabs">
     <li class="nav-item">
       <a class="nav-link <?= $activeTab === 'password' ? 'active' : '' ?>"
-         href="<?= BASE_URL ?>/login.php<?= $otpSent ? '?reset=1' : '' ?>"
+         href="<?= BASE_URL ?>/login.php<?= ($otpSent || $waOtpSent) ? '?reset=1' : '' ?>"
          id="tabPassword" data-pane="panePassword">
         <i class="bi bi-lock me-1"></i>Password
       </a>
@@ -414,7 +512,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <li class="nav-item">
       <a class="nav-link <?= $activeTab === 'otp' ? 'active' : '' ?>"
          href="#" id="tabOtp" data-pane="paneOtp">
-        <i class="bi bi-envelope me-1"></i>Email OTP
+        <i class="bi bi-envelope me-1"></i>Email
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link <?= $activeTab === 'wa' ? 'active' : '' ?>"
+         href="#" id="tabWa" data-pane="paneWa">
+        <i class="bi bi-whatsapp me-1"></i>WhatsApp
       </a>
     </li>
   </ul>
@@ -482,6 +586,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <?php endif; ?>
   </div>
+
+  <!-- WhatsApp OTP pane -->
+  <div id="paneWa" <?= $activeTab !== 'wa' ? 'class="d-none"' : '' ?>>
+    <?php if (!$waOtpSent): ?>
+    <form method="POST" autocomplete="off">
+      <input type="hidden" name="action" value="send_wa_otp">
+      <div class="mb-3">
+        <label class="form-label">Mobile Number</label>
+        <input type="text" name="wa_mobile" class="form-control" required
+               value="<?= htmlspecialchars($_POST['wa_mobile'] ?? '') ?>" placeholder="91XXXXXXXXXX">
+        <div class="form-text">We'll send a one-time code to this number on WhatsApp.</div>
+      </div>
+      <button type="submit" class="btn btn-success w-100" <?= $isLocked ? 'disabled' : '' ?>>
+        <i class="bi bi-whatsapp me-1"></i>Send OTP on WhatsApp
+      </button>
+    </form>
+    <?php else: ?>
+    <p class="small text-muted mb-3">
+      OTP sent on WhatsApp to <strong><?= htmlspecialchars($_SESSION['wa_otp_phone'] ?? '') ?></strong>.
+    </p>
+    <form method="POST" autocomplete="off">
+      <input type="hidden" name="action" value="verify_wa_otp">
+      <div class="mb-3">
+        <label class="form-label">Enter 6-digit OTP</label>
+        <input type="text" name="otp_code" class="form-control form-control-lg text-center"
+               maxlength="6" pattern="\d{6}" inputmode="numeric" required autofocus placeholder="&bull;&bull;&bull;&bull;&bull;&bull;">
+      </div>
+      <button type="submit" class="btn btn-success w-100 mb-2" <?= $isLocked ? 'disabled' : '' ?>>
+        <i class="bi bi-check-circle me-1"></i>Verify &amp; Sign In
+      </button>
+    </form>
+    <div class="text-center">
+      <a href="<?= BASE_URL ?>/login.php?reset=1" class="small text-muted text-decoration-none">
+        <i class="bi bi-arrow-repeat me-1"></i>Use a different number
+      </a>
+    </div>
+    <?php endif; ?>
+  </div>
   <?php endif; // end twofaPending / normal tabs ?>
 
   <hr class="my-3">
@@ -499,8 +641,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   tabs.forEach(function (tab) {
     tab.addEventListener('click', function (e) {
       var paneId = this.getAttribute('data-pane');
-      // Password tab goes to ?reset=1 when OTP session is active (server handles it)
-      <?php if ($otpSent): ?>
+      // Password tab goes to ?reset=1 when an OTP session is active (server handles it)
+      <?php if ($otpSent || $waOtpSent): ?>
       if (this.id === 'tabPassword') return; // let href navigate to ?reset=1
       <?php endif; ?>
       e.preventDefault();
