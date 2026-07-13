@@ -58,7 +58,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    $qs = http_build_query(array_filter(['status'=>$_GET['status']??'', 'search'=>$_GET['search']??'', 'company'=>$_GET['company']??'']));
+    $qs = http_build_query(array_filter([
+        'status'=>$_GET['status']??'', 'search'=>$_GET['search']??'', 'company'=>$_GET['company']??'',
+        'from'=>$_GET['from']??'', 'to'=>$_GET['to']??'',
+    ]));
     header('Location: index.php' . ($qs ? "?$qs" : '')); exit;
 }
 
@@ -66,6 +69,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $fStatus  = in_array($_GET['status'] ?? '', DI_STATUSES, true) ? $_GET['status'] : '';
 $fSearch  = trim($_GET['search'] ?? '');
 $fCompany = (int)($_GET['company'] ?? 0);
+
+// Date range on the Issued date. Default to the last month on a fresh visit
+// (no from/to in the query); once the filter form submits, the values are kept.
+$fFrom = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['from'] ?? '') ? $_GET['from'] : '';
+$fTo   = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['to']   ?? '') ? $_GET['to']   : '';
+if (!isset($_GET['from']) && !isset($_GET['to'])) {
+    $fFrom = date('Y-m-d', strtotime('-1 month'));
+    $fTo   = date('Y-m-d');
+}
 
 $where = []; $params = [];
 if (!$isSuper) {                              // non-superadmin: only issues they created
@@ -77,6 +89,8 @@ if ($fSearch !== '') {
     $where[] = '(d.Detail LIKE ? OR d.Url LIKE ? OR d.Expected LIKE ?)';
     $like = "%$fSearch%"; array_push($params, $like, $like, $like);
 }
+if ($fFrom !== '') { $where[] = 'd.CreatedAt >= ?'; $params[] = $fFrom . ' 00:00:00'; }
+if ($fTo   !== '') { $where[] = 'd.CreatedAt <= ?'; $params[] = $fTo . ' 23:59:59'; }
 $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
 
 $stmt = $db->prepare(
@@ -134,9 +148,15 @@ require_once __DIR__ . '/../../includes/header.php';
   <a href="form.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> New Issue</a>
 </div>
 
-<form method="GET" class="row g-2 mb-3" data-filter>
+<form method="GET" class="row g-2 mb-3 align-items-center" data-filter>
   <div class="col-sm">
     <input type="text" name="search" class="form-control form-control-sm" value="<?= htmlspecialchars($fSearch) ?>" placeholder="Search detail / URL / expected…">
+  </div>
+  <div class="col-auto d-flex align-items-center gap-1">
+    <span class="text-muted small">From</span>
+    <input type="date" name="from" class="form-control form-control-sm" style="width:150px" value="<?= htmlspecialchars($fFrom) ?>" title="Issued from" onchange="$(this.form).trigger('submit')">
+    <span class="text-muted small">To</span>
+    <input type="date" name="to" class="form-control form-control-sm" style="width:150px" value="<?= htmlspecialchars($fTo) ?>" title="Issued to" onchange="$(this.form).trigger('submit')">
   </div>
   <?php if ($isSuper): ?>
   <div class="col-sm-auto">
@@ -154,8 +174,12 @@ require_once __DIR__ . '/../../includes/header.php';
 
 <div id="filter-results">
 <?php
-  // Build the querystring base for stat-badge links (preserve search/company)
-  $baseQs = array_filter(['search'=>$fSearch, 'company'=>$fCompany ?: '']);
+  // Build the querystring base for stat-badge links (preserve search/company/dates).
+  // Always include from/to (even empty) so clicking a badge doesn't re-trigger the
+  // "fresh visit" last-month default.
+  $baseQs = ['from'=>$fFrom, 'to'=>$fTo];
+  if ($fSearch !== '') $baseQs['search'] = $fSearch;
+  if ($fCompany)       $baseQs['company'] = $fCompany;
 ?>
 <div class="di-stats">
   <?php foreach (DI_STATUSES as $st):
