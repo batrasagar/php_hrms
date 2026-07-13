@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save';
 
     if ($action === 'save') {
-        foreach (['msg91_sender','msg91_route','msg91_dlt_tpl'] as $key) {
+        foreach (['msg91_sender','msg91_template_id','msg91_var'] as $key) {
             $val = trim($_POST[$key] ?? '');
             $db->prepare("INSERT INTO tblSettings (CompanyId,SettingKey,SettingValue) VALUES (0,?,?)
                           ON DUPLICATE KEY UPDATE SettingValue=VALUES(SettingValue)")->execute([$key, $val]);
@@ -75,14 +75,14 @@ require_once __DIR__ . '/../../includes/header.php';
               <div class="form-text">6-char DLT-approved sender.</div>
             </div>
             <div class="col-6">
-              <label class="form-label fw-semibold">Route</label>
-              <input type="text" name="msg91_route" class="form-control" value="<?= htmlspecialchars($cfg['msg91_route'] ?? '4') ?>" placeholder="4">
-              <div class="form-text">4 = transactional.</div>
+              <label class="form-label fw-semibold">Variable Name</label>
+              <input type="text" name="msg91_var" class="form-control" value="<?= htmlspecialchars($cfg['msg91_var'] ?? 'var') ?>" placeholder="var">
+              <div class="form-text">The variable inside your template that receives the message text.</div>
             </div>
             <div class="col-12">
-              <label class="form-label fw-semibold">DLT Template ID <small class="text-muted">(optional)</small></label>
-              <input type="text" name="msg91_dlt_tpl" class="form-control" value="<?= htmlspecialchars($cfg['msg91_dlt_tpl'] ?? '') ?>" placeholder="DLT_TE_ID if required by your account">
-              <div class="form-text">Required only if your MSG91/DLT account enforces templates.</div>
+              <label class="form-label fw-semibold">Flow Template ID <span class="text-danger">*</span></label>
+              <input type="text" name="msg91_template_id" class="form-control" value="<?= htmlspecialchars($cfg['msg91_template_id'] ?? '') ?>" placeholder="e.g. 6512ab...">
+              <div class="form-text">MSG91 <strong>Flow</strong> template id (DLT approved). The template must contain one variable, e.g. <code>HRMS: ##var##</code> — put its name in "Variable Name" above.</div>
             </div>
           </div>
           <div class="mt-4"><button type="submit" class="btn btn-primary"><i class="bi bi-floppy me-1"></i>Save Settings</button></div>

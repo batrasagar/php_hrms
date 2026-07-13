@@ -2,9 +2,13 @@
 require_once __DIR__ . '/../config/db.php';
 
 /**
- * MSG91 SMS integration. Auth key / sender / route are stored globally in
- * tblSettings (CompanyId = 0), same table the SMTP config uses. The HR-Manager
- * mobile is stored per company on tblPayrollSettings.
+ * MSG91 SMS integration (v5 Flow API). Auth key / sender / DLT-approved template
+ * are stored globally in tblSettings (CompanyId = 0), same table the SMTP config
+ * uses. The HR-Manager mobile is stored per company on tblPayrollSettings.
+ *
+ * Flow is template-based: register a DLT template that contains one variable
+ * (default named "var", e.g. "HRMS: ##var##"); the dynamic message text is sent
+ * into that variable. Set the template id + variable name under SMS Settings.
  */
 function getSmsCfg(): array {
     static $cfg = null;
@@ -21,22 +25,22 @@ function getSmsCfg(): array {
         )");
         $ins = $db->prepare("INSERT IGNORE INTO tblSettings (CompanyId, SettingKey, SettingValue) VALUES (0, ?, ?)");
         foreach ([
-            'msg91_authkey'  => '',
-            'msg91_sender'   => 'HRMSAP',
-            'msg91_route'    => '4',   // 4 = transactional
-            'msg91_dlt_tpl'  => '',    // optional DLT template id
+            'msg91_authkey'     => '',
+            'msg91_sender'      => 'HRMSAP',
+            'msg91_template_id' => '',      // MSG91 Flow template id (DLT approved)
+            'msg91_var'         => 'var',   // variable name inside the template
         ] as $k => $v) $ins->execute([$k, $v]);
         $rows = $db->query("SELECT SettingKey, SettingValue FROM tblSettings WHERE CompanyId = 0")
                    ->fetchAll(PDO::FETCH_KEY_PAIR);
         $cfg = [
-            'authkey' => $rows['msg91_authkey'] ?? '',
-            'sender'  => $rows['msg91_sender']  ?? 'HRMSAP',
-            'route'   => $rows['msg91_route']   ?? '4',
-            'dlt_tpl' => $rows['msg91_dlt_tpl'] ?? '',
+            'authkey'     => $rows['msg91_authkey']     ?? '',
+            'sender'      => $rows['msg91_sender']      ?? 'HRMSAP',
+            'template_id' => $rows['msg91_template_id'] ?? '',
+            'var'         => $rows['msg91_var']         ?: 'var',
         ];
     } catch (\Throwable $e) {
         error_log('[hrms] getSmsCfg failed: ' . $e->getMessage());
-        $cfg = ['authkey'=>'','sender'=>'HRMSAP','route'=>'4','dlt_tpl'=>''];
+        $cfg = ['authkey'=>'','sender'=>'HRMSAP','template_id'=>'','var'=>'var'];
     }
     return $cfg;
 }
@@ -49,35 +53,53 @@ function smsNormalizeMobile(string $m): string {
 }
 
 /**
- * Send an SMS via MSG91 (legacy sendhttp API).
+ * Send an SMS via the MSG91 v5 Flow API (template based).
+ *
+ * @param string $mobile  Recipient mobile (10-digit assumed India, or with country code).
+ * @param string $message Dynamic text placed into the template variable (used when $vars is empty).
+ * @param array  $vars    Optional explicit template variables ['VarName' => 'value', ...];
+ *                        overrides the single-variable mapping of $message.
  * @return array ['ok' => bool, 'error' => string]
  */
-function sendSms(string $mobile, string $message): array {
+function sendSms(string $mobile, string $message, array $vars = []): array {
     $cfg = getSmsCfg();
-    if (empty($cfg['authkey'])) {
-        return ['ok' => false, 'error' => 'SMS not configured (missing MSG91 auth key).'];
-    }
+    if (empty($cfg['authkey']))     return ['ok' => false, 'error' => 'SMS not configured (missing MSG91 auth key).'];
+    if (empty($cfg['template_id'])) return ['ok' => false, 'error' => 'SMS not configured (missing MSG91 Flow template id).'];
     $to = smsNormalizeMobile($mobile);
     if (strlen($to) < 10) return ['ok' => false, 'error' => 'Invalid mobile number.'];
 
-    $params = [
-        'authkey'  => $cfg['authkey'],
-        'mobiles'  => $to,
-        'message'  => $message,
-        'sender'   => $cfg['sender'] ?: 'HRMSAP',
-        'route'    => $cfg['route']  ?: '4',
-        'country'  => '91',
-    ];
-    if (!empty($cfg['dlt_tpl'])) $params['DLT_TE_ID'] = $cfg['dlt_tpl'];
-
-    $url = 'https://api.msg91.com/api/sendhttp.php?' . http_build_query($params);
-    if (!function_exists('curl_init')) {
-        $resp = @file_get_contents($url);
-        return ['ok' => $resp !== false, 'error' => $resp === false ? 'HTTP request failed.' : ''];
+    // Build the recipient: explicit vars, or the message mapped to the configured variable.
+    $recipient = ['mobiles' => $to];
+    if ($vars) {
+        foreach ($vars as $k => $v) $recipient[$k] = (string)$v;
+    } else {
+        $recipient[$cfg['var'] ?: 'var'] = $message;
     }
+    $payload = ['template_id' => $cfg['template_id'], 'recipients' => [$recipient]];
+    if (!empty($cfg['sender'])) $payload['sender'] = $cfg['sender'];
+    $body = json_encode($payload);
+
+    $url     = 'https://control.msg91.com/api/v5/flow/';
+    $headers = ['Content-Type: application/json', 'Accept: application/json', 'authkey: ' . $cfg['authkey']];
+
+    if (!function_exists('curl_init')) {
+        $ctx = stream_context_create(['http' => [
+            'method'        => 'POST',
+            'header'        => implode("\r\n", $headers),
+            'content'       => $body,
+            'timeout'       => 15,
+            'ignore_errors' => true,
+        ]]);
+        $resp = @file_get_contents($url, false, $ctx);
+        return smsInterpretResponse($resp === false ? null : $resp, null);
+    }
+
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $body,
+        CURLOPT_HTTPHEADER     => $headers,
         CURLOPT_TIMEOUT        => 15,
         CURLOPT_SSL_VERIFYPEER => false,
     ]);
@@ -86,12 +108,29 @@ function sendSms(string $mobile, string $message): array {
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($resp === false)        return ['ok' => false, 'error' => 'MSG91 request failed: ' . $err];
-    if ($code >= 400)           return ['ok' => false, 'error' => "MSG91 HTTP $code: " . substr((string)$resp, 0, 160)];
-    // MSG91 returns a request id on success, or a JSON/text error containing "error"
-    if (stripos((string)$resp, 'error') !== false) {
-        return ['ok' => false, 'error' => 'MSG91: ' . substr((string)$resp, 0, 160)];
+    if ($resp === false) return ['ok' => false, 'error' => 'MSG91 request failed: ' . $err];
+    return smsInterpretResponse($resp, $code);
+}
+
+/** Interpret an MSG91 v5 Flow JSON response into ['ok','error']. */
+function smsInterpretResponse(?string $resp, ?int $httpCode): array {
+    if ($resp === null)                 return ['ok' => false, 'error' => 'MSG91 HTTP request failed.'];
+    if ($httpCode !== null && $httpCode >= 400) {
+        return ['ok' => false, 'error' => "MSG91 HTTP $httpCode: " . substr($resp, 0, 200)];
     }
+    $json = json_decode($resp, true);
+    if (is_array($json)) {
+        $type = strtolower((string)($json['type'] ?? ''));
+        if ($type === 'success') return ['ok' => true, 'error' => ''];
+        if ($type === 'error' || isset($json['errors'])) {
+            $m = $json['message'] ?? ($json['errors'] ?? 'rejected');
+            return ['ok' => false, 'error' => 'MSG91: ' . (is_string($m) ? $m : json_encode($m))];
+        }
+        // Some success responses only return a request id in "message".
+        if (!empty($json['message'])) return ['ok' => true, 'error' => ''];
+    }
+    // Non-JSON body — treat text containing "error" as failure.
+    if (stripos($resp, 'error') !== false) return ['ok' => false, 'error' => 'MSG91: ' . substr($resp, 0, 200)];
     return ['ok' => true, 'error' => ''];
 }
 
