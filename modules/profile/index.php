@@ -14,28 +14,38 @@ $row = $db->prepare("SELECT Email FROM tblUser WHERE id = ? LIMIT 1");
 $row->execute([$user['id']]);
 $dbUser = $row->fetch() ?: [];
 
-// Current 2FA state (defensive — column may not be migrated yet)
-$twofaOn  = false;
-$twofaMsg = '';
+// Current 2FA state (defensive — columns may not be migrated yet)
+$twofaOn = false; $twofaChannels = []; $twofaMobile = ''; $twofaMsg = ''; $twofaErr = '';
 try {
-    $t = $db->prepare("SELECT TwoFactorEnabled FROM tblUser WHERE id=?");
+    $t = $db->prepare("SELECT TwoFactorEnabled, TwoFactorChannels, Mobile FROM tblUser WHERE id=?");
     $t->execute([$user['id']]);
-    $twofaOn = (int)$t->fetchColumn() === 1;
-} catch (PDOException $e) { $twofaOn = false; }
+    $tr = $t->fetch() ?: [];
+    $twofaOn       = (int)($tr['TwoFactorEnabled'] ?? 0) === 1;
+    $twofaChannels = array_values(array_filter(array_map('trim', explode(',', $tr['TwoFactorChannels'] ?? ''))));
+    $twofaMobile   = trim($tr['Mobile'] ?? '');
+} catch (PDOException $e) {}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_2fa') {
-    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
-              strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();
-    $enable = isset($_POST['enable_2fa']) ? 1 : 0;
-    try {
-        $db->prepare("UPDATE tblUser SET TwoFactorEnabled=? WHERE id=?")->execute([$enable, $user['id']]);
-        $twofaOn  = $enable === 1;
-        $twofaMsg = $enable ? 'Two-factor authentication enabled.' : 'Two-factor authentication disabled.';
-        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'message'=>$twofaMsg]); exit; }
-    } catch (PDOException $e) {
-        $twofaMsg = 'Could not update 2FA setting. Ensure migrations have been applied.';
-        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>false,'errors'=>[$twofaMsg]]); exit; }
+    $chans = [];
+    foreach (['email','whatsapp','sms'] as $ch) if (!empty($_POST['tfch_' . $ch])) $chans[] = $ch;
+    $mobile = preg_replace('/[^\d+]/', '', trim($_POST['tf_mobile'] ?? ''));
+
+    if ((in_array('sms', $chans, true) || in_array('whatsapp', $chans, true)) && $mobile === '') {
+        $twofaErr = 'A mobile number is required for SMS or WhatsApp 2FA.';
+        $twofaChannels = $chans; $twofaMobile = $mobile;
+    } else {
+        $enabled = $chans ? 1 : 0;
+        try {
+            $db->prepare("UPDATE tblUser SET TwoFactorEnabled=?, TwoFactorChannels=?, Mobile=? WHERE id=?")
+               ->execute([$enabled, implode(',', $chans) ?: null, $mobile ?: null, $user['id']]);
+            $twofaOn = (bool)$enabled; $twofaChannels = $chans; $twofaMobile = $mobile;
+            $twofaMsg = $enabled
+                ? 'Two-factor authentication enabled via: ' . implode(', ', array_map('ucfirst', $chans)) . '.'
+                : 'Two-factor authentication disabled.';
+        } catch (PDOException $e) {
+            $twofaErr = 'Could not update 2FA. Ensure migrations have been applied.';
+        }
     }
 }
 
@@ -121,17 +131,36 @@ require_once __DIR__ . '/../../includes/header.php';
       <span class="badge bg-<?= $twofaOn ? 'success' : 'secondary' ?>"><?= $twofaOn ? 'On' : 'Off' ?></span>
     </div>
     <div class="card-body">
+      <?php if ($twofaMsg): ?><div class="alert alert-success py-2 mb-3"><?= htmlspecialchars($twofaMsg) ?></div><?php endif; ?>
+      <?php if ($twofaErr): ?><div class="alert alert-danger py-2 mb-3"><?= htmlspecialchars($twofaErr) ?></div><?php endif; ?>
       <p class="text-muted mb-3" style="font-size:13px">
-        When enabled, after your password you'll be emailed a 6-digit one-time code to
-        <strong><?= htmlspecialchars($dbUser['Email'] ?? '') ?></strong> to complete sign-in.
+        After your password, a 6-digit one-time code is sent via the channel(s) you select.
+        Tick none to turn 2FA off.
       </p>
-      <form method="POST" data-ajax>
+      <form method="POST">
         <input type="hidden" name="action" value="toggle_2fa">
-        <div class="form-check form-switch mb-3">
-          <input type="checkbox" role="switch" class="form-check-input" id="enable2fa" name="enable_2fa" <?= $twofaOn ? 'checked' : '' ?>>
-          <label class="form-check-label" for="enable2fa">Require an email OTP at login</label>
+        <div class="mb-2 fw-semibold" style="font-size:13px">Delivery channels</div>
+        <div class="d-flex flex-wrap gap-4 mb-3">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="tfch_email" name="tfch_email" <?= in_array('email',$twofaChannels,true)?'checked':'' ?>>
+            <label class="form-check-label" for="tfch_email"><i class="bi bi-envelope me-1 text-primary"></i>Email
+              <span class="text-muted small d-block"><?= htmlspecialchars($dbUser['Email'] ?? '') ?></span></label>
+          </div>
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="tfch_whatsapp" name="tfch_whatsapp" <?= in_array('whatsapp',$twofaChannels,true)?'checked':'' ?>>
+            <label class="form-check-label" for="tfch_whatsapp"><i class="bi bi-whatsapp me-1 text-success"></i>WhatsApp</label>
+          </div>
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="tfch_sms" name="tfch_sms" <?= in_array('sms',$twofaChannels,true)?'checked':'' ?>>
+            <label class="form-check-label" for="tfch_sms"><i class="bi bi-chat-dots me-1 text-info"></i>SMS</label>
+          </div>
         </div>
-        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-shield-lock me-1"></i>Save 2FA Setting</button>
+        <div class="mb-3" style="max-width:280px">
+          <label class="form-label">Mobile <span class="text-muted small">(for SMS / WhatsApp)</span></label>
+          <input type="text" name="tf_mobile" class="form-control" value="<?= htmlspecialchars($twofaMobile) ?>" placeholder="10-digit mobile">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-shield-lock me-1"></i>Save 2FA Settings</button>
+        <div class="form-text mt-2">Email uses your account email · SMS uses MSG91 · WhatsApp uses the configured WhatsApp channel.</div>
       </form>
     </div>
   </div>

@@ -897,6 +897,16 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M027',
+        'desc'  => '2FA delivery channels — tblUser.TwoFactorChannels (email/whatsapp/sms) + Mobile for OTP delivery',
+        'check' => "SELECT `TwoFactorChannels` FROM `tblUser` LIMIT 1",
+        'stmts' => [
+            "ALTER TABLE `tblUser`
+                ADD COLUMN `TwoFactorChannels` VARCHAR(50) NULL DEFAULT NULL COMMENT 'csv: email,whatsapp,sms' AFTER `TwoFactorEnabled`,
+                ADD COLUMN `Mobile`            VARCHAR(20) NULL DEFAULT NULL COMMENT 'for SMS/WhatsApp OTP delivery'",
+        ],
+    ],
+    [
         'id'    => 'M026',
         'desc'  => 'WhatsApp Business API settings — tblWhatsappSettings (per-company + global default row) + seed default',
         'check' => "SELECT 1 FROM `tblWhatsappSettings` LIMIT 1",

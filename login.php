@@ -2,6 +2,8 @@
 define('BASE_URL', ($_SERVER['HTTP_HOST'] ?? '') === 'hr.attnlog.in' ? '' : '/php_hrms');
 require_once __DIR__ . '/config/db.php';
 require_once __DIR__ . '/includes/smtp_helper.php';
+require_once __DIR__ . '/includes/sms_helper.php';
+require_once __DIR__ . '/includes/whatsapp_helper.php';
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 if (!empty($_SESSION['user_id'])) {
@@ -10,7 +12,8 @@ if (!empty($_SESSION['user_id'])) {
 
 // Clear OTP / 2FA state on request (user switches to password tab or cancels 2FA)
 if (isset($_GET['reset'])) {
-    unset($_SESSION['otp_email'], $_SESSION['2fa_uid'], $_SESSION['2fa_email']);
+    unset($_SESSION['otp_email'], $_SESSION['2fa_uid'], $_SESSION['2fa_email'],
+          $_SESSION['2fa_channels'], $_SESSION['2fa_mobile'], $_SESSION['2fa_company'], $_SESSION['2fa_sent']);
     header('Location: ' . BASE_URL . '/login.php'); exit;
 }
 
@@ -75,20 +78,45 @@ $loginUser = function (array $row) {
     $_SESSION['user_company_id']      = $row['CompanyId'] ?? 0;
 };
 
-// Generate + email a 2FA one-time code (reuses tblEmailOtp). Returns bool sent.
-$send2faOtp = function (string $email) use ($db) {
+// Generate a 2FA one-time code (reuses tblEmailOtp) and deliver it via each
+// selected channel. Returns the list of channel labels that succeeded.
+$deliver2faOtp = function (string $email, array $channels, string $mobile, int $companyId) use ($db) {
     $otp = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $db->prepare("DELETE FROM tblEmailOtp WHERE email=?")->execute([$email]);
     $db->prepare("INSERT INTO tblEmailOtp (email,otp,expires_at) VALUES (?,?,DATE_ADD(NOW(),INTERVAL 10 MINUTE))")
        ->execute([$email, $otp]);
-    return sendSystemMail($email, 'HRMS — Two-Factor Login Code',
-        "<p>Hello,</p><p>Your two-factor login code is:</p>"
-      . "<div style='text-align:center;margin:24px 0;'>"
-      .   "<span style='font-size:2.5rem;font-weight:700;letter-spacing:0.3rem;color:#1e2a3a;'>{$otp}</span>"
-      . "</div>"
-      . "<p style='color:#888;font-size:12px;'>This code expires in <strong>10 minutes</strong>. "
-      . "If you did not just sign in, please change your password.</p>"
-    );
+
+    $sent = [];
+    if (in_array('email', $channels, true)) {
+        $ok = sendSystemMail($email, 'HRMS — Two-Factor Login Code',
+            "<p>Hello,</p><p>Your two-factor login code is:</p>"
+          . "<div style='text-align:center;margin:24px 0;'>"
+          .   "<span style='font-size:2.5rem;font-weight:700;letter-spacing:0.3rem;color:#1e2a3a;'>{$otp}</span>"
+          . "</div>"
+          . "<p style='color:#888;font-size:12px;'>This code expires in <strong>10 minutes</strong>. "
+          . "If you did not just sign in, please change your password.</p>");
+        if ($ok) $sent[] = 'Email';
+    }
+    if (in_array('sms', $channels, true) && $mobile !== '') {
+        $r = sendSms($mobile, "$otp is your HRMS login code. Valid for 10 minutes.");
+        if (!empty($r['ok'])) $sent[] = 'SMS';
+    }
+    if (in_array('whatsapp', $channels, true) && $mobile !== '') {
+        $cfg = waActiveFor($db, $companyId);
+        if ($cfg) {
+            // OTP is sent through a pre-approved authentication template, configured globally.
+            $tpl = ''; $lang = 'en';
+            try {
+                $s = $db->query("SELECT SettingKey, SettingValue FROM tblSettings WHERE CompanyId=0 AND SettingKey IN ('wa_otp_template','wa_otp_lang')")->fetchAll(PDO::FETCH_KEY_PAIR);
+                $tpl = $s['wa_otp_template'] ?? ''; $lang = $s['wa_otp_lang'] ?: 'en';
+            } catch (\Throwable $e) {}
+            if ($tpl !== '') {
+                $r = waSendTemplate($cfg, $mobile, $tpl, $lang, [$otp], [$otp]);
+                if (!empty($r['ok'])) $sent[] = 'WhatsApp';
+            }
+        }
+    }
+    return $sent;
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -118,21 +146,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $error = 'Your account registration was rejected. Please contact support.';
                     } else {
                         // Opt-in second factor. Read defensively so login still works
-                        // if the M024 migration has not been applied yet.
-                        $twofaOn = false;
+                        // if the 2FA migrations have not been applied yet.
+                        $twofaOn = false; $twofaChannels = []; $twofaMobile = '';
                         try {
-                            $tq = $db->prepare("SELECT TwoFactorEnabled FROM tblUser WHERE id=?");
+                            $tq = $db->prepare("SELECT TwoFactorEnabled, TwoFactorChannels, Mobile FROM tblUser WHERE id=?");
                             $tq->execute([$row['id']]);
-                            $twofaOn = (int)$tq->fetchColumn() === 1;
+                            if ($tr = $tq->fetch()) {
+                                $twofaOn       = (int)$tr['TwoFactorEnabled'] === 1;
+                                $twofaChannels = array_values(array_filter(array_map('trim', explode(',', $tr['TwoFactorChannels'] ?? ''))));
+                                $twofaMobile   = trim($tr['Mobile'] ?? '');
+                            }
                         } catch (PDOException $e) { $twofaOn = false; }
+                        if (!$twofaChannels) $twofaChannels = ['email'];   // legacy rows default to email
 
                         if ($twofaOn) {
-                            if ($send2faOtp($email)) {
-                                $_SESSION['2fa_uid']   = (int)$row['id'];
-                                $_SESSION['2fa_email'] = $email;
+                            $companyId = (int)($row['CompanyId'] ?? 0);
+                            $sent = $deliver2faOtp($email, $twofaChannels, $twofaMobile, $companyId);
+                            if ($sent) {
+                                $_SESSION['2fa_uid']      = (int)$row['id'];
+                                $_SESSION['2fa_email']    = $email;
+                                $_SESSION['2fa_channels'] = $twofaChannels;
+                                $_SESSION['2fa_mobile']   = $twofaMobile;
+                                $_SESSION['2fa_company']  = $companyId;
+                                $_SESSION['2fa_sent']     = implode(', ', $sent);
                                 $twofaPending = true;
                             } else {
-                                $error = 'Could not send your two-factor code. Please try again.';
+                                $error = 'Could not send your two-factor code via the selected channel(s). Please try again.';
                             }
                         } else {
                             $loginUser($row);
@@ -264,7 +303,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $uStmt->execute([$uid]);
                 $urow = $uStmt->fetch();
                 if ($urow && $urow['Status'] === 'active') {
-                    unset($_SESSION['2fa_uid'], $_SESSION['2fa_email']);
+                    unset($_SESSION['2fa_uid'], $_SESSION['2fa_email'], $_SESSION['2fa_channels'],
+                          $_SESSION['2fa_mobile'], $_SESSION['2fa_company'], $_SESSION['2fa_sent']);
                     $loginUser($urow);
                     header('Location: index.php'); exit;
                 } else {
@@ -292,10 +332,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $twofaPending = false;
         } elseif ($isLocked) {
             $error = "Too many failed attempts. Please wait {$minsLeft} minute(s) before trying again.";
-        } elseif ($send2faOtp($email)) {
-            $warning = 'A new code has been sent to your email.';
         } else {
-            $error = 'Could not resend the code. Please try again.';
+            $sent = $deliver2faOtp($email, $_SESSION['2fa_channels'] ?? ['email'], $_SESSION['2fa_mobile'] ?? '', (int)($_SESSION['2fa_company'] ?? 0));
+            if ($sent) { $_SESSION['2fa_sent'] = implode(', ', $sent); $warning = 'A new code has been sent via ' . $_SESSION['2fa_sent'] . '.'; }
+            else       { $error = 'Could not resend the code. Please try again.'; }
         }
     }
 }
@@ -338,7 +378,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div class="text-center mb-2"><i class="bi bi-shield-lock fs-1 text-primary"></i></div>
   <h6 class="text-center mb-2">Two-Factor Authentication</h6>
   <p class="small text-muted text-center mb-3">
-    A 6-digit code was sent to <strong><?= htmlspecialchars($_SESSION['2fa_email'] ?? '') ?></strong>.
+    A 6-digit code was sent via <strong><?= htmlspecialchars($_SESSION['2fa_sent'] ?? 'Email') ?></strong>.
     Enter it to finish signing in.
   </p>
   <form method="POST" autocomplete="off">

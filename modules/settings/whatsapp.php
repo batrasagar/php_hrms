@@ -69,6 +69,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($fScope, $scopeIds, true))
             $db->prepare("INSERT INTO tblWhatsappSettings (`CompanyId`,`" . implode('`,`',$cols) . "`) VALUES (?" . str_repeat(',?',count($cols)) . ")")
                ->execute([$fScope, ...$vals]);
         }
+        // Global scope: also persist the 2FA WhatsApp OTP template (in tblSettings).
+        if ($fScope === 0) {
+            $db->exec("CREATE TABLE IF NOT EXISTS tblSettings (
+                id INT PRIMARY KEY AUTO_INCREMENT, CompanyId INT NOT NULL DEFAULT 0,
+                SettingKey VARCHAR(100) NOT NULL, SettingValue VARCHAR(500) NOT NULL DEFAULT '',
+                UpdatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uk_cs (CompanyId, SettingKey))");
+            $ins = $db->prepare("INSERT INTO tblSettings (CompanyId,SettingKey,SettingValue) VALUES (0,?,?)
+                                 ON DUPLICATE KEY UPDATE SettingValue=VALUES(SettingValue)");
+            $ins->execute(['wa_otp_template', trim($_POST['wa_otp_template'] ?? '')]);
+            $ins->execute(['wa_otp_lang',     trim($_POST['wa_otp_lang'] ?? '') ?: 'en']);
+        }
         $msg = 'WhatsApp settings saved.';
 
     } elseif ($action === 'revert' && $fScope !== 0) {
@@ -107,6 +119,14 @@ if ($fScope === 0) {
 }
 $v = fn($k, $d = '') => htmlspecialchars((string)($row[$k] ?? $d), ENT_QUOTES);
 $provider = $row['Provider'] ?? 'meta';
+
+// 2FA WhatsApp OTP template (global setting)
+$waOtp = ['tpl' => '', 'lang' => 'en'];
+try {
+    $s = $db->query("SELECT SettingKey, SettingValue FROM tblSettings WHERE CompanyId=0 AND SettingKey IN ('wa_otp_template','wa_otp_lang')")->fetchAll(PDO::FETCH_KEY_PAIR);
+    $waOtp['tpl']  = $s['wa_otp_template'] ?? '';
+    $waOtp['lang'] = ($s['wa_otp_lang'] ?? '') ?: 'en';
+} catch (\Throwable $e) {}
 
 $pageTitle  = 'WhatsApp Settings';
 $activePage = 'whatsapp_settings';
@@ -202,6 +222,18 @@ require_once __DIR__ . '/../../includes/header.php';
             <input name="gupshup_app_name" class="form-control" value="<?= $v('GupshupAppName') ?>"></div>
         </div>
       </div>
+
+      <?php if ($fScope === 0): ?>
+      <hr>
+      <div class="fw-semibold mb-2 small">2FA OTP template <span class="text-muted fw-normal">— for WhatsApp login codes</span></div>
+      <div class="row g-3">
+        <div class="col-md-8"><label class="form-label">OTP Template Name</label>
+          <input name="wa_otp_template" class="form-control" value="<?= htmlspecialchars($waOtp['tpl']) ?>" placeholder="e.g. login_otp (approved authentication template)"></div>
+        <div class="col-md-4"><label class="form-label">Language</label>
+          <input name="wa_otp_lang" class="form-control" value="<?= htmlspecialchars($waOtp['lang']) ?>" placeholder="en"></div>
+        <div class="col-12"><div class="form-text">The pre-approved authentication template that carries the login code (sent with the OTP as body + button parameter). Used for 2FA over WhatsApp.</div></div>
+      </div>
+      <?php endif; ?>
 
       <div class="form-check form-switch mt-3">
         <input type="checkbox" role="switch" class="form-check-input" id="waEnabled" name="enabled" <?= (int)($row['Enabled'] ?? 0)===1?'checked':'' ?>>
