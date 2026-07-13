@@ -62,6 +62,10 @@ if ($user['role'] === 'user') {
     $fCompany = (int)($_GET['company'] ?? 0);
 }
 
+// Never dump every company's employees by default — require an explicit company pick.
+// ('user' has a fixed company; 'compliance' has no company selector.)
+$mustSelectCompany = in_array($user['role'], ['superadmin','admin','operator'], true) && $fCompany <= 0;
+
 $where  = [];
 $params = [];
 
@@ -77,12 +81,16 @@ if ($fSearch) {
 }
 if (isCompliance()) { $where[] = 'e.Compliance = 1'; }   // compliance role sees only compliance employees
 
-$whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
-$sql = "SELECT e.*, c.Name AS CompanyName FROM tblEmployee e
-        JOIN tblCompany c ON c.id = e.CompanyId $whereSQL ORDER BY c.Name, ISNULL(e.Sr), e.Sr, e.Name";
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$employees = $stmt->fetchAll();
+if ($mustSelectCompany) {
+    $employees = [];
+} else {
+    $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    $sql = "SELECT e.*, c.Name AS CompanyName FROM tblEmployee e
+            JOIN tblCompany c ON c.id = e.CompanyId $whereSQL ORDER BY c.Name, ISNULL(e.Sr), e.Sr, e.Name";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $employees = $stmt->fetchAll();
+}
 
 if ($user['role'] === 'user') {
     $scopeJoin = 'WHERE e.CompanyId = ' . (int)$fCompany;
@@ -107,7 +115,7 @@ require_once __DIR__ . '/../../includes/header.php';
       <div class="col-sm-6 col-md-2">
         <label class="form-label small mb-1">Company</label>
         <select name="company" class="form-select form-select-sm">
-          <option value="">All Companies</option>
+          <option value="">— Select Company —</option>
           <?php foreach ($companiesDd as $c): ?>
           <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>>
             <?= htmlspecialchars($c['Name']) ?>
@@ -163,6 +171,15 @@ require_once __DIR__ . '/../../includes/header.php';
   /* Non-compliance employees get a subtle dull row background (hover still works) */
   #tblEmployees tbody tr.emp-noncomp { --bs-table-bg: #f0f0ee; }
 </style>
+<?php if ($mustSelectCompany): ?>
+<div class="card border-0 shadow-sm">
+  <div class="card-body text-center text-muted py-5">
+    <i class="bi bi-building" style="font-size:2.5rem"></i>
+    <p class="mt-3 mb-1 fw-semibold">Select a company to view its employees</p>
+    <p class="small mb-0">Use the Company filter above.</p>
+  </div>
+</div>
+<?php else: ?>
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-semibold">Employees <span class="badge bg-secondary"><?= count($employees) ?></span></span>
@@ -246,6 +263,7 @@ require_once __DIR__ . '/../../includes/header.php';
   </div>
 </div>
 <script>$(()=>{$("#tblEmployees").DataTable({order:[[8,"asc"],[1,"asc"],[3,"asc"]],pageLength:25,columnDefs:[{orderable:false,targets:[0,11]}],language:{emptyTable:"No employees found. <a href='add.php'>Add the first one</a>."}});});</script>
+<?php endif; ?>
 </div><!-- /#filter-results -->
 <?php
 require_once __DIR__ . '/../../includes/footer.php';
