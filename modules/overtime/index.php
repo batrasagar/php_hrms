@@ -76,9 +76,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
     if ($saved > 0) {
         $hrMobile = hrManagerMobile($db, $companyId);
         if ($hrMobile) {
-            $coName = (string)($db->query("SELECT Name FROM tblCompany WHERE id=" . (int)$companyId)->fetchColumn() ?: 'Company');
-            $tail   = $apprReq ? 'Pending approval.' : 'Auto-approved.';
-            @sendSms($hrMobile, "OT entered: $saved staff, " . rtrim(rtrim(number_format($totalHrs,2),'0'),'.') . " hrs on $otDate at $coName. $tail");
+            $coName  = (string)($db->query("SELECT Name FROM tblCompany WHERE id=" . (int)$companyId)->fetchColumn() ?: 'Company');
+            $hrsStr  = rtrim(rtrim(number_format($totalHrs, 2), '0'), '.');
+            $status  = $apprReq ? 'Pending approval' : 'Auto-approved';
+            @sendOtSms(
+                $hrMobile,
+                'entered',
+                ['company' => $coName, 'count' => $saved, 'hours' => $hrsStr, 'date' => $otDate, 'status' => $status],
+                "OT entered: $saved staff, $hrsStr hrs on $otDate at $coName. $status."
+            );
         }
     }
 

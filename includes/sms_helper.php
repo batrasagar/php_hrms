@@ -25,22 +25,26 @@ function getSmsCfg(): array {
         )");
         $ins = $db->prepare("INSERT IGNORE INTO tblSettings (CompanyId, SettingKey, SettingValue) VALUES (0, ?, ?)");
         foreach ([
-            'msg91_authkey'     => '',
-            'msg91_sender'      => 'HRMSAP',
-            'msg91_template_id' => '',      // MSG91 Flow template id (DLT approved)
-            'msg91_var'         => 'var',   // variable name inside the template
+            'msg91_authkey'         => '',
+            'msg91_sender'          => 'HRMSAP',
+            'msg91_template_id'     => '',      // generic single-variable Flow template
+            'msg91_var'             => 'var',   // variable name inside the generic template
+            'msg91_tpl_ot_entered'  => '',      // structured template for "OT entered" (vars: company,count,hours,date,status)
+            'msg91_tpl_ot_approved' => '',      // structured template for "OT approved" (vars: company,count,hours)
         ] as $k => $v) $ins->execute([$k, $v]);
         $rows = $db->query("SELECT SettingKey, SettingValue FROM tblSettings WHERE CompanyId = 0")
                    ->fetchAll(PDO::FETCH_KEY_PAIR);
         $cfg = [
-            'authkey'     => $rows['msg91_authkey']     ?? '',
-            'sender'      => $rows['msg91_sender']      ?? 'HRMSAP',
-            'template_id' => $rows['msg91_template_id'] ?? '',
-            'var'         => $rows['msg91_var']         ?: 'var',
+            'authkey'         => $rows['msg91_authkey']         ?? '',
+            'sender'          => $rows['msg91_sender']          ?? 'HRMSAP',
+            'template_id'     => $rows['msg91_template_id']     ?? '',
+            'var'             => $rows['msg91_var']             ?: 'var',
+            'tpl_ot_entered'  => $rows['msg91_tpl_ot_entered']  ?? '',
+            'tpl_ot_approved' => $rows['msg91_tpl_ot_approved'] ?? '',
         ];
     } catch (\Throwable $e) {
         error_log('[hrms] getSmsCfg failed: ' . $e->getMessage());
-        $cfg = ['authkey'=>'','sender'=>'HRMSAP','template_id'=>'','var'=>'var'];
+        $cfg = ['authkey'=>'','sender'=>'HRMSAP','template_id'=>'','var'=>'var','tpl_ot_entered'=>'','tpl_ot_approved'=>''];
     }
     return $cfg;
 }
@@ -59,12 +63,15 @@ function smsNormalizeMobile(string $m): string {
  * @param string $message Dynamic text placed into the template variable (used when $vars is empty).
  * @param array  $vars    Optional explicit template variables ['VarName' => 'value', ...];
  *                        overrides the single-variable mapping of $message.
+ * @param string $templateId Optional Flow template id to use instead of the generic one
+ *                        (for structured templates with named variables).
  * @return array ['ok' => bool, 'error' => string]
  */
-function sendSms(string $mobile, string $message, array $vars = []): array {
-    $cfg = getSmsCfg();
-    if (empty($cfg['authkey']))     return ['ok' => false, 'error' => 'SMS not configured (missing MSG91 auth key).'];
-    if (empty($cfg['template_id'])) return ['ok' => false, 'error' => 'SMS not configured (missing MSG91 Flow template id).'];
+function sendSms(string $mobile, string $message, array $vars = [], string $templateId = ''): array {
+    $cfg      = getSmsCfg();
+    $template = $templateId !== '' ? $templateId : ($cfg['template_id'] ?? '');
+    if (empty($cfg['authkey'])) return ['ok' => false, 'error' => 'SMS not configured (missing MSG91 auth key).'];
+    if (empty($template))       return ['ok' => false, 'error' => 'SMS not configured (missing MSG91 Flow template id).'];
     $to = smsNormalizeMobile($mobile);
     if (strlen($to) < 10) return ['ok' => false, 'error' => 'Invalid mobile number.'];
 
@@ -75,7 +82,7 @@ function sendSms(string $mobile, string $message, array $vars = []): array {
     } else {
         $recipient[$cfg['var'] ?: 'var'] = $message;
     }
-    $payload = ['template_id' => $cfg['template_id'], 'recipients' => [$recipient]];
+    $payload = ['template_id' => $template, 'recipients' => [$recipient]];
     if (!empty($cfg['sender'])) $payload['sender'] = $cfg['sender'];
     $body = json_encode($payload);
 
@@ -132,6 +139,22 @@ function smsInterpretResponse(?string $resp, ?int $httpCode): array {
     // Non-JSON body — treat text containing "error" as failure.
     if (stripos($resp, 'error') !== false) return ['ok' => false, 'error' => 'MSG91: ' . substr($resp, 0, 200)];
     return ['ok' => true, 'error' => ''];
+}
+
+/**
+ * Send a structured OT SMS. Uses the configured Flow template for the given
+ * stage ('entered' | 'approved') with named variables; if that template id is
+ * not set, falls back to the generic single-variable template with $fallbackText.
+ *
+ * Template variables:
+ *   entered  → company, count, hours, date, status
+ *   approved → company, count, hours
+ */
+function sendOtSms(string $mobile, string $stage, array $vars, string $fallbackText): array {
+    $cfg = getSmsCfg();
+    $tpl = $stage === 'approved' ? ($cfg['tpl_ot_approved'] ?? '') : ($cfg['tpl_ot_entered'] ?? '');
+    if ($tpl !== '') return sendSms($mobile, '', $vars, $tpl);
+    return sendSms($mobile, $fallbackText);
 }
 
 /** HR-Manager mobile for a company (from payroll settings), or '' if none. */

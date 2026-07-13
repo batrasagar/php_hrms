@@ -42,7 +42,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
                 $sum->execute([...$ids, $fCompany]);
                 $r = $sum->fetch();
                 $coName = (string)($db->query("SELECT Name FROM tblCompany WHERE id=" . (int)$fCompany)->fetchColumn() ?: 'Company');
-                @sendSms($hrMobile, "OT approved: {$r['c']} entr(y/ies), " . rtrim(rtrim(number_format((float)$r['h'],2),'0'),'.') . " hrs at $coName.");
+                $hrsStr = rtrim(rtrim(number_format((float)$r['h'], 2), '0'), '.');
+                @sendOtSms(
+                    $hrMobile,
+                    'approved',
+                    ['company' => $coName, 'count' => $r['c'], 'hours' => $hrsStr],
+                    "OT approved: {$r['c']} entries, $hrsStr hrs at $coName."
+                );
             }
         }
         $msg = ucfirst($action) . "d $n OT entr(y/ies).";

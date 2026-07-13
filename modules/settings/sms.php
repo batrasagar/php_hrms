@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'save';
 
     if ($action === 'save') {
-        foreach (['msg91_sender','msg91_template_id','msg91_var'] as $key) {
+        foreach (['msg91_sender','msg91_template_id','msg91_var','msg91_tpl_ot_entered','msg91_tpl_ot_approved'] as $key) {
             $val = trim($_POST[$key] ?? '');
             $db->prepare("INSERT INTO tblSettings (CompanyId,SettingKey,SettingValue) VALUES (0,?,?)
                           ON DUPLICATE KEY UPDATE SettingValue=VALUES(SettingValue)")->execute([$key, $val]);
@@ -80,9 +80,23 @@ require_once __DIR__ . '/../../includes/header.php';
               <div class="form-text">The variable inside your template that receives the message text.</div>
             </div>
             <div class="col-12">
-              <label class="form-label fw-semibold">Flow Template ID <span class="text-danger">*</span></label>
+              <label class="form-label fw-semibold">Generic Flow Template ID</label>
               <input type="text" name="msg91_template_id" class="form-control" value="<?= htmlspecialchars($cfg['msg91_template_id'] ?? '') ?>" placeholder="e.g. 6512ab...">
-              <div class="form-text">MSG91 <strong>Flow</strong> template id (DLT approved). The template must contain one variable, e.g. <code>HRMS: ##var##</code> — put its name in "Variable Name" above.</div>
+              <div class="form-text">Single-variable fallback template, e.g. <code>HRMS: ##var##</code> — used for test SMS and whenever a structured template below is not set.</div>
+            </div>
+
+            <div class="col-12"><hr class="my-1"><div class="fw-semibold small text-muted">Overtime notifications (structured templates)</div></div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">OT Entered — Template ID</label>
+              <input type="text" name="msg91_tpl_ot_entered" class="form-control" value="<?= htmlspecialchars($cfg['msg91_tpl_ot_entered'] ?? '') ?>" placeholder="Flow template id">
+              <div class="form-text">Variables: <code>##company##</code>, <code>##count##</code>, <code>##hours##</code>, <code>##date##</code>, <code>##status##</code>.<br>
+                e.g. <code>HRMS: OT entered for ##count## staff (##hours## hrs) on ##date## at ##company##. ##status##</code></div>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">OT Approved — Template ID</label>
+              <input type="text" name="msg91_tpl_ot_approved" class="form-control" value="<?= htmlspecialchars($cfg['msg91_tpl_ot_approved'] ?? '') ?>" placeholder="Flow template id">
+              <div class="form-text">Variables: <code>##company##</code>, <code>##count##</code>, <code>##hours##</code>.<br>
+                e.g. <code>HRMS: OT approved - ##count## entries (##hours## hrs) at ##company##.</code></div>
             </div>
           </div>
           <div class="mt-4"><button type="submit" class="btn btn-primary"><i class="bi bi-floppy me-1"></i>Save Settings</button></div>
