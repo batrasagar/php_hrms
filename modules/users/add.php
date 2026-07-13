@@ -50,14 +50,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Operators are co-admins scoped to their parent admin's companies (see currentUser()).
     $role = 'user';
     if ($user['role'] === 'superadmin') {
-        $role = in_array($_POST['Role'] ?? '', ['admin', 'user', 'operator'], true) ? $_POST['Role'] : 'user';
+        $role = in_array($_POST['Role'] ?? '', ['admin', 'user', 'operator', 'compliance'], true) ? $_POST['Role'] : 'user';
     } elseif ($user['role'] === 'admin') {
-        $role = in_array($_POST['Role'] ?? '', ['user', 'operator'], true) ? $_POST['Role'] : 'user';
+        $role = in_array($_POST['Role'] ?? '', ['user', 'operator', 'compliance'], true) ? $_POST['Role'] : 'user';
     }
 
-    // Parent admin an operator works under. Superadmin picks it; an admin is always the parent.
+    // Parent admin an operator/compliance user works under. Superadmin picks it; an admin is always the parent.
     $parentAdminSel = (int)($_POST['ParentAdminId'] ?? 0);
-    if ($role === 'operator') $companyId = 0; // operators span all of the admin's companies
+    if (in_array($role, ['operator','compliance'], true)) $companyId = 0; // co-admins span all of the admin's companies
 
     if (!$name)  $errors[] = 'Name is required.';
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Valid email required.';
@@ -65,8 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($pass && $pass !== $pass2) $errors[] = 'Passwords do not match.';
     if ($pass && strlen($pass) < 6) $errors[] = 'Password must be at least 6 characters.';
     if ($role === 'user' && !$companyId) $errors[] = 'Please select a company for this user.';
-    if ($role === 'operator' && $user['role'] === 'superadmin' && !$parentAdminSel) {
-        $errors[] = 'Please select the parent admin this operator will work under.';
+    if (in_array($role, ['operator','compliance'], true) && $user['role'] === 'superadmin' && !$parentAdminSel) {
+        $errors[] = 'Please select the parent admin this ' . $role . ' will work under.';
     }
 
     // Validate company belongs to this admin
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Resolve the parent admin. An operator created by an admin belongs to that admin;
     // one created by a superadmin belongs to the selected admin. Admins/users have none.
-    if ($role === 'operator') {
+    if (in_array($role, ['operator','compliance'], true)) {
         $parentId = $user['role'] === 'superadmin' ? $parentAdminSel : $user['id'];
     } else {
         $parentId = $user['role'] === 'superadmin' ? 0 : $user['id'];
@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cols   = "Name=?, Email=?, Role=?, IsActive=?, CompanyId=?";
             $params = [$name, $email, $role, $isActive, $companyId ?: null];
             // Let a superadmin (re)assign the operator's parent admin on edit.
-            if ($role === 'operator' && $user['role'] === 'superadmin') {
+            if (in_array($role, ['operator','compliance'], true) && $user['role'] === 'superadmin') {
                 $cols    .= ", ParentAdminId=?";
                 $params[] = $parentId ?: (int)($row['ParentAdminId'] ?? 0);
             }
@@ -145,24 +145,26 @@ require_once __DIR__ . '/../../includes/header.php';
         <label class="form-label">Role</label>
         <select name="Role" class="form-select" id="roleSelect" onchange="toggleRole()">
           <option value="user"     <?= ($row['Role'] ?? 'user') === 'user'     ? 'selected' : '' ?>>User</option>
-          <option value="admin"    <?= ($row['Role'] ?? '') === 'admin'    ? 'selected' : '' ?>>Admin</option>
-          <option value="operator" <?= ($row['Role'] ?? '') === 'operator' ? 'selected' : '' ?>>Operator</option>
+          <option value="admin"      <?= ($row['Role'] ?? '') === 'admin'      ? 'selected' : '' ?>>Admin</option>
+          <option value="operator"   <?= ($row['Role'] ?? '') === 'operator'   ? 'selected' : '' ?>>Operator</option>
+          <option value="compliance" <?= ($row['Role'] ?? '') === 'compliance' ? 'selected' : '' ?>>Compliance</option>
         </select>
       </div>
       <?php elseif ($user['role'] === 'admin'): ?>
       <div class="mb-3">
         <label class="form-label">Role</label>
         <select name="Role" class="form-select" id="roleSelect" onchange="toggleRole()">
-          <option value="user"     <?= ($row['Role'] ?? 'user') === 'user'     ? 'selected' : '' ?>>User</option>
-          <option value="operator" <?= ($row['Role'] ?? '') === 'operator' ? 'selected' : '' ?>>Operator</option>
+          <option value="user"       <?= ($row['Role'] ?? 'user') === 'user'       ? 'selected' : '' ?>>User</option>
+          <option value="operator"   <?= ($row['Role'] ?? '') === 'operator'   ? 'selected' : '' ?>>Operator</option>
+          <option value="compliance" <?= ($row['Role'] ?? '') === 'compliance' ? 'selected' : '' ?>>Compliance</option>
         </select>
-        <div class="form-text">An operator can do everything in your companies except manage users.</div>
+        <div class="form-text">An operator can do everything in your companies except manage users. A compliance user sees only compliance employees &amp; reports.</div>
       </div>
       <?php else: ?>
       <input type="hidden" name="Role" value="user">
       <?php endif; ?>
       <?php if ($user['role'] === 'superadmin'): ?>
-      <div class="mb-3" id="parentAdminRow" <?= (($row['Role'] ?? '') === 'operator') ? '' : 'style="display:none"' ?>>
+      <div class="mb-3" id="parentAdminRow" <?= in_array(($row['Role'] ?? ''), ['operator','compliance'], true) ? '' : 'style="display:none"' ?>>
         <label class="form-label">Parent Admin <span class="text-danger">*</span></label>
         <select name="ParentAdminId" class="form-select">
           <option value="">— Select Admin —</option>
@@ -204,7 +206,7 @@ function toggleRole() {
   var companyRow = document.getElementById('companyRow');
   var parentRow  = document.getElementById('parentAdminRow');
   if (companyRow) companyRow.style.display = (role === 'user')     ? '' : 'none';
-  if (parentRow)  parentRow.style.display  = (role === 'operator') ? '' : 'none';
+  if (parentRow)  parentRow.style.display  = (role === 'operator' || role === 'compliance') ? '' : 'none';
 }
 </script>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

@@ -28,6 +28,7 @@ $scopeWhere = match($user['role']) {
     'user'       => 'e.CompanyId = ' . (int)$fCompany,
     default      => 'c.AdminId = ' . $user['scope_id'],
 };
+$scopeWhere .= complianceEmpFilter('e');   // compliance role → only compliance employees
 $coFilter   = ($fCompany && $user['role'] !== 'user') ? "AND e.CompanyId = $fCompany" : '';
 
 $byCompany = $db->query(

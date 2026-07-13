@@ -35,6 +35,7 @@ $rec = [
     'ShiftRotationDate' => '',
     'BasicSalary'       => '',
     'OT'                => 0,
+    'Compliance'        => 1,   // NEW employees default to compliance-checked
     'Status'            => 'active',
     'DOL'               => '',
     'InterviewDate'     => '',
@@ -234,6 +235,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach (array_keys($rec) as $col) {
         if ($col === 'Photo' || $col === 'Signature') continue;
         if ($col === 'OT')        { $rec[$col] = isset($_POST['OT']) ? 1 : 0; }
+        elseif ($col === 'Compliance') {
+            // Compliance-role users don't see the checkbox; preserve the existing value for them.
+            $rec[$col] = isCompliance() ? (int)($rec['Compliance'] ?? 1) : (isset($_POST['Compliance']) ? 1 : 0);
+        }
         elseif ($col === 'CompanyId') { $rec[$col] = (int)($_POST['CompanyId'] ?? 0); }
         else                      { $rec[$col] = trim($_POST[$col] ?? ''); }
     }
@@ -593,6 +598,14 @@ require_once __DIR__ . '/../../includes/header.php';
                 <label class="form-check-label" for="OT">Eligible for OT</label>
               </div>
             </div>
+            <?php if (!isCompliance()): ?>
+            <div class="col-sm-3 d-flex align-items-end pb-1">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="Compliance" id="Compliance" value="1" <?= ($rec['Compliance'] ?? 1) ? 'checked' : '' ?>>
+                <label class="form-check-label" for="Compliance">Compliance Employee</label>
+              </div>
+            </div>
+            <?php endif; ?>
 
             <!-- Datalists -->
             <datalist id="deptList">

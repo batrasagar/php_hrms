@@ -53,11 +53,30 @@ function currentUser(): array {
         'parent_admin_id' => $parent,
         'company_id'      => $_SESSION['user_company_id']      ?? 0,
         // Data-scope owner. All company data is owned by an admin id (tblCompany.AdminId).
-        // An operator owns no companies of its own — it acts on its parent admin's companies —
-        // so its scope_id is the parent admin. For every other role scope_id === id, which
-        // keeps existing behaviour byte-for-byte identical.
-        'scope_id'        => $role === 'operator' ? (int)$parent : (int)$id,
+        // Operators and compliance users own no companies of their own — they act on their
+        // parent admin's companies — so their scope_id is the parent admin. For every other
+        // role scope_id === id, which keeps existing behaviour byte-for-byte identical.
+        'scope_id'        => in_array($role, ['operator','compliance'], true) ? (int)$parent : (int)$id,
     ];
+}
+
+/** The 'compliance' role: a co-admin scoped to compliance-flagged employees + reports only. */
+function isCompliance(): bool {
+    return ($_SESSION['user_role'] ?? '') === 'compliance';
+}
+
+/** Extra WHERE fragment limiting employee queries to compliance employees (for the compliance role). */
+function complianceEmpFilter(string $alias = 'e'): string {
+    return isCompliance() ? " AND {$alias}.Compliance = 1" : '';
+}
+
+/** Redirect a compliance user away from a page they may not use (to their Employees landing). */
+function blockCompliance(): void {
+    if (isCompliance()) {
+        $base = defined('BASE_URL') ? BASE_URL : '';
+        header('Location: ' . $base . '/modules/employees/index.php');
+        exit;
+    }
 }
 
 function csrf_token(): string {

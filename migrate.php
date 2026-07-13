@@ -897,6 +897,17 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M030',
+        'desc'  => "Compliance — tblEmployee.Compliance flag + 'compliance' role on tblUser",
+        'check' => "SELECT `Compliance` FROM `tblEmployee` LIMIT 1",
+        'stmts' => [
+            // Existing employees default to 0 (not compliance); the add-form defaults NEW ones to checked.
+            "ALTER TABLE `tblEmployee` ADD COLUMN `Compliance` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Employee is a compliance employee' AFTER `Status`",
+            "ALTER TABLE `tblUser` MODIFY COLUMN `Role`
+                ENUM('superadmin','admin','user','operator','compliance') NOT NULL DEFAULT 'user'",
+        ],
+    ],
+    [
         'id'    => 'M029',
         'desc'  => 'Login log — tblLoginLog (successful & failed sign-ins, for admin/superadmin audit)',
         'check' => "SELECT 1 FROM `tblLoginLog` LIMIT 1",

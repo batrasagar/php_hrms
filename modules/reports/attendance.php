@@ -29,6 +29,7 @@ $fDept       = trim($_GET['dept']       ?? '');
 $fContractor = trim($_GET['contractor'] ?? '');
 
 $scopeJoin   = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=' . $user['scope_id'];
+$scopeJoin  .= complianceEmpFilter('e');   // compliance role → only compliance employees
 $depts       = array_filter(array_column($db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(), 'Department'));
 $contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor FROM tblEmployee e $scopeJoin ORDER BY Contractor")->fetchAll(), 'Contractor'));
 

@@ -57,6 +57,7 @@ $halfAm   = count(array_filter($records, fn($r) => $r['LeaveType']==='half_am'))
 $halfPm   = count(array_filter($records, fn($r) => $r['LeaveType']==='half_pm'));
 
 $scopeJoin   = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=' . $user['scope_id'];
+$scopeJoin  .= complianceEmpFilter('e');
 $depts       = array_filter(array_column($db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(), 'Department'));
 $contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor FROM tblEmployee e $scopeJoin ORDER BY Contractor")->fetchAll(), 'Contractor'));
 $typeLabels  = ['full_day' => 'Full Day', 'half_am' => 'Half AM', 'half_pm' => 'Half PM'];

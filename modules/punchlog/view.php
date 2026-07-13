@@ -1,6 +1,9 @@
 <?php
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../../includes/auth.php';
+requireLogin();
+blockCompliance(); // compliance role has no access to the punch log
 require_once __DIR__ . '/../../services/ShardManager.php';
 require_once __DIR__ . '/../../services/AdmsSyncService.php';
 $pageTitle  = 'Punch Log';

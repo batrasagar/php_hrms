@@ -8,7 +8,7 @@ $db   = getDb();
 $user = currentUser();
 $msg  = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 
-if (isset($_GET['delete']) && $user['role'] !== 'user') {
+if (isset($_GET['delete']) && in_array($user['role'], ['superadmin','admin','operator'], true)) {
     $id = (int)$_GET['delete'];
     if ($user['role'] === 'superadmin') {
         $db->prepare("DELETE FROM tblEmployee WHERE id=?")->execute([$id]);
@@ -24,7 +24,7 @@ if (isset($_GET['delete']) && $user['role'] !== 'user') {
     exit;
 }
 
-if (isset($_GET['toggle']) && $user['role'] !== 'user') {
+if (isset($_GET['toggle']) && in_array($user['role'], ['superadmin','admin','operator'], true)) {
     $id = (int)$_GET['toggle'];
     if ($user['role'] === 'superadmin') {
         $db->prepare("UPDATE tblEmployee SET Status = CASE WHEN Status='active' THEN 'inactive' ELSE 'active' END WHERE id=?")
@@ -75,6 +75,7 @@ if ($fSearch) {
     $where[]  = '(e.Name LIKE ? OR e.EmployeeCode LIKE ? OR e.EnrollId LIKE ?)';
     $params[] = "%$fSearch%"; $params[] = "%$fSearch%"; $params[] = "%$fSearch%";
 }
+if (isCompliance()) { $where[] = 'e.Compliance = 1'; }   // compliance role sees only compliance employees
 
 $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 $sql = "SELECT e.*, c.Name AS CompanyName FROM tblEmployee e
@@ -102,7 +103,7 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2">
     <form method="GET" class="row g-2 align-items-end" data-filter>
-      <?php if ($user['role'] !== 'user'): ?>
+      <?php if (!in_array($user['role'], ['user','compliance'], true)): ?>
       <div class="col-sm-6 col-md-2">
         <label class="form-label small mb-1">Company</label>
         <select name="company" class="form-select form-select-sm">
@@ -161,7 +162,7 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-semibold">Employees <span class="badge bg-secondary"><?= count($employees) ?></span></span>
-    <?php if ($user['role'] !== 'user'): ?>
+    <?php if (!in_array($user['role'], ['user','compliance'], true)): ?>
     <div class="d-flex gap-2">
       <a href="import.php" class="btn btn-outline-secondary btn-sm"><i class="bi bi-upload"></i> Import</a>
       <a href="add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Employee</a>
@@ -218,7 +219,7 @@ require_once __DIR__ . '/../../includes/header.php';
         <td class="small"><?= $e['JoinDate'] ? htmlspecialchars($e['JoinDate']) : '—' ?></td>
         <td><span class="badge <?= $statusBadge ?>"><?= ucfirst($e['Status']) ?></span></td>
         <td>
-          <?php if ($user['role'] !== 'user'): ?>
+          <?php if (!in_array($user['role'], ['user','compliance'], true)): ?>
           <a href="add.php?id=<?= $e['id'] ?>" class="btn btn-sm btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
           <a href="index.php?toggle=<?= $e['id'] ?>&<?= htmlspecialchars(http_build_query(array_filter($_GET, fn($k) => $k !== 'toggle', ARRAY_FILTER_USE_KEY))) ?>"
              class="btn btn-sm <?= $e['Status']==='active'?'btn-outline-warning':'btn-outline-success' ?>"

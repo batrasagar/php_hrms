@@ -3,6 +3,7 @@ define('BASE_URL', ($_SERVER['HTTP_HOST'] ?? '') === 'hr.attnlog.in' ? '' : '/ph
 require_once __DIR__ . '/config/db.php';
 require_once __DIR__ . '/includes/auth.php';
 requireLogin();
+blockCompliance(); // compliance role lands on Employees, not the dashboard
 
 $db   = getDb();
 $user = currentUser();

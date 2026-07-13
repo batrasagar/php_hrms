@@ -60,7 +60,7 @@ $showOt       = ($settings['show_ot_report'] ?? '1') !== '0';  // default: show
 $otBefore     = !empty($settings['ot_before_shift']);   // count early arrival
 $otAfter      = !empty($settings['ot_after_shift']);    // count late departure
 $otManualOnly = !empty($settings['ot_manual_only']);    // ignore punch-based OT
-$otClampOut   = !empty($settings['ot_clamp_out']);      // clamp out-punch beyond OT limit
+$otClampOut   = !empty($settings['ot_clamp_out']) || isCompliance(); // clamp out-punch beyond OT limit (forced ON for compliance users)
 $otMaxHours   = array_key_exists('ot_max_hours', $settings) ? (float)$settings['ot_max_hours'] : null;
 $otMaxMin     = ($otMaxHours !== null && $otMaxHours > 0) ? (int)round($otMaxHours * 60) : null;
 $otSlabs      = json_decode($settings['ot_slabs'] ?? '', true);
