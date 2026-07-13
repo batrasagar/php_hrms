@@ -897,6 +897,35 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M026',
+        'desc'  => 'WhatsApp Business API settings — tblWhatsappSettings (per-company + global default row) + seed default',
+        'check' => "SELECT 1 FROM `tblWhatsappSettings` LIMIT 1",
+        'stmts' => [
+            "CREATE TABLE IF NOT EXISTS `tblWhatsappSettings` (
+                `id`                     INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `CompanyId`              INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '0 = global default channel',
+                `Provider`              ENUM('meta','aisensy','gupshup') NOT NULL DEFAULT 'meta',
+                `MetaPhoneNumberId`      VARCHAR(100)  NULL DEFAULT NULL,
+                `MetaAccessToken`        VARCHAR(1000) NULL DEFAULT NULL,
+                `MetaBusinessId`         VARCHAR(100)  NULL DEFAULT NULL,
+                `MetaAppId`              VARCHAR(100)  NULL DEFAULT NULL,
+                `MetaAppSecret`          VARCHAR(1000) NULL DEFAULT NULL,
+                `MetaApiVersion`         VARCHAR(10)   NOT NULL DEFAULT 'v25.0',
+                `MetaWebhookVerifyToken` VARCHAR(200)  NULL DEFAULT NULL,
+                `AisensyApiKey`          VARCHAR(500)  NULL DEFAULT NULL,
+                `AisensySourceName`      VARCHAR(100)  NULL DEFAULT NULL,
+                `GupshupApiKey`          VARCHAR(500)  NULL DEFAULT NULL,
+                `GupshupSource`          VARCHAR(20)   NULL DEFAULT NULL,
+                `GupshupAppName`         VARCHAR(100)  NULL DEFAULT NULL,
+                `Enabled`                TINYINT(1) NOT NULL DEFAULT 0,
+                `UpdatedAt`              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_company` (`CompanyId`)
+            ) ENGINE=InnoDB",
+            // Seed the global default channel row (disabled until real Meta creds are entered).
+            "INSERT IGNORE INTO `tblWhatsappSettings` (`CompanyId`,`Provider`,`MetaApiVersion`,`Enabled`) VALUES (0,'meta','v25.0',0)",
+        ],
+    ],
+    [
         'id'    => 'M025',
         'desc'  => 'Development issue log — tblDevIssue (bug tracker: url, detail, snapshot, expected, AI prompt, status)',
         'check' => "SELECT 1 FROM `tblDevIssue` LIMIT 1",

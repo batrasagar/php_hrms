@@ -945,6 +945,13 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
       </li>
       <li>
+        <a class="sb-item <?= $ap==='whatsapp_settings'?'active':'' ?>"
+           href="<?= BASE_URL ?>/modules/settings/whatsapp.php" data-tip="WhatsApp Settings">
+          <span class="sb-item-icon"><i class="bi bi-whatsapp"></i></span>
+          <span class="sb-item-label">WhatsApp Settings</span>
+        </a>
+      </li>
+      <li>
         <a class="sb-item <?= $ap==='dev_issues'?'active':'' ?>"
            href="<?= BASE_URL ?>/modules/dev_issues/index.php" data-tip="Dev Issues">
           <span class="sb-item-icon"><i class="bi bi-bug"></i></span>
