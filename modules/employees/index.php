@@ -60,6 +60,8 @@ if ($user['role'] === 'user') {
     $stmt->execute([$user['scope_id']]);
     $companiesDd = $stmt->fetchAll();
     $fCompany = (int)($_GET['company'] ?? 0);
+    // Admin/operator: pre-select their first (default) company instead of prompting.
+    if ($fCompany <= 0 && $companiesDd) $fCompany = (int)$companiesDd[0]['id'];
 }
 
 // Never dump every company's employees by default — require an explicit company pick.
