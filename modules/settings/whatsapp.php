@@ -166,6 +166,27 @@ require_once __DIR__ . '/../../includes/header.php';
   <?php else: ?>No WhatsApp channel is active. Configure and enable one below.<?php endif; ?>
 </div>
 
+<?php
+// Diagnostic status for the channel currently being edited.
+$rowEnabled = (int)($row['Enabled'] ?? 0) === 1;
+$rowUsable  = $row ? waIsUsable($row) : false;
+$missing = [];
+if ($row) {
+    switch ($row['Provider'] ?? 'meta') {
+        case 'aisensy': if (empty($row['AisensyApiKey'])) $missing[] = 'API Key'; break;
+        case 'gupshup': if (empty($row['GupshupApiKey'])) $missing[] = 'API Key'; if (empty($row['GupshupSource'])) $missing[] = 'Source number'; break;
+        default: if (empty($row['MetaPhoneNumberId'])) $missing[] = 'Phone Number ID'; if (empty($row['MetaAccessToken'])) $missing[] = 'Access Token';
+    }
+}
+?>
+<div class="card border-0 shadow-sm mb-3"><div class="card-body py-2 small d-flex flex-wrap gap-3 align-items-center">
+  <span><strong>Enabled:</strong> <?= $rowEnabled ? '<span class="text-success">Yes</span>' : '<span class="text-danger">No</span>' ?></span>
+  <span><strong>Credentials:</strong> <?= $rowUsable ? '<span class="text-success">complete</span>' : '<span class="text-danger">incomplete'.($missing?' — missing '.htmlspecialchars(implode(', ', $missing)):'').'</span>' ?></span>
+  <span><strong>OTP template:</strong> <?= $waOtp['tpl'] !== '' ? '<span class="text-success">'.htmlspecialchars($waOtp['tpl']).'</span>' : '<span class="text-danger">not set</span>' ?></span>
+  <?php if ($rowEnabled && !$rowUsable): ?><span class="text-danger w-100">Enabled but it will not send until the missing credential(s) are entered.</span><?php endif; ?>
+  <?php if (!$rowEnabled && $rowUsable): ?><span class="text-warning w-100">Credentials look complete — tick <strong>Enable</strong> and Save to activate.</span><?php endif; ?>
+</div></div>
+
 <form method="POST" action="whatsapp.php?scope=<?= $fScope ?>" autocomplete="off" style="max-width:820px">
   <?= csrf_field() ?>
   <input type="hidden" name="action" value="save">
