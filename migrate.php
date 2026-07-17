@@ -897,6 +897,26 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M032',
+        'desc'  => 'Contractor master — tblContractor (per-company) + seed from existing tblEmployee contractors',
+        'check' => "SELECT 1 FROM `tblContractor` LIMIT 1",
+        'stmts' => [
+            "CREATE TABLE IF NOT EXISTS `tblContractor` (
+                `id`        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `CompanyId` INT UNSIGNED NOT NULL,
+                `Name`      VARCHAR(100) NOT NULL,
+                `IsActive`  TINYINT(1) NOT NULL DEFAULT 1,
+                `CreatedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX `idx_company` (`CompanyId`),
+                UNIQUE KEY `uq_company_name` (`CompanyId`, `Name`)
+            ) ENGINE=InnoDB",
+            // Pre-populate the master from contractors already used on employees.
+            "INSERT IGNORE INTO `tblContractor` (`CompanyId`, `Name`)
+                SELECT DISTINCT `CompanyId`, TRIM(`Contractor`) FROM `tblEmployee`
+                WHERE `Contractor` IS NOT NULL AND TRIM(`Contractor`) <> ''",
+        ],
+    ],
+    [
         'id'    => 'M031',
         'desc'  => 'ID card template designer — tblCardTemplate (per-company drag-drop card layouts, JSON)',
         'check' => "SELECT 1 FROM `tblCardTemplate` LIMIT 1",

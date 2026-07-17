@@ -197,9 +197,22 @@ $deptStmt = $db->prepare("SELECT DISTINCT Department FROM tblEmployee e $scopeWh
 $deptStmt->execute($scopeParams);
 $departments = array_filter(array_column($deptStmt->fetchAll(), 'Department'));
 
-$contStmt = $db->prepare("SELECT DISTINCT Contractor FROM tblEmployee e $scopeWhere ORDER BY Contractor");
-$contStmt->execute($scopeParams);
-$contractors = array_filter(array_column($contStmt->fetchAll(), 'Contractor'));
+// Contractor dropdown comes from the master (M032); fall back to employee values pre-migration
+try {
+    if ($user['role'] === 'superadmin') {
+        $contStmt = $db->query("SELECT DISTINCT Name FROM tblContractor WHERE IsActive=1 ORDER BY Name");
+    } else {
+        $contStmt = $db->prepare("SELECT DISTINCT t.Name FROM tblContractor t
+                                  JOIN tblCompany c ON c.id = t.CompanyId
+                                  WHERE c.AdminId = ? AND t.IsActive = 1 ORDER BY t.Name");
+        $contStmt->execute([$user['scope_id']]);
+    }
+    $contractors = array_column($contStmt->fetchAll(), 'Name');
+} catch (PDOException $exC) {
+    $contStmt = $db->prepare("SELECT DISTINCT Contractor FROM tblEmployee e $scopeWhere ORDER BY Contractor");
+    $contStmt->execute($scopeParams);
+    $contractors = array_filter(array_column($contStmt->fetchAll(), 'Contractor'));
+}
 
 $desigStmt = $db->prepare("SELECT DISTINCT Designation FROM tblEmployee e $scopeWhere ORDER BY Designation");
 $desigStmt->execute($scopeParams);
@@ -545,8 +558,22 @@ require_once __DIR__ . '/../../includes/header.php';
               <input type="text" name="Designation" class="form-control form-control-sm" list="desigList" value="<?= v($rec,'Designation') ?>">
             </div>
             <div class="col-sm-4">
-              <label class="form-label">Contractor</label>
-              <input type="text" name="Contractor" class="form-control form-control-sm" list="contractorList" value="<?= v($rec,'Contractor') ?>">
+              <label class="form-label d-flex justify-content-between align-items-center">Contractor
+                <a href="<?= BASE_URL ?>/modules/contractors/index.php" target="_blank" class="small text-decoration-none" title="Manage contractor master">
+                  <i class="bi bi-gear"></i> Manage
+                </a>
+              </label>
+              <?php
+                $curContractor = $rec['Contractor'] ?? '';
+                $contOptions   = $contractors;
+                if ($curContractor !== '' && !in_array($curContractor, $contOptions, true)) $contOptions[] = $curContractor;
+              ?>
+              <select name="Contractor" class="form-select form-select-sm">
+                <option value="">— None —</option>
+                <?php foreach ($contOptions as $cn): ?>
+                <option value="<?= htmlspecialchars($cn) ?>" <?= $curContractor === $cn ? 'selected' : '' ?>><?= htmlspecialchars($cn) ?></option>
+                <?php endforeach; ?>
+              </select>
             </div>
             <div class="col-sm-3">
               <label class="form-label">Date of Joining</label>
@@ -613,9 +640,6 @@ require_once __DIR__ . '/../../includes/header.php';
             </datalist>
             <datalist id="desigList">
               <?php foreach ($designations as $d): ?><option value="<?= htmlspecialchars($d) ?>"><?php endforeach; ?>
-            </datalist>
-            <datalist id="contractorList">
-              <?php foreach ($contractors as $c): ?><option value="<?= htmlspecialchars($c) ?>"><?php endforeach; ?>
             </datalist>
           </div>
         </div><!-- /t-home -->

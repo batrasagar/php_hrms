@@ -671,7 +671,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
 <?php
   $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','emp_left','print','card_templates']) ? 'show' : '';
   $shiftOpen   = in_array($ap, ['shifts','shift_defaults','shift_assign','shift_cyclic','compoff']) ? 'show' : '';
-  $masterOpen  = in_array($ap, ['holidays','departments']) ? 'show' : '';
+  $masterOpen  = in_array($ap, ['holidays','departments','contractors']) ? 'show' : '';
   $attnOpen    = in_array($ap, ['overtime','ot_approvals','mark_ot_abs','attn_import','leaves','leave_range','leave_types','leave_policy','leave_assign','leave_register']) ? 'show' : '';
   $rptOpen     = in_array($ap, ['report_active','report_attendance','report_monthly','report_swipe','report_strength','report_ot','report_leave','report_joinleft']) ? 'show' : '';
   $settingsUrl = BASE_URL . '/modules/settings/index.php';
@@ -1012,6 +1012,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             </a>
             <a class="sb-sub-item <?= $ap==='departments'?'active':'' ?>" href="<?= BASE_URL ?>/modules/departments/index.php">
               <i class="bi bi-diagram-3"></i> Departments
+            </a>
+            <a class="sb-sub-item <?= $ap==='contractors'?'active':'' ?>" href="<?= BASE_URL ?>/modules/contractors/index.php">
+              <i class="bi bi-person-vcard"></i> Contractors
             </a>
           </div>
         </div>
