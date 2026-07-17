@@ -25,6 +25,24 @@ if ($user['role'] === 'superadmin') {
     $admins = $db->query("SELECT id, Name FROM tblUser WHERE Role='admin' AND IsActive=1 ORDER BY Name")->fetchAll();
 }
 
+// Permission roles this manager may assign (M033; optional restricting layer)
+$permRoles = [];
+$curPermRole = 0;
+try {
+    if ($user['role'] === 'superadmin') {
+        $permRoles = $db->query("SELECT id, Name FROM tblRole WHERE IsActive=1 ORDER BY Name")->fetchAll();
+    } else {
+        $pr = $db->prepare("SELECT id, Name FROM tblRole WHERE IsActive=1 AND (OwnerAdminId=? OR OwnerAdminId IS NULL) ORDER BY Name");
+        $pr->execute([$user['id']]);
+        $permRoles = $pr->fetchAll();
+    }
+    if ($editId) {
+        $cr = $db->prepare("SELECT RoleId FROM tblUserRole WHERE UserId=? LIMIT 1");
+        $cr->execute([$editId]);
+        $curPermRole = (int)$cr->fetchColumn();
+    }
+} catch (Throwable $exR) { /* migration pending */ }
+
 if ($editId) {
     $stmt = $db->prepare("SELECT id, Name, Email, Role, IsActive, CompanyId, ParentAdminId FROM tblUser WHERE id=?");
     $stmt->execute([$editId]);
@@ -103,6 +121,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         try {
             $db->prepare($sql)->execute($params);
+            $savedId = $editId ?: (int)$db->lastInsertId();
+            // Sync the optional permission role (only meaningful for non-admin roles)
+            $permRoleSel = (int)($_POST['PermRoleId'] ?? 0);
+            if ($role === 'admin') $permRoleSel = 0;
+            if ($permRoleSel && !in_array($permRoleSel, array_map(fn($r) => (int)$r['id'], $permRoles), true)) $permRoleSel = 0;
+            try {
+                $db->prepare("DELETE FROM tblUserRole WHERE UserId=?")->execute([$savedId]);
+                if ($permRoleSel) $db->prepare("INSERT INTO tblUserRole (UserId, RoleId) VALUES (?,?)")->execute([$savedId, $permRoleSel]);
+            } catch (Throwable $exR) { /* migration pending */ }
             $_SESSION['flash'] = $editId ? 'User updated.' : 'User created.';
             if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'redirect'=>'list.php']); exit; }
             header('Location: list.php'); exit;
@@ -189,6 +216,19 @@ require_once __DIR__ . '/../../includes/header.php';
         </select>
         <div class="form-text">The user will only see data for this company.</div>
       </div>
+      <?php if ($permRoles): ?>
+      <div class="mb-3" id="permRoleRow" <?= (($row['Role'] ?? 'user') === 'admin') ? 'style="display:none"' : '' ?>>
+        <label class="form-label">Permission Role <span class="text-muted">(optional)</span></label>
+        <select name="PermRoleId" class="form-select">
+          <option value="">— Default access for this role —</option>
+          <?php foreach ($permRoles as $pr): ?>
+          <option value="<?= $pr['id'] ?>" <?= $curPermRole === (int)$pr['id'] ? 'selected' : '' ?>><?= htmlspecialchars($pr['Name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <div class="form-text">Restricts which modules this account can access. Manage roles on the
+          <a href="<?= BASE_URL ?>/modules/roles/index.php" target="_blank">Roles &amp; Permissions</a> page.</div>
+      </div>
+      <?php endif; ?>
       <div class="mb-3 form-check">
         <input type="checkbox" name="IsActive" class="form-check-input" id="chkActive" <?= $row['IsActive'] ? 'checked' : '' ?>>
         <label class="form-check-label" for="chkActive">Active</label>
@@ -207,6 +247,8 @@ function toggleRole() {
   var parentRow  = document.getElementById('parentAdminRow');
   if (companyRow) companyRow.style.display = (role === 'user')     ? '' : 'none';
   if (parentRow)  parentRow.style.display  = (role === 'operator' || role === 'compliance') ? '' : 'none';
+  var permRow = document.getElementById('permRoleRow');
+  if (permRow) permRow.style.display = (role === 'admin') ? 'none' : '';
 }
 </script>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

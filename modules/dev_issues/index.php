@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/_shared.php';
 requireLogin();
+requirePermission('dev_issues.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -27,6 +28,7 @@ function di_load(PDO $db, int $id, array $user): ?array {
 
 // ── POST actions (status change / approve / reject / delete) ────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requirePermission('dev_issues.edit');
     csrf_verify();
     $action = $_POST['action'] ?? '';
     $id     = (int)($_POST['id'] ?? 0);

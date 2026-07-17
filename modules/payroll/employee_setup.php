@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('payroll_emp_setup.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -17,6 +18,7 @@ $msg = ''; $msgType = 'success';
 
 // --- SAVE employee payroll config ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
+    requirePermission('payroll_emp_setup.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

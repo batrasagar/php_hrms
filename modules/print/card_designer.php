@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/card_entry.php';
 requireAdmin();
 blockCompliance();
+requirePermission('card_templates.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -20,6 +21,7 @@ $fCompany = activeCompanyId($db, $user);
 if (($_GET['action'] ?? '') === 'save') {
     header('Content-Type: application/json');
     csrf_verify();
+    requirePermission('card_templates.edit');
     $in = json_decode(file_get_contents('php://input'), true) ?: [];
     $id     = (int)($in['id'] ?? 0);
     $name   = trim($in['name'] ?? '');

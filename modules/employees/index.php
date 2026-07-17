@@ -3,12 +3,14 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireLogin();
+requirePermission('employees.view');
 
 $db   = getDb();
 $user = currentUser();
 $msg  = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 
 if (isset($_GET['delete']) && in_array($user['role'], ['superadmin','admin','operator'], true)) {
+    requirePermission('employees.edit');
     $id = (int)$_GET['delete'];
     if ($user['role'] === 'superadmin') {
         $db->prepare("DELETE FROM tblEmployee WHERE id=?")->execute([$id]);
@@ -25,6 +27,7 @@ if (isset($_GET['delete']) && in_array($user['role'], ['superadmin','admin','ope
 }
 
 if (isset($_GET['toggle']) && in_array($user['role'], ['superadmin','admin','operator'], true)) {
+    requirePermission('employees.edit');
     $id = (int)$_GET['toggle'];
     if ($user['role'] === 'superadmin') {
         $db->prepare("UPDATE tblEmployee SET Status = CASE WHEN Status='active' THEN 'inactive' ELSE 'active' END WHERE id=?")

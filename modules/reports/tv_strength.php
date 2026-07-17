@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireLogin();
 blockCompliance();   // TV dashboard is not part of the compliance role's scope
+requirePermission('tv_dashboard.view');
 
 $db   = getDb();
 $user = currentUser();

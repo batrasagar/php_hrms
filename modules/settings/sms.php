@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/sms_helper.php';
 requireAdmin();
+requirePermission('sms_settings.view');
 
 $pageTitle  = 'SMS Settings';
 $activePage = 'sms_settings';
@@ -15,6 +16,7 @@ $cfg = $db->query("SELECT SettingKey, SettingValue FROM tblSettings WHERE Compan
 $errors = []; $success = ''; $testResult = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requirePermission('sms_settings.edit');
     csrf_verify();
     $action = $_POST['action'] ?? 'save';
 

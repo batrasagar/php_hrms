@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('leave_types.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -20,6 +21,7 @@ function canAccessCompany($db, $user, $cid) {
 
 // Toggle active
 if (isset($_GET['toggle']) && $fCompany && canAccessCompany($db, $user, $fCompany)) {
+    requirePermission('leave_types.edit');
     $db->prepare("UPDATE tblLeaveType SET IsActive = 1 - IsActive WHERE id=? AND CompanyId=?")
        ->execute([(int)$_GET['toggle'], $fCompany]);
     header("Location: types.php?company=$fCompany"); exit;
@@ -27,6 +29,7 @@ if (isset($_GET['toggle']) && $fCompany && canAccessCompany($db, $user, $fCompan
 
 // Delete
 if (isset($_GET['delete']) && $fCompany && canAccessCompany($db, $user, $fCompany)) {
+    requirePermission('leave_types.edit');
     $db->prepare("DELETE FROM tblLeaveType WHERE id=? AND CompanyId=?")->execute([(int)$_GET['delete'], $fCompany]);
     header("Location: types.php?company=$fCompany"); exit;
 }
@@ -45,6 +48,7 @@ if ($editId && $fCompany) {
 
 // Save
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_type'])) {
+    requirePermission('leave_types.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

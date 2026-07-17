@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/mailer.php';
 requireAdmin();
+requirePermission('notifications.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -64,6 +65,7 @@ function loadSmtp(PDO $db, int $co): array {
 
 // ── POST handlers ─────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
+    requirePermission('notifications.edit');
     csrf_verify();
     $action = $_POST['action'] ?? '';
 

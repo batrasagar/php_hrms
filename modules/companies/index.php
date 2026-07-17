@@ -3,12 +3,14 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('companies.view');
 
 $db   = getDb();
 $user = currentUser();
 $msg  = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 
 if (isset($_GET['toggle'])) {
+    requirePermission('companies.edit');
     $id = (int)$_GET['toggle'];
     $where = $user['role'] === 'superadmin' ? "id=?" : "id=? AND AdminId={$user['id']}";
     $db->prepare("UPDATE tblCompany SET IsActive = 1 - IsActive WHERE $where")->execute([$id]);
@@ -16,6 +18,7 @@ if (isset($_GET['toggle'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_company_id'])) {
+    requirePermission('companies.edit');
     requireSuperAdmin();
     csrf_verify();
     $id = (int)$_POST['delete_company_id'];

@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('leave_policy.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -18,6 +19,7 @@ function canAccess($db, $user, $cid) {
 
 // Delete policy
 if (isset($_GET['delete']) && $fCompany && canAccess($db, $user, $fCompany)) {
+    requirePermission('leave_policy.edit');
     $pid = (int)$_GET['delete'];
     $db->prepare("DELETE FROM tblLeavePolicyDetail WHERE PolicyId=?")->execute([$pid]);
     $db->prepare("DELETE FROM tblLeavePolicy WHERE id=? AND CompanyId=?")->execute([$pid, $fCompany]);
@@ -45,6 +47,7 @@ if ($editId && $fCompany) {
 
 // Save
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_policy'])) {
+    requirePermission('leave_policy.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

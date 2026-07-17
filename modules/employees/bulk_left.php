@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('emp_left.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -12,6 +13,7 @@ $msg  = ''; $msgType = 'success';
 $fCompany = activeCompanyId($db, $user);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['do_left'])) {
+    requirePermission('emp_left.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

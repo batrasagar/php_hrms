@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('shifts.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -15,6 +16,7 @@ if (isset($_GET['toggle'])) {
     header('Location: index.php'); exit;
 }
 if (isset($_GET['delete'])) {
+    requirePermission('shifts.edit');
     $id = (int)$_GET['delete'];
     $where = $user['role'] === 'superadmin' ? 'id=?' : 'id=? AND CompanyId IN (SELECT id FROM tblCompany WHERE AdminId=' . $user['scope_id'] . ')';
     $db->prepare("DELETE FROM tblShift WHERE $where")->execute([$id]);

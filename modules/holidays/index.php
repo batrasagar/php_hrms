@@ -3,12 +3,14 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('holidays.view');
 
 $db   = getDb();
 $user = currentUser();
 $msg  = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 
 if (isset($_GET['delete'])) {
+    requirePermission('holidays.edit');
     $id = (int)$_GET['delete'];
     $where = $user['role'] === 'superadmin' ? 'id=?' : 'id=? AND CompanyId IN (SELECT id FROM tblCompany WHERE AdminId=' . $user['scope_id'] . ')';
     $db->prepare("DELETE FROM tblHoliday WHERE $where")->execute([$id]);

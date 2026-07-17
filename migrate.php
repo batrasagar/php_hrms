@@ -897,6 +897,36 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M033',
+        'desc'  => 'Role management / access permissions — tblRole, tblRolePerm, tblUserRole (restricting layer for operator/compliance/user)',
+        'check' => "SELECT 1 FROM `tblRole` LIMIT 1",
+        'stmts' => [
+            "CREATE TABLE IF NOT EXISTS `tblRole` (
+                `id`           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `OwnerAdminId` INT UNSIGNED NULL DEFAULT NULL COMMENT 'NULL = built-in/global role; else the admin who owns it',
+                `Name`         VARCHAR(80)  NOT NULL,
+                `Description`  VARCHAR(255) NULL DEFAULT NULL,
+                `IsActive`     TINYINT(1)   NOT NULL DEFAULT 1,
+                `CreatedAt`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `UpdatedAt`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX `idx_owner` (`OwnerAdminId`),
+                UNIQUE KEY `uq_owner_name` (`OwnerAdminId`, `Name`)
+            ) ENGINE=InnoDB",
+            "CREATE TABLE IF NOT EXISTS `tblRolePerm` (
+                `RoleId` INT UNSIGNED NOT NULL,
+                `Perm`   VARCHAR(60) NOT NULL COMMENT 'module.action from permCatalog()',
+                PRIMARY KEY (`RoleId`, `Perm`),
+                CONSTRAINT `fk_roleperm_role` FOREIGN KEY (`RoleId`) REFERENCES `tblRole`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB",
+            "CREATE TABLE IF NOT EXISTS `tblUserRole` (
+                `UserId` INT UNSIGNED NOT NULL,
+                `RoleId` INT UNSIGNED NOT NULL,
+                PRIMARY KEY (`UserId`, `RoleId`),
+                CONSTRAINT `fk_userrole_role` FOREIGN KEY (`RoleId`) REFERENCES `tblRole`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB",
+        ],
+    ],
+    [
         'id'    => 'M032',
         'desc'  => 'Contractor master — tblContractor (per-company) + seed from existing tblEmployee contractors',
         'check' => "SELECT 1 FROM `tblContractor` LIMIT 1",

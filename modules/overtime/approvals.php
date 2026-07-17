@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/sms_helper.php';
 requireAdmin();
+requirePermission('ot_approvals.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -15,6 +16,7 @@ $msg = '';
 
 // ── Approve / Reject ────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
+    requirePermission('ot_approvals.edit');
     csrf_verify();
     $action = $_POST['action'] ?? '';
     $ids    = array_map('intval', (array)($_POST['ot_ids'] ?? []));

@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireLogin();
+requirePermission('report_monthly.view');
 $pageTitle  = 'Monthly Attendance';
 $activePage = 'report_monthly';
 require_once __DIR__ . '/../../includes/header.php';

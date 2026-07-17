@@ -3,11 +3,13 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('apikeys.view');
 
 $db = getDb();
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 if (isset($_GET['delete'])) {
+    requirePermission('apikeys.edit');
     $id = (int)$_GET['delete'];
     $db->prepare("DELETE FROM tblApiKeys WHERE id=?")->execute([$id]);
     $_SESSION['flash'] = 'API key deleted.';
@@ -15,6 +17,7 @@ if (isset($_GET['delete'])) {
 }
 
 if (isset($_GET['toggle'])) {
+    requirePermission('apikeys.edit');
     $id = (int)$_GET['toggle'];
     $db->prepare("UPDATE tblApiKeys SET IsActive = 1 - IsActive WHERE id=?")->execute([$id]);
     header('Location: list.php'); exit;

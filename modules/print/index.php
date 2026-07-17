@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('print.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -55,7 +56,7 @@ if ($pType && !empty($_POST['emp_ids'])) {
         );
         $printEmps = $empStmt->fetchAll();
         if      ($pType === 'icard') { include __DIR__ . '/icard_print.php'; }
-        elseif  ($pType === 'card')  { include __DIR__ . '/card_print.php'; }
+        elseif  ($pType === 'card')  { requirePermission('card_templates.view'); include __DIR__ . '/card_print.php'; }
         elseif  ($pType === 'file2') { include __DIR__ . '/file2_print.php'; }
         else                         { include __DIR__ . '/file_print.php'; }
         exit;

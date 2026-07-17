@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('advance.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -43,6 +44,7 @@ function canAccess(PDO $db, array $user, int $companyId): bool {
 $qs = http_build_query(array_filter(['company' => $fCompany, 'status' => $fStatus, 'emp' => $fEmp]));
 
 if (isset($_GET['delete']) && $user['role'] === 'superadmin') {
+    requirePermission('advance.edit');
     $did = (int)$_GET['delete'];
     $r   = $db->prepare("SELECT CompanyId FROM tblEmployeeAdvance WHERE id=?");
     $r->execute([$did]);
@@ -55,6 +57,7 @@ if (isset($_GET['delete']) && $user['role'] === 'superadmin') {
 }
 
 if (isset($_GET['cancel_adv'])) {
+    requirePermission('advance.edit');
     $cid = (int)$_GET['cancel_adv'];
     $r   = $db->prepare("SELECT CompanyId FROM tblEmployeeAdvance WHERE id=? AND Status='active'");
     $r->execute([$cid]);
@@ -67,6 +70,7 @@ if (isset($_GET['cancel_adv'])) {
 }
 
 if (isset($_GET['pay_emi'])) {
+    requirePermission('advance.edit');
     $pid = (int)$_GET['pay_emi'];
     $r   = $db->prepare("SELECT id, CompanyId, TotalEMI, EMIPaid FROM tblEmployeeAdvance WHERE id=? AND Status='active'");
     $r->execute([$pid]);

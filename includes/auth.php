@@ -106,6 +106,9 @@ function scopeCompanyId(int $requested = 0): int {
     return $requested;
 }
 
+// Module-level access permissions (roles for operator/compliance/user) — see permCatalog()
+require_once __DIR__ . '/permissions.php';
+
 /** Role-scoped list of companies the current user may work with (for the topbar switcher). */
 function companiesForUser(PDO $db, array $user): array {
     if ($user['role'] === 'user') return [];

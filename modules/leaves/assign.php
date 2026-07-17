@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('leave_assign.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -21,6 +22,7 @@ $msg = ''; $err = '';
 
 // Save bulk assignment
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['do_assign'])) {
+    requirePermission('leave_assign.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

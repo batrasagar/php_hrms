@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('payroll_run.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -196,6 +197,7 @@ $fMonth   = trim($_REQUEST['month'] ?? date('Y-m'));
 $msg = ''; $msgType = 'success';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
+    requirePermission('payroll_run.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('advance.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -45,6 +46,7 @@ if ($fCompany) {
 // ── Handle POST ───────────────────────────────────────────────────────────
 $errors = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requirePermission('advance.edit');
     csrf_verify();
 
     $companyId   = (int)($_POST['company_id']   ?? 0);

@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/_shared.php';
 requireLogin();
+requirePermission('dev_issues.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -35,6 +36,7 @@ if ($editId) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requirePermission('dev_issues.edit');
     csrf_verify();
 
     // Resolve company

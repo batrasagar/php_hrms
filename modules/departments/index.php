@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('departments.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -18,6 +19,7 @@ $err = '';
 
 // ── POST actions ────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
+    requirePermission('departments.edit');
     csrf_verify();
     $action = $_POST['action'] ?? '';
 

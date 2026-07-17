@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
 blockCompliance();
+requirePermission('card_templates.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -17,6 +18,7 @@ $fCompany = activeCompanyId($db, $user);
 
 // ── POST actions: duplicate / toggle / delete ─────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
+    requirePermission('card_templates.edit');
     csrf_verify();
     $act = $_POST['act'] ?? '';
     $id  = (int)($_POST['id'] ?? 0);

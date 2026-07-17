@@ -684,6 +684,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
 ?>
 
       <!-- Attendance Report -->
+      <?php if (can('report_attendance.view')): ?>
       <li>
         <a class="sb-item sb-featured"
            href="<?= BASE_URL ?>/modules/reports/attendance.php"
@@ -692,9 +693,13 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">Attendance Report</span>
         </a>
       </li>
+      <?php endif; ?>
 
       <!-- Employees -->
+      <?php if (canAny(['employees.view','emp_import.view','emp_bulk.view','emp_left.view','print.view','card_templates.view','workers.view'])): ?>
       <div class="sb-section-label">Employees</div>
+      <?php endif; ?>
+      <?php if (canAny(['employees.view','emp_import.view','emp_bulk.view','emp_left.view','print.view','card_templates.view'])): ?>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navEmp"
            aria-expanded="<?= $empOpen?'true':'false' ?>" data-tip="Employees">
@@ -704,27 +709,41 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
         <div class="collapse <?= $empOpen ?>" id="navEmp">
           <div class="sb-sub">
+            <?php if (can('employees.view')): ?>
             <a class="sb-sub-item <?= $ap==='employees'?'active':'' ?>" href="<?= BASE_URL ?>/modules/employees/index.php">
               <i class="bi bi-list-ul"></i> All Employees
             </a>
+            <?php endif; ?>
+            <?php if (can('emp_import.view')): ?>
             <a class="sb-sub-item <?= $ap==='emp_import'?'active':'' ?>" href="<?= BASE_URL ?>/modules/employees/import.php">
               <i class="bi bi-upload"></i> Import CSV
             </a>
+            <?php endif; ?>
+            <?php if (can('emp_bulk.view')): ?>
             <a class="sb-sub-item <?= $ap==='emp_bulk'?'active':'' ?>" href="<?= BASE_URL ?>/modules/employees/bulk_edit.php">
               <i class="bi bi-table"></i> Bulk Edit
             </a>
+            <?php endif; ?>
+            <?php if (can('emp_left.view')): ?>
             <a class="sb-sub-item <?= $ap==='emp_left'?'active':'' ?>" href="<?= BASE_URL ?>/modules/employees/bulk_left.php">
               <i class="bi bi-box-arrow-right"></i> Mark Left (Bulk)
             </a>
+            <?php endif; ?>
+            <?php if (can('print.view')): ?>
             <a class="sb-sub-item <?= $ap==='print'?'active':'' ?>" href="<?= BASE_URL ?>/modules/print/index.php">
               <i class="bi bi-printer"></i> Print / iCard
             </a>
+            <?php endif; ?>
+            <?php if (can('card_templates.view')): ?>
             <a class="sb-sub-item <?= $ap==='card_templates'?'active':'' ?>" href="<?= BASE_URL ?>/modules/print/card_templates.php">
               <i class="bi bi-credit-card-2-front"></i> Card Designer
             </a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
+      <?php endif; ?>
+      <?php if (can('workers.view')): ?>
       <li>
         <a class="sb-item <?= $ap==='workers'?'active':'' ?>"
            href="<?= BASE_URL ?>/modules/workers/index.php" data-tip="Wage Workers">
@@ -732,8 +751,10 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">Wage Workers</span>
         </a>
       </li>
+      <?php endif; ?>
 
       <!-- Tools -->
+      <?php if (canAny(['punch_sync.view','punchlog.view','punch_correction.view'])): ?>
       <div class="sb-section-label">Tools</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navPunch"
@@ -744,20 +765,28 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
         <div class="collapse <?= $punchOpen ?>" id="navPunch">
           <div class="sb-sub">
+            <?php if (can('punch_sync.view')): ?>
             <a class="sb-sub-item <?= $ap==='punch_sync'?'active':'' ?>" href="<?= BASE_URL ?>/modules/punchlog/sync.php">
               <i class="bi bi-arrow-repeat"></i> Sync &amp; Process
             </a>
+            <?php endif; ?>
+            <?php if (can('punchlog.view')): ?>
             <a class="sb-sub-item <?= $ap==='punchlog'?'active':'' ?>" href="<?= BASE_URL ?>/modules/punchlog/view.php">
               <i class="bi bi-list-columns"></i> View Log
             </a>
+            <?php endif; ?>
+            <?php if (can('punch_correction.view')): ?>
             <a class="sb-sub-item <?= $ap==='punch_correction'?'active':'' ?>" href="<?= BASE_URL ?>/modules/punchlog/correction.php">
               <i class="bi bi-pencil-square"></i> Correction
             </a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
+      <?php endif; ?>
 
       <!-- Shifts -->
+      <?php if (canAny(['shifts.view','shift_assign.view','shift_cyclic.view','compoff.view'])): ?>
       <div class="sb-section-label">Shifts</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navShifts"
@@ -768,26 +797,38 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
         <div class="collapse <?= $shiftOpen ?>" id="navShifts">
           <div class="sb-sub">
+            <?php if (can('shifts.view')): ?>
             <a class="sb-sub-item <?= $ap==='shifts'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/index.php">
               <i class="bi bi-clock"></i> Shift Master
             </a>
+            <?php endif; ?>
+            <?php if (can('shifts.view')): ?>
             <a class="sb-sub-item <?= $ap==='shift_defaults'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/defaults.php">
               <i class="bi bi-magic"></i> Default Shifts
             </a>
+            <?php endif; ?>
+            <?php if (can('shift_assign.view')): ?>
             <a class="sb-sub-item <?= $ap==='shift_assign'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/assign.php">
               <i class="bi bi-person-gear"></i> Shift Assignment
             </a>
+            <?php endif; ?>
+            <?php if (can('shift_cyclic.view')): ?>
             <a class="sb-sub-item <?= $ap==='shift_cyclic'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/cyclic.php">
               <i class="bi bi-arrow-repeat"></i> Cyclic Shifts
             </a>
+            <?php endif; ?>
+            <?php if (can('compoff.view')): ?>
             <a class="sb-sub-item <?= $ap==='compoff'?'active':'' ?>" href="<?= BASE_URL ?>/modules/shifts/compoff.php">
               <i class="bi bi-calendar-check"></i> Comp Off
             </a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
+      <?php endif; ?>
 
       <!-- Attendance -->
+      <?php if (canAny(['overtime.view','ot_approvals.view','mark_ot_abs.view','attn_import.view','leaves.view','leave_range.view','leave_types.view','leave_policy.view','leave_assign.view','leave_register.view'])): ?>
       <div class="sb-section-label">Attendance</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navAttn"
@@ -798,41 +839,63 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
         <div class="collapse <?= $attnOpen ?>" id="navAttn">
           <div class="sb-sub">
+            <?php if (can('overtime.view')): ?>
             <a class="sb-sub-item <?= $ap==='overtime'?'active':'' ?>" href="<?= BASE_URL ?>/modules/overtime/index.php">
               <i class="bi bi-alarm-fill"></i> Overtime
             </a>
+            <?php endif; ?>
+            <?php if (can('ot_approvals.view')): ?>
             <a class="sb-sub-item <?= $ap==='ot_approvals'?'active':'' ?>" href="<?= BASE_URL ?>/modules/overtime/approvals.php">
               <i class="bi bi-check2-square"></i> OT Approvals
             </a>
+            <?php endif; ?>
+            <?php if (can('mark_ot_abs.view')): ?>
             <a class="sb-sub-item <?= $ap==='mark_ot_abs'?'active':'' ?>" href="<?= BASE_URL ?>/modules/attendance/mark.php">
               <i class="bi bi-check2-square"></i> Mark OT / Absent
             </a>
+            <?php endif; ?>
+            <?php if (can('attn_import.view')): ?>
             <a class="sb-sub-item <?= $ap==='attn_import'?'active':'' ?>" href="<?= BASE_URL ?>/modules/attendance/import.php">
               <i class="bi bi-upload"></i> Import Attendance (CSV)
             </a>
+            <?php endif; ?>
+            <?php if (can('leaves.view')): ?>
             <a class="sb-sub-item <?= $ap==='leaves'?'active':'' ?>" href="<?= BASE_URL ?>/modules/leaves/index.php">
               <i class="bi bi-calendar-x"></i> Mark Leaves
             </a>
+            <?php endif; ?>
+            <?php if (can('leave_range.view')): ?>
             <a class="sb-sub-item <?= $ap==='leave_range'?'active':'' ?>" href="<?= BASE_URL ?>/modules/leaves/mark_range.php">
               <i class="bi bi-calendar-range"></i> Mark Leave (Range)
             </a>
+            <?php endif; ?>
+            <?php if (can('leave_types.view')): ?>
             <a class="sb-sub-item <?= $ap==='leave_types'?'active':'' ?>" href="<?= BASE_URL ?>/modules/leaves/types.php">
               <i class="bi bi-tags"></i> Leave Types
             </a>
+            <?php endif; ?>
+            <?php if (can('leave_policy.view')): ?>
             <a class="sb-sub-item <?= $ap==='leave_policy'?'active':'' ?>" href="<?= BASE_URL ?>/modules/leaves/policy.php">
               <i class="bi bi-file-earmark-ruled"></i> Leave Policies
             </a>
+            <?php endif; ?>
+            <?php if (can('leave_assign.view')): ?>
             <a class="sb-sub-item <?= $ap==='leave_assign'?'active':'' ?>" href="<?= BASE_URL ?>/modules/leaves/assign.php">
               <i class="bi bi-person-check"></i> Assign Policy
             </a>
+            <?php endif; ?>
+            <?php if (can('leave_register.view')): ?>
             <a class="sb-sub-item <?= $ap==='leave_register'?'active':'' ?>" href="<?= BASE_URL ?>/modules/leaves/register.php">
               <i class="bi bi-journal-check"></i> Leave Register
             </a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
+      <?php endif; ?>
 
       <!-- Reports -->
+      <?php if (canAny(['report_active.view','report_attendance.view','report_monthly.view','report_swipe.view','report_strength.view','report_ot.view','report_leave.view','report_joinleft.view','tv_dashboard.view'])): ?>
       <div class="sb-section-label">Reports</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navReports"
@@ -843,39 +906,61 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
         <div class="collapse <?= $rptOpen ?>" id="navReports">
           <div class="sb-sub">
+            <?php if (can('report_active.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_active'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/active_employees.php">
               <i class="bi bi-people"></i> Active Employees
             </a>
+            <?php endif; ?>
+            <?php if (can('report_attendance.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_attendance'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/attendance.php">
               <i class="bi bi-calendar2-week"></i> Attendance
             </a>
+            <?php endif; ?>
+            <?php if (can('report_monthly.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_monthly'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/monthly_attendance.php">
               <i class="bi bi-calendar-month"></i> Monthly
             </a>
+            <?php endif; ?>
+            <?php if (can('report_swipe.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_swipe'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/swipe_report.php">
               <i class="bi bi-fingerprint"></i> Swipe Report
             </a>
+            <?php endif; ?>
+            <?php if (can('report_strength.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_strength'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/strength_summary.php">
               <i class="bi bi-diagram-3"></i> Strength
             </a>
+            <?php endif; ?>
+            <?php if (can('report_ot.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_ot'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/ot_report.php">
               <i class="bi bi-alarm"></i> OT Report
             </a>
+            <?php endif; ?>
+            <?php if (can('report_leave.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_leave'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/leave_report.php">
               <i class="bi bi-file-earmark-x"></i> Leave Report
             </a>
+            <?php endif; ?>
+            <?php if (can('report_joinleft.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_joinleft'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/joinleft_report.php">
               <i class="bi bi-box-arrow-in-right"></i> Joining / Exit
             </a>
+            <?php endif; ?>
+            <?php if (can('tv_dashboard.view')): ?>
             <a class="sb-sub-item" href="<?= BASE_URL ?>/modules/reports/tv_strength.php" target="_blank">
               <i class="bi bi-tv"></i> TV Dashboard
             </a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
+      <?php endif; ?>
 
       <!-- Payroll -->
+      <?php if (canAny(['payroll_run.view','payroll_emp_setup.view','payroll_ctc_import.view','payroll_components.view','payroll_settings.view','advance.view'])): ?>
       <div class="sb-section-label">Payroll</div>
+      <?php endif; ?>
+      <?php if (canAny(['payroll_run.view','payroll_emp_setup.view','payroll_ctc_import.view','payroll_components.view','payroll_settings.view'])): ?>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navPayroll"
            aria-expanded="<?= $payrollOpen?'true':'false' ?>" data-tip="Payroll">
@@ -885,32 +970,46 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
         <div class="collapse <?= $payrollOpen ?>" id="navPayroll">
           <div class="sb-sub">
+            <?php if (can('payroll_run.view')): ?>
             <a class="sb-sub-item <?= $ap==='payroll_run'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/run.php">
               <i class="bi bi-play-circle"></i> Run / Salary Sheet
             </a>
+            <?php endif; ?>
+            <?php if (can('payroll_emp_setup.view')): ?>
             <a class="sb-sub-item <?= $ap==='payroll_emp_setup'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/employee_setup.php">
               <i class="bi bi-person-gear"></i> Employee Setup
             </a>
+            <?php endif; ?>
+            <?php if (can('payroll_ctc_import.view')): ?>
             <a class="sb-sub-item <?= $ap==='payroll_ctc_import'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/import_ctc.php">
               <i class="bi bi-file-earmark-spreadsheet"></i> Bulk CTC Import
             </a>
+            <?php endif; ?>
+            <?php if (can('payroll_components.view')): ?>
             <a class="sb-sub-item <?= $ap==='payroll_components'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/components.php">
               <i class="bi bi-list-columns-reverse"></i> Income / Deduction Heads
             </a>
+            <?php endif; ?>
+            <?php if (can('payroll_settings.view')): ?>
             <a class="sb-sub-item <?= $ap==='payroll_settings'?'active':'' ?>" href="<?= BASE_URL ?>/modules/payroll/settings.php">
               <i class="bi bi-sliders"></i> PF / ESI / TDS Settings
             </a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
+      <?php endif; ?>
+      <?php if (can('advance.view')): ?>
       <li>
         <a class="sb-item <?= $ap==='advance'?'active':'' ?>" href="<?= $advanceUrl ?>" data-tip="Employee Advances">
           <span class="sb-item-icon"><i class="bi bi-cash-coin"></i></span>
           <span class="sb-item-label">Employee Advances</span>
         </a>
       </li>
+      <?php endif; ?>
 
       <!-- HR Documents -->
+      <?php if (canAny(['doc_templates.view','doc_issue.view','doc_material.view','doc_fnf.view'])): ?>
       <div class="sb-section-label">HR Documents</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navDocs"
@@ -921,24 +1020,35 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
         <div class="collapse <?= $docsOpen ?>" id="navDocs">
           <div class="sb-sub">
+            <?php if (can('doc_templates.view')): ?>
             <a class="sb-sub-item <?= $ap==='doc_templates'?'active':'' ?>" href="<?= BASE_URL ?>/modules/docs/templates.php">
               <i class="bi bi-file-ruled"></i> Document Templates
             </a>
+            <?php endif; ?>
+            <?php if (can('doc_issue.view')): ?>
             <a class="sb-sub-item <?= $ap==='doc_issue'?'active':'' ?>" href="<?= BASE_URL ?>/modules/docs/issue.php">
               <i class="bi bi-file-earmark-arrow-up"></i> Issue Document
             </a>
+            <?php endif; ?>
+            <?php if (can('doc_material.view')): ?>
             <a class="sb-sub-item <?= $ap==='doc_material'?'active':'' ?>" href="<?= BASE_URL ?>/modules/docs/material.php">
               <i class="bi bi-box-seam"></i> Issued Material
             </a>
+            <?php endif; ?>
+            <?php if (can('doc_fnf.view')): ?>
             <a class="sb-sub-item <?= $ap==='doc_fnf'?'active':'' ?>" href="<?= BASE_URL ?>/modules/docs/fnf.php">
               <i class="bi bi-clipboard-check"></i> Full &amp; Final
             </a>
+            <?php endif; ?>
+            <?php if (can('doc_templates.view')): ?>
             <a class="sb-sub-item <?= $ap==='doc_seed'?'active':'' ?>" href="<?= BASE_URL ?>/modules/docs/seed_templates.php">
               <i class="bi bi-stars"></i> Sample Templates
             </a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
+      <?php endif; ?>
       <?php if ($user['role'] === 'superadmin'): ?>
       <li>
         <a class="sb-item <?= $ap==='docs_pipeline'?'active':'' ?>"
@@ -950,7 +1060,10 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <?php endif; ?>
 
       <!-- Settings -->
+      <?php if (canAny(['settings.view','notifications.view','sms_settings.view','whatsapp_settings.view','dev_issues.view'])): ?>
       <div class="sb-section-label">Settings</div>
+      <?php endif; ?>
+      <?php if (can('settings.view')): ?>
       <li>
         <a class="sb-item <?= $ap==='settings'?'active':'' ?>"
            href="<?= $settingsUrl ?>" data-tip="HRMS Settings">
@@ -958,6 +1071,8 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">HRMS Settings</span>
         </a>
       </li>
+      <?php endif; ?>
+      <?php if (can('notifications.view')): ?>
       <li>
         <a class="sb-item <?= $ap==='notifications'?'active':'' ?>"
            href="<?= $notifUrl ?>" data-tip="Email Notifications">
@@ -965,6 +1080,8 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">Email Notifications</span>
         </a>
       </li>
+      <?php endif; ?>
+      <?php if (can('sms_settings.view')): ?>
       <li>
         <a class="sb-item <?= $ap==='sms_settings'?'active':'' ?>"
            href="<?= BASE_URL ?>/modules/settings/sms.php" data-tip="SMS Settings">
@@ -972,6 +1089,8 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">SMS Settings (MSG91)</span>
         </a>
       </li>
+      <?php endif; ?>
+      <?php if (can('whatsapp_settings.view')): ?>
       <li>
         <a class="sb-item <?= $ap==='whatsapp_settings'?'active':'' ?>"
            href="<?= BASE_URL ?>/modules/settings/whatsapp.php" data-tip="WhatsApp Settings">
@@ -979,6 +1098,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">WhatsApp Settings</span>
         </a>
       </li>
+      <?php endif; ?>
       <?php if (in_array($user['role'], ['admin','superadmin'], true)): ?>
       <li>
         <a class="sb-item <?= $ap==='login_log'?'active':'' ?>"
@@ -987,7 +1107,15 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">Login Log</span>
         </a>
       </li>
+      <li>
+        <a class="sb-item <?= $ap==='roles'?'active':'' ?>"
+           href="<?= BASE_URL ?>/modules/roles/index.php" data-tip="Roles & Permissions">
+          <span class="sb-item-icon"><i class="bi bi-shield-lock"></i></span>
+          <span class="sb-item-label">Roles &amp; Permissions</span>
+        </a>
+      </li>
       <?php endif; ?>
+      <?php if (can('dev_issues.view')): ?>
       <li>
         <a class="sb-item <?= $ap==='dev_issues'?'active':'' ?>"
            href="<?= BASE_URL ?>/modules/dev_issues/index.php" data-tip="Dev Issues">
@@ -995,8 +1123,10 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">Dev Issues</span>
         </a>
       </li>
+      <?php endif; ?>
 
       <!-- Masters -->
+      <?php if (canAny(['holidays.view','departments.view','contractors.view'])): ?>
       <div class="sb-section-label">Masters</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navMasters"
@@ -1007,30 +1137,40 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
         <div class="collapse <?= $masterOpen ?>" id="navMasters">
           <div class="sb-sub">
+            <?php if (can('holidays.view')): ?>
             <a class="sb-sub-item <?= $ap==='holidays'?'active':'' ?>" href="<?= BASE_URL ?>/modules/holidays/index.php">
               <i class="bi bi-calendar-heart"></i> Holidays
             </a>
+            <?php endif; ?>
+            <?php if (can('departments.view')): ?>
             <a class="sb-sub-item <?= $ap==='departments'?'active':'' ?>" href="<?= BASE_URL ?>/modules/departments/index.php">
               <i class="bi bi-diagram-3"></i> Departments
             </a>
+            <?php endif; ?>
+            <?php if (can('contractors.view')): ?>
             <a class="sb-sub-item <?= $ap==='contractors'?'active':'' ?>" href="<?= BASE_URL ?>/modules/contractors/index.php">
               <i class="bi bi-person-vcard"></i> Contractors
             </a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
+      <?php endif; ?>
 
 
 <?php elseif ($user['role'] === 'compliance'): ?>
 <?php
   $rptOpenC = in_array($ap, ['report_active','report_attendance','report_monthly','report_swipe','report_strength','report_ot','report_leave','report_joinleft']) ? 'show' : '';
 ?>
+      <?php if (can('report_attendance.view')): ?>
       <li>
         <a class="sb-item sb-featured" href="<?= BASE_URL ?>/modules/reports/attendance.php" data-tip="Attendance Report">
           <span class="sb-item-icon"><i class="bi bi-calendar2-week"></i></span>
           <span class="sb-item-label">Attendance Report</span>
         </a>
       </li>
+      <?php endif; ?>
+      <?php if (can('employees.view')): ?>
       <div class="sb-section-label">Employees</div>
       <li>
         <a class="sb-item <?= $ap==='employees'?'active':'' ?>" href="<?= BASE_URL ?>/modules/employees/index.php" data-tip="Compliance Employees">
@@ -1038,6 +1178,8 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">Compliance Employees</span>
         </a>
       </li>
+      <?php endif; ?>
+      <?php if (canAny(['report_active.view','report_attendance.view','report_monthly.view','report_swipe.view','report_strength.view','report_ot.view','report_leave.view','report_joinleft.view'])): ?>
       <div class="sb-section-label">Reports</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navReportsC"
@@ -1048,22 +1190,40 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
         <div class="collapse <?= $rptOpenC ?>" id="navReportsC">
           <div class="sb-sub">
+            <?php if (can('report_active.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_active'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/active_employees.php"><i class="bi bi-people"></i> Active Employees</a>
+            <?php endif; ?>
+            <?php if (can('report_attendance.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_attendance'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/attendance.php"><i class="bi bi-calendar2-week"></i> Attendance</a>
+            <?php endif; ?>
+            <?php if (can('report_monthly.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_monthly'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/monthly_attendance.php"><i class="bi bi-calendar-month"></i> Monthly</a>
+            <?php endif; ?>
+            <?php if (can('report_swipe.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_swipe'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/swipe_report.php"><i class="bi bi-fingerprint"></i> Swipe Report</a>
+            <?php endif; ?>
+            <?php if (can('report_strength.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_strength'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/strength_summary.php"><i class="bi bi-diagram-3"></i> Strength</a>
+            <?php endif; ?>
+            <?php if (can('report_ot.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_ot'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/ot_report.php"><i class="bi bi-alarm"></i> OT Report</a>
+            <?php endif; ?>
+            <?php if (can('report_leave.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_leave'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/leave_report.php"><i class="bi bi-file-earmark-x"></i> Leave Report</a>
+            <?php endif; ?>
+            <?php if (can('report_joinleft.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_joinleft'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/joinleft_report.php"><i class="bi bi-box-arrow-in-right"></i> Joining / Exit</a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
+      <?php endif; ?>
 
 <?php else: // role === 'user' ?>
 <?php
   $rptOpenU = in_array($ap, ['report_monthly','report_ot','report_leave','report_strength']) ? 'show' : '';
 ?>
+      <?php if (can('report_attendance.view')): ?>
       <li>
         <a class="sb-item sb-featured"
            href="<?= BASE_URL ?>/modules/reports/attendance.php"
@@ -1072,6 +1232,8 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">Attendance Report</span>
         </a>
       </li>
+      <?php endif; ?>
+      <?php if (canAny(['report_monthly.view','report_strength.view','report_ot.view','report_leave.view','report_joinleft.view','tv_dashboard.view'])): ?>
       <div class="sb-section-label">Reports</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navReportsU"
@@ -1082,27 +1244,41 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
         <div class="collapse <?= $rptOpenU ?>" id="navReportsU">
           <div class="sb-sub">
+            <?php if (can('report_monthly.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_monthly'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/monthly_attendance.php">
               <i class="bi bi-calendar-month"></i> Monthly
             </a>
+            <?php endif; ?>
+            <?php if (can('report_strength.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_strength'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/strength_summary.php">
               <i class="bi bi-diagram-3"></i> Strength
             </a>
+            <?php endif; ?>
+            <?php if (can('report_ot.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_ot'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/ot_report.php">
               <i class="bi bi-alarm"></i> OT Report
             </a>
+            <?php endif; ?>
+            <?php if (can('report_leave.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_leave'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/leave_report.php">
               <i class="bi bi-file-earmark-x"></i> Leave Report
             </a>
+            <?php endif; ?>
+            <?php if (can('report_joinleft.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_joinleft'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/joinleft_report.php">
               <i class="bi bi-box-arrow-in-right"></i> Joining / Exit
             </a>
+            <?php endif; ?>
+            <?php if (can('tv_dashboard.view')): ?>
             <a class="sb-sub-item" href="<?= BASE_URL ?>/modules/reports/tv_strength.php" target="_blank">
               <i class="bi bi-tv"></i> TV Dashboard
             </a>
+            <?php endif; ?>
           </div>
         </div>
       </li>
+      <?php endif; ?>
+      <?php if (can('employees.view')): ?>
       <div class="sb-section-label">Organisation</div>
       <li>
         <a class="sb-item <?= $ap==='employees'?'active':'' ?>"
@@ -1111,6 +1287,8 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">Employees</span>
         </a>
       </li>
+      <?php endif; ?>
+      <?php if (can('punchlog.view')): ?>
       <div class="sb-section-label">Tools</div>
       <li>
         <a class="sb-item <?= $ap==='punchlog'?'active':'' ?>"
@@ -1119,6 +1297,8 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">Punch Log</span>
         </a>
       </li>
+      <?php endif; ?>
+      <?php if (can('dev_issues.view')): ?>
       <div class="sb-section-label">Support</div>
       <li>
         <a class="sb-item <?= $ap==='dev_issues'?'active':'' ?>"
@@ -1127,6 +1307,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
           <span class="sb-item-label">Dev Issues</span>
         </a>
       </li>
+      <?php endif; ?>
 <?php endif; ?>
 
     </ul>

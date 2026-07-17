@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/whatsapp_helper.php';
 requireAdmin();
+requirePermission('whatsapp_settings.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -30,6 +31,7 @@ $msg = ''; $msgType = 'success'; $testResult = null;
 
 // ── POST actions ────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($fScope, $scopeIds, true)) {
+    requirePermission('whatsapp_settings.edit');
     csrf_verify();
     $action = $_POST['action'] ?? 'save';
     $existing = waGetSettings($db, $fScope) ?: [];

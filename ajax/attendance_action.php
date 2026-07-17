@@ -11,6 +11,7 @@ if (!in_array($_SESSION['user_role'] ?? '', ['admin', 'superadmin', 'operator', 
     echo json_encode(['success' => false, 'errors' => ['Not allowed.']]);
     exit;
 }
+requirePermission('report_attendance.edit');
 
 $db   = getDb();
 $user = currentUser();

@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('settings.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -30,6 +31,7 @@ if ($fCompany) {
 
 // ── Save ──────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requirePermission('settings.edit');
     csrf_verify();
     $saveFor = (int)($_POST['company_id'] ?? 0);
     if ($user['role'] !== 'superadmin') {

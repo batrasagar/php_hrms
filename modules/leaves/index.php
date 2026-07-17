@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/hrms_settings.php';
 requireAdmin();
+requirePermission('leaves.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -15,6 +16,7 @@ $fDate    = trim($_GET['date'] ?? date('Y-m-d'));
 
 // Delete record
 if (isset($_GET['delete'])) {
+    requirePermission('leaves.edit');
     $did = (int)$_GET['delete'];
     $db->prepare("DELETE FROM tblLeave WHERE id=?")->execute([$did]);
     header("Location: index.php?company=$fCompany&date=" . urlencode($fDate)); exit;
@@ -22,6 +24,7 @@ if (isset($_GET['delete'])) {
 
 // Save bulk leave
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
+    requirePermission('leaves.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

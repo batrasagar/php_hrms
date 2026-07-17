@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/smtp_helper.php';
 require_once __DIR__ . '/_payslip_render.php';
 requireAdmin();
+requirePermission('payroll_run.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -43,6 +44,7 @@ $flash = ''; $flashType = 'success';
 
 // ── POST: email slips to selected employees ────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'email') {
+    requirePermission('payroll_run.edit');
     csrf_verify();
     $ids = array_map('intval', (array)($_POST['emp_ids'] ?? []));
     $cfg = getSmtpCfg();

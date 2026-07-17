@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('companies.view');
 
 $db     = getDb();
 $user   = currentUser();
@@ -34,6 +35,7 @@ if ($user['role'] === 'superadmin' && !empty($rec['AdminId'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requirePermission('companies.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

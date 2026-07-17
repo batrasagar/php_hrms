@@ -6,6 +6,7 @@ require_once __DIR__ . '/../../services/AdmsSyncService.php';
 require_once __DIR__ . '/../../services/AttendanceProcessor.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('punch_sync.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -19,6 +20,7 @@ $attnCount  = 0;
 $attnError  = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requirePermission('punch_sync.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

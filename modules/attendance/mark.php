@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('mark_ot_abs.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -13,6 +14,7 @@ $fCompany = activeCompanyId($db, $user);
 
 // ── POST: mark OT / Absent across a date range ────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['do_mark'])) {
+    requirePermission('mark_ot_abs.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

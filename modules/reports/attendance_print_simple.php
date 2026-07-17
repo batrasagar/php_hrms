@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireLogin();
+requirePermission('report_attendance.view');
 
 $db   = getDb();
 $user = currentUser();

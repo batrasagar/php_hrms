@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('payroll_components.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -16,6 +17,7 @@ catch (PDOException $e) { header('Location: ' . BASE_URL . '/migrate.php'); exit
 $msg = ''; $msgType = 'success';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
+    requirePermission('payroll_components.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

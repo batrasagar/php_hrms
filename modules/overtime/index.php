@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/sms_helper.php';
 requireAdmin();
+requirePermission('overtime.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -15,6 +16,7 @@ $fDate    = trim($_GET['date'] ?? date('Y-m-d'));
 
 // Delete record
 if (isset($_GET['delete'])) {
+    requirePermission('overtime.edit');
     $did = (int)$_GET['delete'];
     $db->prepare("DELETE FROM tblOvertime WHERE id=? AND CompanyId IN (SELECT id FROM tblCompany WHERE " .
         ($user['role'] === 'superadmin' ? '1' : 'AdminId=' . $user['scope_id']) . ")")->execute([$did]);
@@ -23,6 +25,7 @@ if (isset($_GET['delete'])) {
 
 // Save bulk OT
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
+    requirePermission('overtime.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

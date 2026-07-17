@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireLogin();
+requirePermission('report_strength.view');
 $pageTitle  = 'Employee Strength Summary';
 $activePage = 'report_strength';
 require_once __DIR__ . '/../../includes/header.php';

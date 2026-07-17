@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('doc_templates.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -445,6 +446,7 @@ $skipped  = 0;
 $seedMsg  = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
+    requirePermission('doc_templates.edit');
     csrf_verify();
     $selected = $_POST['tpls'] ?? [];
     if (!$selected) {

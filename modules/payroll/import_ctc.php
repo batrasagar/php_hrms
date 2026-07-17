@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('payroll_ctc_import.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -153,6 +154,7 @@ function ctcEmpMap(PDO $db, int $companyId): array {
 
 // ── Step 1: upload → preview ───────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'preview' && $fCompany) {
+    requirePermission('payroll_ctc_import.edit');
     csrf_verify();
     if (empty($_FILES['csv_file']['tmp_name']) || !is_uploaded_file($_FILES['csv_file']['tmp_name'])) {
         $error = 'Please choose a CSV file.';
@@ -168,6 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'previ
 
 // ── Step 2: confirm → import ───────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'import') {
+    requirePermission('payroll_ctc_import.edit');
     csrf_verify();
     $companyId = (int)($_SESSION['ctc_import_company'] ?? 0);
     $tmpPath   = $_SESSION['ctc_import_path'] ?? '';

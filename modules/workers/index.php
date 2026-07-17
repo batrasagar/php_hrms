@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('workers.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -10,6 +11,7 @@ $msg  = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 
 // Delete (scope-checked)
 if (isset($_GET['delete'])) {
+    requirePermission('workers.edit');
     $id = (int)$_GET['delete'];
     if ($user['role'] === 'superadmin') {
         $db->prepare("DELETE FROM tblWageWorker WHERE id=?")->execute([$id]);

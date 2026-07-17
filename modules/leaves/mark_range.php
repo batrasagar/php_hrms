@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/hrms_settings.php';
 requireAdmin();
+requirePermission('leave_range.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -14,6 +15,7 @@ $fCompany = activeCompanyId($db, $user);
 
 // ── POST: mark leave across a date range ──────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['do_mark'])) {
+    requirePermission('leave_range.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

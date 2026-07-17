@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('emp_import.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -31,6 +32,7 @@ $step      = 'upload'; // upload | preview | done
 
 // Step 1 → parse CSV for preview
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'preview') {
+    requirePermission('emp_import.edit');
     csrf_verify();
     $companyId = (int)($_POST['company_id'] ?? 0);
     if (!$companyId) {
@@ -78,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // Step 2 → do the actual import
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'import') {
+    requirePermission('emp_import.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     csrf_verify();

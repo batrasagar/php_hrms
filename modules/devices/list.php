@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireLogin();
+requirePermission('devices.view');
 
 $db   = getDb();
 $user = currentUser();
@@ -27,6 +28,7 @@ if ($user['role'] === 'superadmin') {
 
 // ── Actions (before any output) ───────────────────────────────────────────────
 if (isset($_GET['delete'])) {
+    requirePermission('devices.edit');
     $id = (int)$_GET['delete'];
     if ($user['role'] === 'superadmin') {
         $db->prepare("DELETE FROM tblDevices WHERE id=?")->execute([$id]);

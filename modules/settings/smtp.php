@@ -4,6 +4,7 @@ require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/smtp_helper.php';
 requireAdmin();
+requirePermission('notifications.view');
 
 $pageTitle  = 'SMTP Settings';
 $activePage = 'smtp_settings';
@@ -19,6 +20,7 @@ $testLog   = '';
 $diagSteps = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requirePermission('notifications.edit');
     csrf_verify();
     $action = $_POST['action'] ?? 'save';
 

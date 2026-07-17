@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireAdmin();
+requirePermission('employees.view');
 
 $db     = getDb();
 $user   = currentUser();
@@ -240,6 +241,7 @@ if ($editId) {
 
 // POST handler
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requirePermission('employees.edit');
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
               strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
