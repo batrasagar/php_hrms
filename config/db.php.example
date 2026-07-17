@@ -21,6 +21,8 @@ function getDb(): PDO {
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ]);
+            // Align MySQL session with PHP (Asia/Kolkata) so NOW()/CURRENT_TIMESTAMP write IST
+            $pdo->exec("SET time_zone = '+05:30'");
         } catch (PDOException $e) {
             $skipScripts = ['migrate.php', 'run_schema.php'];
             if (!in_array(basename($_SERVER['SCRIPT_FILENAME'] ?? ''), $skipScripts, true)) {
