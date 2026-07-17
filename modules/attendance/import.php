@@ -268,8 +268,8 @@ require_once __DIR__ . '/../../includes/header.php';
             <label class="form-label">Company <span class="text-danger">*</span></label>
             <select name="company_id" class="form-select" required>
               <option value="">— Select —</option>
-              <?php foreach ($companies as $c): ?>
-              <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['Name']) ?></option>
+              <?php $activeCo = activeCompanyId($db, $user); foreach ($companies as $c): ?>
+              <option value="<?= $c['id'] ?>" <?= $activeCo == $c['id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['Name']) ?></option>
               <?php endforeach; ?>
             </select>
           </div>

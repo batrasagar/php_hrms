@@ -36,17 +36,8 @@ $myLinks = $db->prepare("SELECT id, Title, URL FROM tblDashboardLinks WHERE User
 $myLinks->execute([$uid]);
 $myLinks = $myLinks->fetchAll(PDO::FETCH_ASSOC);
 
-// ── Companies for the live attendance-summary panel ───────────────────────────
-if ($role === 'superadmin') {
-    $dashCos = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll(PDO::FETCH_ASSOC);
-} elseif ($role === 'admin' || $role === 'operator') {
-    // Operators see their parent admin's companies (scope_id); admins see their own.
-    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([(int)$user['scope_id']]); $dashCos = $s->fetchAll(PDO::FETCH_ASSOC);
-} else {
-    $dashCos = [];
-}
-$dashCid  = $role === 'user' ? (int)$user['company_id'] : (int)($dashCos[0]['id'] ?? 0);
+// ── Live attendance-summary panel: company comes from the global topbar switcher ──
+$dashCid  = activeCompanyId($db, $user);
 $dataUrl  = BASE_URL . '/ajax/attendance_data.php';
 
 $pageTitle  = 'Dashboard';
@@ -59,13 +50,6 @@ require_once __DIR__ . '/includes/header.php';
   <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
     <span class="fw-semibold" style="font-size:13px"><i class="bi bi-calendar2-week me-1"></i>Attendance Summary</span>
     <div class="d-flex gap-2 align-items-center">
-      <?php if ($role !== 'user' && $dashCos): ?>
-      <select id="asCompany" class="form-select form-select-sm" style="max-width:200px">
-        <?php foreach ($dashCos as $c): ?>
-        <option value="<?= $c['id'] ?>" <?= $dashCid==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-        <?php endforeach; ?>
-      </select>
-      <?php endif; ?>
       <input type="date" id="asDate" class="form-control form-control-sm" style="max-width:150px" value="<?= $today ?>">
       <a id="asFull" class="btn btn-outline-secondary btn-sm" href="<?= BASE_URL ?>/modules/reports/attendance.php"><i class="bi bi-box-arrow-up-right"></i></a>
     </div>
@@ -141,7 +125,6 @@ require_once __DIR__ . '/includes/header.php';
 document.addEventListener('DOMContentLoaded', function(){
   var DATA_URL = '<?= $dataUrl ?>';
   var BASE     = '<?= BASE_URL ?>';
-  var elCo    = document.getElementById('asCompany');
   var elDate  = document.getElementById('asDate');
   var elTiles = document.getElementById('asTiles');
   var elFull  = document.getElementById('asFull');
@@ -155,7 +138,7 @@ document.addEventListener('DOMContentLoaded', function(){
       + '</div></div>';
   }
   function load(){
-    var cid = elCo ? elCo.value : DEFAULT_CID;
+    var cid = DEFAULT_CID;
     var d = elDate.value;
     if (!cid || !d){ elTiles.innerHTML = '<div class="col-12 text-muted small py-2">Select a company.</div>'; return; }
     elTiles.innerHTML = '<div class="col-12 text-center text-muted py-3"><span class="spinner-border spinner-border-sm me-1"></span>Loading…</div>';
@@ -177,7 +160,6 @@ document.addEventListener('DOMContentLoaded', function(){
       })
       .catch(function(){ elTiles.innerHTML = '<div class="col-12 text-danger small">Failed to load attendance.</div>'; });
   }
-  if (elCo) elCo.addEventListener('change', load);
   elDate.addEventListener('change', load);
   load();
 });
