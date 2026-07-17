@@ -35,6 +35,14 @@ $depts = array_filter(array_column(
     'Department'
 ));
 
+// Designed card templates (tblCardTemplate may not exist until M031 runs)
+$cardTpls = [];
+try {
+    $ct = $db->prepare("SELECT id, Name FROM tblCardTemplate WHERE CompanyId=? AND IsActive=1 ORDER BY Name");
+    $ct->execute([$fCompany]);
+    $cardTpls = $ct->fetchAll();
+} catch (Throwable $ex) { /* migration pending */ }
+
 // Print mode — render cards/files and return
 if ($pType && !empty($_POST['emp_ids'])) {
     $ids = array_map('intval', $_POST['emp_ids']);
@@ -47,6 +55,7 @@ if ($pType && !empty($_POST['emp_ids'])) {
         );
         $printEmps = $empStmt->fetchAll();
         if      ($pType === 'icard') { include __DIR__ . '/icard_print.php'; }
+        elseif  ($pType === 'card')  { include __DIR__ . '/card_print.php'; }
         elseif  ($pType === 'file2') { include __DIR__ . '/file2_print.php'; }
         else                         { include __DIR__ . '/file_print.php'; }
         exit;
@@ -82,7 +91,23 @@ require_once __DIR__ . '/../../includes/header.php';
         <input type="checkbox" id="selAll" class="form-check-input me-1" style="width:22px;height:22px;cursor:pointer">
         <label for="selAll" class="fw-semibold" style="vertical-align:middle;cursor:pointer">Select All (<?= count($employees) ?> employees)</label>
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap">
+        <?php if ($cardTpls): ?>
+        <div class="input-group input-group-sm" style="width:auto">
+          <select name="card_template_id" class="form-select form-select-sm" style="max-width:180px">
+            <?php foreach ($cardTpls as $t): ?>
+            <option value="<?= $t['id'] ?>"><?= htmlspecialchars($t['Name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <button type="submit" class="btn btn-success btn-sm" onclick="document.querySelector('[name=ptype]').value='card'">
+            <i class="bi bi-credit-card-2-front me-1"></i>Print Designed Cards
+          </button>
+        </div>
+        <?php else: ?>
+        <a href="card_templates.php" class="btn btn-outline-success btn-sm" title="Design a custom card layout">
+          <i class="bi bi-credit-card-2-front me-1"></i>Design Card Template
+        </a>
+        <?php endif; ?>
         <button type="submit" class="btn btn-primary btn-sm" onclick="document.querySelector('[name=ptype]').value='icard'">
           <i class="bi bi-person-badge me-1"></i>Print I-Cards
         </button>

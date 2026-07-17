@@ -897,6 +897,25 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M031',
+        'desc'  => 'ID card template designer — tblCardTemplate (per-company drag-drop card layouts, JSON)',
+        'check' => "SELECT 1 FROM `tblCardTemplate` LIMIT 1",
+        'stmts' => [
+            "CREATE TABLE IF NOT EXISTS `tblCardTemplate` (
+                `id`        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `CompanyId` INT UNSIGNED NOT NULL,
+                `Name`      VARCHAR(150) NOT NULL,
+                `WidthMm`   DECIMAL(6,2) NOT NULL DEFAULT 86.00,
+                `HeightMm`  DECIMAL(6,2) NOT NULL DEFAULT 54.00,
+                `Layout`    MEDIUMTEXT NULL COMMENT 'JSON: {front:{elements:[...]}, back:{elements:[...]}|null}',
+                `IsActive`  TINYINT(1) NOT NULL DEFAULT 1,
+                `CreatedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `UpdatedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX `idx_company` (`CompanyId`)
+            ) ENGINE=InnoDB",
+        ],
+    ],
+    [
         'id'    => 'M030',
         'desc'  => "Compliance — tblEmployee.Compliance flag + 'compliance' role on tblUser",
         'check' => "SELECT `Compliance` FROM `tblEmployee` LIMIT 1",

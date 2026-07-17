@@ -669,7 +669,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
 
 <?php if (in_array($user['role'], ['superadmin','admin','operator'])): ?>
 <?php
-  $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','emp_left','print']) ? 'show' : '';
+  $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','emp_left','print','card_templates']) ? 'show' : '';
   $shiftOpen   = in_array($ap, ['shifts','shift_defaults','shift_assign','shift_cyclic','compoff']) ? 'show' : '';
   $masterOpen  = in_array($ap, ['holidays','departments']) ? 'show' : '';
   $attnOpen    = in_array($ap, ['overtime','ot_approvals','mark_ot_abs','attn_import','leaves','leave_range','leave_types','leave_policy','leave_assign','leave_register']) ? 'show' : '';
@@ -718,6 +718,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
             </a>
             <a class="sb-sub-item <?= $ap==='print'?'active':'' ?>" href="<?= BASE_URL ?>/modules/print/index.php">
               <i class="bi bi-printer"></i> Print / iCard
+            </a>
+            <a class="sb-sub-item <?= $ap==='card_templates'?'active':'' ?>" href="<?= BASE_URL ?>/modules/print/card_templates.php">
+              <i class="bi bi-credit-card-2-front"></i> Card Designer
             </a>
           </div>
         </div>
