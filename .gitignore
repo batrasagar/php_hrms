@@ -2,6 +2,7 @@
 _uidpwd.txt
 apikey.txt
 _deploy.py
+_migration_mssql.txt
 _deploy.bat
 config/db.php
 
