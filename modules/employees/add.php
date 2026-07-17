@@ -1197,9 +1197,15 @@ function calcAge(dob) {
   const dobEl = document.getElementById(dobId);
   const ageEl = document.getElementById(ageId);
   if (!dobEl || !ageEl) return;
-  dobEl.addEventListener('change', () => {
-    if (!ageEl.value) ageEl.value = calcAge(dobEl.value);
+  // Picking a DOB always (re)fills Age; the field stays editable for manual override.
+  const fill = () => { ageEl.value = calcAge(dobEl.value); };
+  dobEl.addEventListener('change', fill);
+  // The visible input is a flatpickr altInput — hook its onChange too so a
+  // calendar selection always triggers the fill regardless of event plumbing.
+  window.addEventListener('load', () => {
+    if (dobEl._flatpickr) dobEl._flatpickr.config.onChange.push(fill);
   });
+  if (dobEl.value && !ageEl.value) fill();   // edit mode: derive a missing age on load
 });
 
 // Gross salary auto-calc
