@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 requireLogin();
+blockCompliance();   // TV dashboard is not part of the compliance role's scope
 
 $db   = getDb();
 $user = currentUser();
