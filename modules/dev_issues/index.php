@@ -58,15 +58,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-    $qs = http_build_query(array_filter([
+    $qsArr = array_filter([
         'status'=>$_GET['status']??'', 'search'=>$_GET['search']??'', 'company'=>$_GET['company']??'',
         'from'=>$_GET['from']??'', 'to'=>$_GET['to']??'',
-    ]));
+    ]);
+    if (isset($_GET['status'])) $qsArr['status'] = $_GET['status'];   // keep explicit '' (All view)
+    $qs = http_build_query($qsArr);
     header('Location: index.php' . ($qs ? "?$qs" : '')); exit;
 }
 
 // ── Filters ────────────────────────────────────────────────────────────────────
 $fStatus  = in_array($_GET['status'] ?? '', DI_STATUSES, true) ? $_GET['status'] : '';
+if (!isset($_GET['status'])) $fStatus = 'PENDING';   // fresh visit → pending issues only (explicit status= shows All)
 $fSearch  = trim($_GET['search'] ?? '');
 $fCompany = (int)($_GET['company'] ?? 0);
 
@@ -184,7 +187,8 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="di-stats">
   <?php foreach (DI_STATUSES as $st):
       $on = $fStatus === $st;
-      $qs = http_build_query($on ? $baseQs : ($baseQs + ['status'=>$st]));
+      // Clearing sends an explicit empty status= so the fresh-visit PENDING default doesn't kick back in
+      $qs = http_build_query($on ? ($baseQs + ['status'=>'']) : ($baseQs + ['status'=>$st]));
   ?>
   <a class="di-stat <?= $on?'active':'' ?>" style="<?= di_badge($st) ?>" href="index.php<?= $qs?"?$qs":'' ?>"
      title="<?= $on?'Clear filter':'Filter by '.$st ?>"><?= $st ?>: <?= $counts[$st] ?></a>
