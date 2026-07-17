@@ -25,7 +25,7 @@ $contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor 
 $dataUrl   = BASE_URL . '/ajax/attendance_data.php';
 $actionUrl = BASE_URL . '/ajax/attendance_action.php';
 $autoload  = (int)$fCompany;
-$canEdit   = in_array($user['role'], ['admin','superadmin','operator'], true) ? 1 : 0;
+$canEdit   = in_array($user['role'], ['admin','superadmin','operator','compliance'], true) ? 1 : 0;
 
 // Server-side option lists for the edit modal so the Leave-code and Shift
 // dropdowns are populated on page load, independent of the JS/ajax path.

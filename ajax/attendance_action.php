@@ -3,8 +3,14 @@ define('BASE_URL', '..');
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/hrms_settings.php';
-requireAdmin();
+requireLogin();
 header('Content-Type: application/json');
+
+// Admins/operators plus the compliance role (limited below to compliance-flagged employees).
+if (!in_array($_SESSION['user_role'] ?? '', ['admin', 'superadmin', 'operator', 'compliance'], true)) {
+    echo json_encode(['success' => false, 'errors' => ['Not allowed.']]);
+    exit;
+}
 
 $db   = getDb();
 $user = currentUser();
@@ -29,8 +35,8 @@ if ($user['role'] !== 'superadmin') {
     if (!$chk->fetch()) fail('Access denied for this company.');
 }
 
-// ── Employee belongs to company ───────────────────────────────────────────────
-$emp = $db->prepare("SELECT EmployeeCode, Name FROM tblEmployee WHERE id=? AND CompanyId=?");
+// ── Employee belongs to company (compliance role → compliance employees only) ──
+$emp = $db->prepare("SELECT EmployeeCode, Name FROM tblEmployee WHERE id=? AND CompanyId=?" . complianceEmpFilter('tblEmployee'));
 $emp->execute([$empId, $company]);
 $empRow = $emp->fetch();
 if (!$empRow) fail('Employee not found in this company.');
