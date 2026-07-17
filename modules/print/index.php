@@ -7,15 +7,8 @@ requireAdmin();
 $db   = getDb();
 $user = currentUser();
 
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companiesDd = $stmt->fetchAll();
-}
-
-$fCompany = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 $fDept    = trim($_GET['dept'] ?? '');
 $pType    = trim($_POST['ptype'] ?? $_GET['ptype'] ?? ''); // icard | file
 
@@ -66,15 +59,7 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2">
     <form method="GET" class="row g-2 align-items-end">
-      <div class="col-sm-4">
-        <label class="form-label small mb-1">Company</label>
-        <select name="company" class="form-select form-select-sm" onchange="this.form.submit()">
-          <option value="">— Select Company —</option>
-          <?php foreach ($companiesDd as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
+      <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
       <div class="col-sm-3">
         <label class="form-label small mb-1">Department</label>
         <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">

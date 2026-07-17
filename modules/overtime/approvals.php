@@ -8,16 +8,8 @@ requireAdmin();
 $db   = getDb();
 $user = currentUser();
 
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companiesDd = $stmt->fetchAll();
-}
-$companyIds = array_column($companiesDd, 'id');
-$fCompany   = (int)($_REQUEST['company'] ?? ($companiesDd[0]['id'] ?? 0));
-if ($fCompany && !in_array($fCompany, $companyIds, true)) $fCompany = 0;
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 
 $msg = '';
 
@@ -77,20 +69,13 @@ require_once __DIR__ . '/../../includes/header.php';
     <h5 class="mb-0">Overtime Approvals</h5>
     <div class="text-muted small">Approve or reject pending OT. Only approved OT is counted in payroll.</div>
   </div>
-  <form method="GET" class="d-flex gap-2">
-    <select name="company" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:180px">
-      <?php foreach ($companiesDd as $c): ?>
-      <option value="<?= $c['id'] ?>" <?= $c['id']==$fCompany?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-    <a href="index.php?company=<?= $fCompany ?>" class="btn btn-outline-secondary btn-sm">OT Entry</a>
-  </form>
+  <a href="index.php?company=<?= (int)$fCompany ?>" class="btn btn-outline-secondary btn-sm">OT Entry</a>
 </div>
 
 <?php if ($msg): ?><div class="alert alert-success"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
 
 <?php if (!$fCompany): ?>
-<div class="alert alert-warning">Please select a company.</div>
+<div class="alert alert-warning">Please select a company from the topbar switcher.</div>
 <?php elseif (!$pending): ?>
 <div class="alert alert-info"><i class="bi bi-check2-circle me-1"></i>No pending OT for this company.</div>
 <?php else: ?>

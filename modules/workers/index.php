@@ -19,19 +19,15 @@ if (isset($_GET['delete'])) {
            ->execute([$user['scope_id'], $id]);
     }
     $_SESSION['flash'] = 'Worker deleted.';
-    header('Location: index.php' . (($co=(int)($_GET['company']??0)) ? "?company=$co" : '')); exit;
+    header('Location: index.php'); exit;   // active company is restored from the session
 }
 
-$fCo = (int)($_GET['company'] ?? 0);
+// Company comes from the global topbar switcher
+$fCo = activeCompanyId($db, $user);
 
-// Companies for the filter + scope guard
 if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
     $where = ['1=1']; $params = [];
 } else {
-    $stmt2 = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt2->execute([$user['scope_id']]);
-    $companiesDd = $stmt2->fetchAll();
     $where = ['c.AdminId = ?']; $params = [$user['scope_id']];
 }
 if ($fCo) { $where[] = 'w.CompanyId = ?'; $params[] = $fCo; }
@@ -55,16 +51,8 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="alert alert-success"><?= htmlspecialchars($msg) ?></div>
 <?php endif; ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <form method="GET" class="d-flex gap-2 align-items-center" data-filter>
-    <select name="company" class="form-select form-select-sm" style="width:200px" onchange="$(this.form).trigger('submit')">
-      <option value="">All Companies</option>
-      <?php foreach ($companiesDd as $c): ?>
-      <option value="<?= $c['id'] ?>" <?= $fCo==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </form>
-  <a href="add.php<?= $fCo ? "?company=$fCo" : '' ?>" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Worker</a>
+<div class="d-flex justify-content-end mb-3">
+  <a href="add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Worker</a>
 </div>
 
 <div id="filter-results">
@@ -109,7 +97,7 @@ require_once __DIR__ . '/../../includes/header.php';
         <td class="small"><?= htmlspecialchars($w['CompanyName']) ?></td>
         <td class="text-nowrap">
           <a href="add.php?id=<?= $w['id'] ?>" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-          <a href="?delete=<?= $w['id'] ?>&company=<?= $fCo ?>"
+          <a href="?delete=<?= $w['id'] ?>"
              class="btn btn-sm btn-outline-danger"
              onclick="return confirm('Delete this worker?')"><i class="bi bi-trash"></i></a>
         </td>

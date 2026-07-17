@@ -9,16 +9,8 @@ $user = currentUser();
 $msg  = '';
 $err  = '';
 
-// ── Company list for filter ───────────────────────────────────────────────────
-if ($user['role'] === 'superadmin') {
-    $companies = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companies = $stmt->fetchAll();
-}
-
-$fCompany = (int)($_REQUEST['company'] ?? ($companies[0]['id'] ?? 0));
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 
 // ── Employees for selected company ───────────────────────────────────────────
 $employees = [];
@@ -144,19 +136,7 @@ require_once __DIR__ . '/../../includes/header.php';
 
     <form method="POST" class="row g-2 align-items-end" data-ajax>
       <input type="hidden" name="save" value="1">
-
-      <!-- Company -->
-      <div class="col-sm-3">
-        <label class="form-label small mb-1">Company <span class="text-danger">*</span></label>
-        <select name="company" id="sel_company" class="form-select form-select-sm"
-                onchange="location.href='correction.php?company='+this.value">
-          <?php foreach ($companies as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>>
-            <?= htmlspecialchars($c['Name']) ?>
-          </option>
-          <?php endforeach; ?>
-        </select>
-      </div>
+      <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
 
       <!-- Employee -->
       <div class="col-sm-3">

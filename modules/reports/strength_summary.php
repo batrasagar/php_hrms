@@ -10,18 +10,8 @@ require_once __DIR__ . '/../../includes/header.php';
 $db   = getDb();
 $user = currentUser();
 
-if ($user['role'] === 'user') {
-    $companiesDd = [];
-    $fCompany    = $user['company_id'];
-} elseif ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-    $fCompany    = (int)($_GET['company'] ?? 0);
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companiesDd = $stmt->fetchAll();
-    $fCompany    = (int)($_GET['company'] ?? 0);
-}
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 
 $scopeWhere = match($user['role']) {
     'superadmin' => '1',
@@ -83,17 +73,7 @@ $pct = fn($n) => $gTotal > 0 ? round($n / $gTotal * 100) : 0;
   <div class="card-body py-2">
     <div class="d-flex flex-wrap gap-2 align-items-end">
       <form method="GET" class="d-flex gap-2 align-items-end flex-grow-1">
-        <?php if ($user['role'] !== 'user'): ?>
-        <div class="flex-grow-1" style="min-width:0">
-          <label class="form-label small mb-1">Company</label>
-          <select name="company" class="form-select form-select-sm w-100" onchange="this.form.submit()">
-            <option value="">All Companies</option>
-            <?php foreach ($companiesDd as $c): ?>
-            <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <?php else: ?><input type="hidden" name="company" value="<?= $fCompany ?>"><?php endif; ?>
+        <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
       </form>
       <button onclick="window.print()" class="btn btn-outline-success btn-sm align-self-end"><i class="bi bi-printer"></i> Print</button>
     </div>

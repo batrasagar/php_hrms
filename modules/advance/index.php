@@ -27,15 +27,8 @@ $db->exec("CREATE TABLE IF NOT EXISTS tblEmployeeAdvance (
     INDEX idx_employee (EmployeeId)
 ) ENGINE=InnoDB");
 
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companiesDd = $stmt->fetchAll();
-}
-
-$fCompany = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 $fStatus  = trim($_GET['status'] ?? '');
 $fEmp     = (int)($_GET['emp'] ?? 0);
 
@@ -145,15 +138,7 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2">
     <form method="GET" class="row g-2 align-items-end" data-filter>
-      <div class="col-sm-6 col-md-3">
-        <label class="form-label small mb-1">Company</label>
-        <select name="company" class="form-select form-select-sm" onchange="$(this.form).trigger('submit')">
-          <option value="">— Select Company —</option>
-          <?php foreach ($companiesDd as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
+      <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
       <?php if ($fCompany && !empty($empsDd)): ?>
       <div class="col-sm-6 col-md-3">
         <label class="form-label small mb-1">Employee</label>
@@ -324,7 +309,7 @@ require_once __DIR__ . '/../../includes/header.php';
 </div>
 
 <?php else: ?>
-<div class="alert alert-info">Select a company to view advance records.</div>
+<div class="alert alert-info">Select a company from the topbar switcher to view advance records.</div>
 <?php endif; ?>
 </div><!-- /#filter-results -->
 

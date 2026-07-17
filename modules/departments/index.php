@@ -10,17 +10,8 @@ $user = currentUser();
 try { $db->query("SELECT 1 FROM tblDepartment LIMIT 1"); }
 catch (PDOException $e) { header('Location: ' . BASE_URL . '/migrate.php'); exit; }
 
-// Companies in scope
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['scope_id']]);
-    $companiesDd = $s->fetchAll();
-}
-$companyIds = array_column($companiesDd, 'id');
-$fCompany   = (int)($_REQUEST['company'] ?? ($companiesDd[0]['id'] ?? 0));
-if ($fCompany && !in_array($fCompany, $companyIds, true)) $fCompany = 0;
+// Company comes from the global topbar switcher (scope-validated inside the helper)
+$fCompany = activeCompanyId($db, $user);
 
 $msg = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 $err = '';
@@ -75,15 +66,6 @@ require_once __DIR__ . '/../../includes/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h5 class="mb-0">Department Master</h5>
-  <?php if (count($companiesDd) > 1): ?>
-  <form method="GET">
-    <select name="company" class="form-select form-select-sm" style="min-width:180px" onchange="this.form.submit()">
-      <?php foreach ($companiesDd as $c): ?>
-      <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </form>
-  <?php endif; ?>
 </div>
 
 <?php if (!$fCompany): ?>

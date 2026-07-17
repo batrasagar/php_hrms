@@ -10,17 +10,8 @@ $user = currentUser();
 try { $db->query("SELECT 1 FROM tblFnFSettlement LIMIT 1"); }
 catch (PDOException $e) { header('Location: ' . BASE_URL . '/migrate.php'); exit; }
 
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['scope_id']]); $companiesDd = $s->fetchAll();
-}
-$fCompany = (int)($_REQUEST['company'] ?? ($companiesDd[0]['id'] ?? 0));
-if ($fCompany && in_array($user['role'], ['admin','operator'], true)) {
-    $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$fCompany, $user['scope_id']]); if (!$chk->fetch()) $fCompany = 0;
-}
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 
 $tab       = in_array($_GET['tab'] ?? '', ['settlements','template']) ? ($_GET['tab'] ?? 'settlements') : 'settlements';
 $viewId    = (int)($_GET['view'] ?? 0);
@@ -232,16 +223,8 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="alert alert-<?= $msgType ?> py-2"><?= htmlspecialchars($msg) ?></div>
 <?php endif; ?>
 
-<!-- Company selector + tabs -->
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-  <form method="GET" class="d-flex gap-2 align-items-center">
-    <select name="company" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:160px">
-      <?php foreach ($companiesDd as $c): ?>
-      <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-    <input type="hidden" name="tab" value="<?= $tab ?>">
-  </form>
+<!-- Tabs (company comes from the global topbar switcher) -->
+<div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mb-3">
   <?php if (!$viewId): ?>
   <ul class="nav nav-tabs mb-0">
     <li class="nav-item"><a class="nav-link <?= $tab==='settlements'?'active':'' ?>" href="fnf.php?company=<?= $fCompany ?>&tab=settlements">Settlements</a></li>

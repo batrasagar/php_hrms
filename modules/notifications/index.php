@@ -49,20 +49,8 @@ $db->exec("CREATE TABLE IF NOT EXISTS tblEmailLog (
     KEY idx_co_time (CompanyId, SentAt)
 )");
 
-// ── Company list ──────────────────────────────────────────────────────────
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['scope_id']]);
-    $companiesDd = $s->fetchAll();
-}
-$fCompany = (int)($_REQUEST['company'] ?? ($companiesDd[0]['id'] ?? 0));
-if ($fCompany && in_array($user['role'], ['admin','operator'], true)) {
-    $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$fCompany, $user['scope_id']]);
-    if (!$chk->fetch()) $fCompany = 0;
-}
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 
 $activeTab = $_GET['tab'] ?? 'smtp';
 if ($activeTab === 'cron' && $user['role'] !== 'superadmin') $activeTab = 'smtp';
@@ -220,19 +208,6 @@ require_once __DIR__ . '/../../includes/header.php';
 
 <?php if ($flashMsg): ?>
 <div class="alert alert-<?= $flashType ?> py-2"><?= htmlspecialchars($flashMsg) ?></div>
-<?php endif; ?>
-
-<!-- Company selector -->
-<?php if (count($companiesDd) > 1): ?>
-<form method="GET" class="mb-3 d-flex align-items-center gap-2">
-  <label class="form-label mb-0 fw-semibold">Company</label>
-  <select name="company" class="form-select form-select-sm" style="max-width:220px" onchange="this.form.submit()">
-    <?php foreach ($companiesDd as $c): ?>
-    <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-    <?php endforeach; ?>
-  </select>
-  <input type="hidden" name="tab" value="<?= htmlspecialchars($activeTab) ?>">
-</form>
 <?php endif; ?>
 
 <?php if ($fCompany && !empty($smtp['CronSecret'])): ?>

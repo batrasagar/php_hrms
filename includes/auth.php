@@ -105,3 +105,34 @@ function scopeCompanyId(int $requested = 0): int {
     if ($role === 'user') return (int)($_SESSION['user_company_id'] ?? 0);
     return $requested;
 }
+
+/** Role-scoped list of companies the current user may work with (for the topbar switcher). */
+function companiesForUser(PDO $db, array $user): array {
+    if ($user['role'] === 'user') return [];
+    if ($user['role'] === 'superadmin') {
+        return $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
+    }
+    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
+    $stmt->execute([$user['scope_id']]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * The globally selected company (set from the topbar switcher, kept in the session).
+ * Validates the stored id against the user's accessible companies and auto-selects
+ * the first one when nothing (or something stale) is stored. Role 'user' is always
+ * pinned to their own company and never sees the switcher.
+ */
+function activeCompanyId(PDO $db, array $user): int {
+    if ($user['role'] === 'user') return (int)$user['company_id'];
+    $ids = array_map('intval', array_column(companiesForUser($db, $user), 'id'));
+    $sel = (int)($_SESSION['active_company_id'] ?? 0);
+    // A ?company= override (print pages / deep links) wins if it's one the user may access.
+    $req = (int)($_GET['company'] ?? 0);
+    if ($req && in_array($req, $ids, true)) return $req;
+    if (!$sel || !in_array($sel, $ids, true)) {
+        $sel = $ids[0] ?? 0;
+        $_SESSION['active_company_id'] = $sel;
+    }
+    return $sel;
+}

@@ -8,20 +8,8 @@ $db   = getDb();
 $user = currentUser();
 $msg  = ''; $msgType = 'success';
 
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['scope_id']]);
-    $companiesDd = $s->fetchAll();
-}
-
-$fCompany = (int)($_REQUEST['company'] ?? ($companiesDd[0]['id'] ?? 0));
-if ($fCompany && in_array($user['role'], ['admin','operator'], true)) {
-    $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$fCompany, $user['scope_id']]);
-    if (!$chk->fetch()) $fCompany = 0;
-}
+// Company comes from the global topbar switcher (scope-validated inside the helper)
+$fCompany = activeCompanyId($db, $user);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['do_left'])) {
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
@@ -76,20 +64,6 @@ $activePage = 'emp_left';
 require_once __DIR__ . '/../../includes/header.php';
 ?>
 <?php if ($msg): ?><div class="alert alert-<?= $msgType ?> py-2"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
-
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-body py-2">
-    <form method="GET" class="d-flex gap-2 align-items-center">
-      <label class="form-label small mb-0">Company</label>
-      <select name="company" class="form-select form-select-sm" style="max-width:240px" onchange="this.form.submit()">
-        <option value="">— Select Company —</option>
-        <?php foreach ($companiesDd as $c): ?>
-        <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-        <?php endforeach; ?>
-      </select>
-    </form>
-  </div>
-</div>
 
 <?php if ($fCompany && !empty($employees)): ?>
 <form method="POST" action="bulk_left.php?company=<?= $fCompany ?>" data-ajax
@@ -176,7 +150,7 @@ document.getElementById('empSearch')?.addEventListener('input', function(){
 <?php elseif ($fCompany): ?>
 <div class="alert alert-info">No active employees for this company.</div>
 <?php else: ?>
-<div class="alert alert-info">Select a company to mark employees as left.</div>
+<div class="alert alert-info">Select a company from the top-bar switcher to mark employees as left.</div>
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

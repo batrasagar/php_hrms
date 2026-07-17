@@ -7,20 +7,8 @@ requireAdmin();
 $db   = getDb();
 $user = currentUser();
 
-if ($user['role'] === 'superadmin') {
-    $companies = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['scope_id']]);
-    $companies = $s->fetchAll();
-}
-
-$fCompany = (int)($_REQUEST['company'] ?? ($companies[0]['id'] ?? 0));
-if ($fCompany && in_array($user['role'], ['admin','operator'], true)) {
-    $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$fCompany, $user['scope_id']]);
-    if (!$chk->fetch()) $fCompany = 0;
-}
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 
 try { $db->query("SELECT 1 FROM tblEmployeePayroll LIMIT 1"); }
 catch (PDOException $e) { header('Location: ' . BASE_URL . '/migrate.php'); exit; }
@@ -124,16 +112,6 @@ $activePage = 'payroll_emp_setup';
 require_once __DIR__ . '/../../includes/header.php';
 ?>
 <?php if ($msg): ?><div class="alert alert-<?= $msgType ?>"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
-
-<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
-  <form method="GET" class="d-flex gap-2">
-    <select name="company" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:180px">
-      <?php foreach ($companies as $c): ?>
-        <option value="<?= $c['id'] ?>" <?= $c['id']==$fCompany?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </form>
-</div>
 
 <?php if ($editEmp): ?>
 <!-- Edit form -->
@@ -308,7 +286,7 @@ toggleFields();
   </div>
 </div>
 <?php else: ?>
-<div class="alert alert-warning">Please select a company.</div>
+<div class="alert alert-warning">Please select a company from the topbar switcher.</div>
 <?php endif; ?>
 <?php endif; ?>
 

@@ -16,29 +16,17 @@ if (isset($_GET['delete'])) {
 }
 
 $fYear = (int)($_GET['year'] ?? date('Y'));
-$fCo   = (int)($_GET['company'] ?? 0);
+// Company comes from the global topbar switcher
+$fCo   = activeCompanyId($db, $user);
 
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-    $where = ['YEAR(h.HolidayDate) = ?'];
-    $params = [$fYear];
-    if ($fCo) { $where[] = 'h.CompanyId=?'; $params[] = $fCo; }
-    $stmt = $db->prepare("SELECT h.*, c.Name AS CompanyName FROM tblHoliday h
-        JOIN tblCompany c ON c.id = h.CompanyId
-        WHERE " . implode(' AND ', $where) . " ORDER BY h.HolidayDate");
-    $stmt->execute($params);
-} else {
-    $stmt2 = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt2->execute([$user['scope_id']]);
-    $companiesDd = $stmt2->fetchAll();
-    $where = ['YEAR(h.HolidayDate) = ?', 'c.AdminId = ?'];
-    $params = [$fYear, $user['scope_id']];
-    if ($fCo) { $where[] = 'h.CompanyId=?'; $params[] = $fCo; }
-    $stmt = $db->prepare("SELECT h.*, c.Name AS CompanyName FROM tblHoliday h
-        JOIN tblCompany c ON c.id = h.CompanyId
-        WHERE " . implode(' AND ', $where) . " ORDER BY h.HolidayDate");
-    $stmt->execute($params);
-}
+$where  = ['YEAR(h.HolidayDate) = ?'];
+$params = [$fYear];
+if ($user['role'] !== 'superadmin') { $where[] = 'c.AdminId = ?'; $params[] = $user['scope_id']; }
+if ($fCo) { $where[] = 'h.CompanyId=?'; $params[] = $fCo; }
+$stmt = $db->prepare("SELECT h.*, c.Name AS CompanyName FROM tblHoliday h
+    JOIN tblCompany c ON c.id = h.CompanyId
+    WHERE " . implode(' AND ', $where) . " ORDER BY h.HolidayDate");
+$stmt->execute($params);
 $holidays = $stmt->fetchAll();
 $typeLabels = ['national' => 'National', 'optional' => 'Optional', 'restricted' => 'Restricted'];
 $typeBadges = ['national' => 'bg-danger', 'optional' => 'bg-warning text-dark', 'restricted' => 'bg-info text-dark'];
@@ -56,12 +44,7 @@ require_once __DIR__ . '/../../includes/header.php';
       <option <?= $fYear==$y?'selected':'' ?>><?= $y ?></option>
       <?php endfor; ?>
     </select>
-    <select name="company" class="form-select form-select-sm" style="width:160px" onchange="$(this.form).trigger('submit')">
-      <option value="">All Companies</option>
-      <?php foreach ($companiesDd as $c): ?>
-      <option value="<?= $c['id'] ?>" <?= $fCo==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-      <?php endforeach; ?>
-    </select>
+    <input type="hidden" name="company" value="<?= (int)$fCo ?>">
   </form>
   <a href="add.php" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Add Holiday</a>
 </div>

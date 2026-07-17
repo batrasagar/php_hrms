@@ -10,17 +10,9 @@ $user = currentUser();
 try { $db->query("SELECT 1 FROM tblEmployeePayroll LIMIT 1"); }
 catch (PDOException $e) { header('Location: ' . BASE_URL . '/migrate.php'); exit; }
 
-// Companies in scope
-if ($user['role'] === 'superadmin') {
-    $companies = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companies = $stmt->fetchAll();
-}
-$companyIds = array_column($companies, 'id');
-$fCompany   = (int)($_REQUEST['company'] ?? ($companies[0]['id'] ?? 0));
-if ($fCompany && !in_array($fCompany, $companyIds, true)) $fCompany = 0;
+// Company comes from the global topbar switcher
+$companyIds = array_map('intval', array_column(companiesForUser($db, $user), 'id'));
+$fCompany   = activeCompanyId($db, $user);
 
 const WAGE_TYPES  = ['monthly','daily','hourly','piece_rate'];
 $FIXED_HEADERS = ['employeecode','employeename','wagetype','wagerate','hoursperday','otallowed','pfapplicable','esiapplicable','tdsapplicable'];
@@ -224,19 +216,12 @@ require_once __DIR__ . '/../../includes/header.php';
     <h5 class="mb-0">Bulk CTC Import</h5>
     <div class="text-muted small">Export the current CTC chart, edit in Excel, then re-upload to bulk-update wages &amp; components.</div>
   </div>
-  <form method="GET" class="d-flex gap-2">
-    <select name="company" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:180px">
-      <?php foreach ($companies as $c): ?>
-      <option value="<?= $c['id'] ?>" <?= $c['id']==$fCompany?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </form>
 </div>
 
 <?php if ($error): ?><div class="alert alert-danger py-2"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 
 <?php if (!$fCompany): ?>
-<div class="alert alert-warning">Please select a company.</div>
+<div class="alert alert-warning">Please select a company from the topbar switcher.</div>
 
 <?php elseif ($step === 'done'): ?>
 <div class="card border-0 shadow-sm" style="max-width:560px">

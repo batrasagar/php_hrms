@@ -13,16 +13,14 @@ try { $db->query("SELECT 1 FROM tblWhatsappSettings LIMIT 1"); }
 catch (PDOException $e) { header('Location: ' . BASE_URL . '/migrate.php'); exit; }
 
 // ── Scope options (which channel row we're editing) ─────────────────────────────
-if ($isSuper) {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-    $scopeOptions = [0 => 'System Default (all companies)'];
-    foreach ($companiesDd as $c) $scopeOptions[(int)$c['id']] = $c['Name'];
-} else {
-    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['scope_id']]);
-    $companiesDd = $s->fetchAll();
-    $scopeOptions = [];
-    foreach ($companiesDd as $c) $scopeOptions[(int)$c['id']] = $c['Name'];
+// Company comes from the global topbar switcher; superadmin can additionally
+// edit the System Default channel (CompanyId 0).
+$activeCo = activeCompanyId($db, $user);
+$scopeOptions = $isSuper ? [0 => 'System Default (all companies)'] : [];
+if ($activeCo) {
+    $cn = $db->prepare("SELECT Name FROM tblCompany WHERE id=?");
+    $cn->execute([$activeCo]);
+    if ($n = $cn->fetchColumn()) $scopeOptions[$activeCo] = $n;
 }
 $scopeIds = array_keys($scopeOptions);
 $fScope   = $_REQUEST['scope'] ?? '';

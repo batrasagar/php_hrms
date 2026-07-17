@@ -9,19 +9,8 @@ $activePage = 'report_attendance';
 $db   = getDb();
 $user = currentUser();
 
-// Filter dropdown data only — computation moved to ajax/attendance_data.php
-if ($user['role'] === 'user') {
-    $companiesDd = [];
-    $fCompany    = $user['company_id'];
-} elseif ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-    $fCompany    = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companiesDd = $stmt->fetchAll();
-    $fCompany    = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
-}
+// Company comes from the global topbar switcher — filter data moved to ajax/attendance_data.php
+$fCompany = activeCompanyId($db, $user);
 
 $fFrom       = trim($_GET['from']       ?? date('Y-m-d'));
 $fTo         = trim($_GET['to']         ?? date('Y-m-d'));
@@ -56,18 +45,7 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2">
     <form id="attForm" method="GET" class="row g-2 align-items-end">
-      <?php if ($user['role'] !== 'user'): ?>
-      <div class="col-12 col-sm-6 col-md-3"><label class="form-label small mb-1">Company <span class="text-danger">*</span></label>
-        <select name="company" class="form-select form-select-sm" onchange="$(this.form).trigger('submit')">
-          <option value="">— Select —</option>
-          <?php foreach ($companiesDd as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <?php else: ?>
-      <input type="hidden" name="company" value="<?= $fCompany ?>">
-      <?php endif; ?>
+      <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
       <div class="col-6 col-sm-4 col-md-2"><label class="form-label small mb-1">From</label>
         <input type="date" name="from" class="form-control form-control-sm" value="<?= htmlspecialchars($fFrom) ?>">
       </div>

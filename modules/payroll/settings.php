@@ -7,20 +7,8 @@ requireAdmin();
 $db   = getDb();
 $user = currentUser();
 
-if ($user['role'] === 'superadmin') {
-    $companies = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['scope_id']]);
-    $companies = $s->fetchAll();
-}
-
-$fCompany = (int)($_REQUEST['company'] ?? ($companies[0]['id'] ?? 0));
-if ($fCompany && in_array($user['role'], ['admin','operator'], true)) {
-    $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$fCompany, $user['scope_id']]);
-    if (!$chk->fetch()) $fCompany = 0;
-}
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 
 $defaults = [
     'WorkingDaysPerMonth' => 26, 'PFEmployeeRate' => 12.00, 'PFEmployerRate' => 12.00,
@@ -92,16 +80,6 @@ require_once __DIR__ . '/../../includes/header.php';
 <?php if ($msg): ?>
 <div class="alert alert-<?= $msgType ?>"><?= htmlspecialchars($msg) ?></div>
 <?php endif; ?>
-
-<form method="GET" class="row g-2 mb-4" style="max-width:400px">
-  <div class="col">
-    <select name="company" class="form-select" onchange="this.form.submit()">
-      <?php foreach ($companies as $c): ?>
-        <option value="<?= $c['id'] ?>" <?= $c['id']==$fCompany?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </div>
-</form>
 
 <?php if ($fCompany): ?>
 <form method="POST" action="settings.php?company=<?= $fCompany ?>" data-ajax>
@@ -207,7 +185,7 @@ require_once __DIR__ . '/../../includes/header.php';
 </div>
 </form>
 <?php else: ?>
-<div class="alert alert-warning">Please select a company above.</div>
+<div class="alert alert-warning">Please select a company from the topbar switcher.</div>
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

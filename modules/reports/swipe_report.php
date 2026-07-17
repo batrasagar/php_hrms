@@ -10,18 +10,8 @@ require_once __DIR__ . '/../../includes/header.php';
 $db   = getDb();
 $user = currentUser();
 
-if ($user['role'] === 'user') {
-    $companiesDd = [];
-    $fCompany    = $user['company_id'];
-} elseif ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-    $fCompany    = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companiesDd = $stmt->fetchAll();
-    $fCompany    = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
-}
+// Company comes from the global topbar switcher
+$fCompany    = activeCompanyId($db, $user);
 $fMonth      = trim($_GET['month']       ?? date('Y-m'));
 $fDept       = trim($_GET['dept']        ?? '');
 $fContractor = trim($_GET['contractor']  ?? '');
@@ -71,19 +61,7 @@ $autoload = $fCompany ? 1 : 0;
 <div class="card border-0 shadow-sm mb-3 no-print">
   <div class="card-body py-2">
     <form id="swipeForm" method="GET" class="row g-2 align-items-end">
-      <?php if ($user['role'] !== 'user'): ?>
-      <div class="col-sm-4 col-md-3">
-        <label class="form-label small mb-1">Company</label>
-        <select name="company" class="form-select form-select-sm" onchange="$(this.form).trigger('submit')">
-          <option value="">— Select —</option>
-          <?php foreach ($companiesDd as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= $fCompany == $c['id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['Name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <?php else: ?>
-      <input type="hidden" name="company" value="<?= $fCompany ?>">
-      <?php endif; ?>
+      <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
       <div class="col-sm-2">
         <label class="form-label small mb-1">Month</label>
         <input type="month" name="month" class="form-control form-control-sm" value="<?= htmlspecialchars($fMonth) ?>" onchange="$(this.form).trigger('submit')">

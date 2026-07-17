@@ -7,16 +7,8 @@ requireAdmin();
 $db   = getDb();
 $user = currentUser();
 
-// ── Company list ──────────────────────────────────────────────────────────
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companiesDd = $stmt->fetchAll();
-}
-
-$fCompany = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 $editId   = (int)($_GET['id'] ?? 0);
 
 function canAccess(PDO $db, array $user, int $companyId): bool {
@@ -25,9 +17,6 @@ function canAccess(PDO $db, array $user, int $companyId): bool {
     $s->execute([$companyId, $user['scope_id']]);
     return (bool)$s->fetch();
 }
-
-// Verify company access
-if ($fCompany && !canAccess($db, $user, $fCompany)) $fCompany = 0;
 
 // ── Load existing record for edit ─────────────────────────────────────────
 $existing = null;
@@ -123,23 +112,8 @@ require_once __DIR__ . '/../../includes/header.php';
     <form method="POST" action="add.php<?= $editId ? '?id='.$editId : '' ?>">
       <?= csrf_field() ?? '' ?>
 
-      <!-- Company -->
-      <div class="mb-3">
-        <label class="form-label fw-semibold">Company <span class="text-danger">*</span></label>
-        <?php if ($editId): ?>
-        <input type="hidden" name="company_id" value="<?= $fCompany ?>">
-        <input type="text" class="form-control" disabled
-               value="<?= htmlspecialchars($companiesDd[array_search($fCompany, array_column($companiesDd,'id'))]['Name'] ?? '') ?>">
-        <?php else: ?>
-        <select name="company_id" id="selCompany" class="form-select" required
-                onchange="window.location='add.php?company='+this.value">
-          <option value="">— Select Company —</option>
-          <?php foreach ($companiesDd as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-        <?php endif; ?>
-      </div>
+      <!-- Company comes from the global topbar switcher -->
+      <input type="hidden" name="company_id" value="<?= (int)$fCompany ?>">
 
       <!-- Employee -->
       <div class="mb-3">
@@ -154,7 +128,7 @@ require_once __DIR__ . '/../../includes/header.php';
           <?php endforeach; ?>
         </select>
         <?php if (!$fCompany): ?>
-        <div class="form-text">Select a company first.</div>
+        <div class="form-text">Select a company from the topbar switcher first.</div>
         <?php endif; ?>
       </div>
 

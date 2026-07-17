@@ -1,9 +1,13 @@
 <?php
 if (!defined('BASE_URL')) define('BASE_URL', '');
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../config/db.php';
 requireLogin();
 $user = currentUser();
 $ap   = $activePage ?? '';
+// Global company switcher (topbar). Role 'user' is pinned to one company — no switcher.
+$navCompanies     = companiesForUser(getDb(), $user);
+$navActiveCompany = activeCompanyId(getDb(), $user);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -304,6 +308,27 @@ body.sb-collapsed .app-main { margin-left: var(--sidebar-c); }
 }
 .topbar-toggle:hover { background: rgba(0,0,0,.07); color: var(--text); }
 .topbar-title { font-size: 16px; font-weight: 600; color: var(--text); flex: 1; letter-spacing: -.01em; }
+/* Global company switcher pill */
+.company-pill {
+  display: flex; align-items: center; gap: 7px;
+  height: 32px; padding: 0 10px 0 12px;
+  background: var(--blue-lt);
+  border-radius: 999px;
+  flex-shrink: 1; min-width: 0;
+}
+.company-dot { width: 7px; height: 7px; border-radius: 50%; background: #30d158; flex-shrink: 0; }
+.company-select {
+  border: none; background: transparent; outline: none;
+  font-size: 13px; font-weight: 600; color: var(--blue);
+  max-width: 220px; min-width: 0;
+  text-overflow: ellipsis; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  padding-right: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 16 16' fill='%230071e3'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right center;
+}
+.company-pill--empty { color: var(--text-2); font-size: 13px; }
+@media (max-width: 576px) { .company-select { max-width: 120px; } .cmdk-trigger-text, .cmdk-trigger kbd { display: none; } }
 .topbar-profile-btn {
   border: none;
   background: transparent;
@@ -1131,6 +1156,44 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <i class="bi bi-list" style="font-size:20px"></i>
     </button>
     <div class="topbar-title"><?= htmlspecialchars($pageTitle ?? '') ?></div>
+
+    <?php if ($user['role'] !== 'user'): ?>
+    <!-- Global company switcher -->
+    <?php if ($navCompanies): ?>
+    <div class="company-pill" title="Active company">
+      <span class="company-dot"></span>
+      <select class="company-select" id="globalCompanySelect">
+        <?php foreach ($navCompanies as $c): ?>
+        <option value="<?= (int)$c['id'] ?>" <?= $navActiveCompany == $c['id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['Name']) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <script>
+    document.getElementById('globalCompanySelect').addEventListener('change', function () {
+      var sel = this;
+      sel.disabled = true;
+      fetch('<?= BASE_URL ?>/ajax/set_company.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded',
+                   'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content },
+        body: 'company=' + encodeURIComponent(sel.value)
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.success) {
+          // Reload the current page under the new company; drop any stale ?company= override.
+          var u = new URL(location.href);
+          u.searchParams.delete('company');
+          location.href = u.toString();
+        } else {
+          sel.disabled = false;
+          window.showToast ? showToast((d.errors || ['Failed'])[0], 'error') : alert((d.errors || ['Failed'])[0]);
+        }
+      }).catch(function () { sel.disabled = false; });
+    });
+    </script>
+    <?php else: ?>
+    <div class="company-pill company-pill--empty" title="No active company"><span class="company-dot" style="background:#ff9f0a"></span>No company</div>
+    <?php endif; ?>
+    <?php endif; ?>
 
     <!-- Menu search (Ctrl+M) -->
     <button type="button" class="cmdk-trigger" onclick="window.openMenuPalette && window.openMenuPalette()" title="Search menu (Ctrl+M)">

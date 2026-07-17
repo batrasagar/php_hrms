@@ -10,18 +10,8 @@ require_once __DIR__ . '/../../includes/header.php';
 $db   = getDb();
 $user = currentUser();
 
-if ($user['role'] === 'user') {
-    $companiesDd = [];
-    $fCompany    = $user['company_id'];
-} elseif ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-    $fCompany    = (int)($_GET['company'] ?? 0);
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companiesDd = $stmt->fetchAll();
-    $fCompany    = (int)($_GET['company'] ?? 0);
-}
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 
 $fType       = ($_GET['type'] ?? 'joined') === 'left' ? 'left' : 'joined';
 $fFrom       = trim($_GET['from']       ?? date('Y-m-01'));
@@ -74,16 +64,7 @@ $statusBadge = ['active' => 'bg-success', 'pending' => 'bg-warning text-dark', '
           <option value="left"   <?= $fType==='left'  ?'selected':'' ?>>Left / Exited</option>
         </select>
       </div>
-      <?php if ($user['role'] !== 'user'): ?>
-      <div class="col-6 col-sm-4 col-md-2"><label class="form-label small mb-1">Company</label>
-        <select name="company" class="form-select form-select-sm">
-          <option value="">All</option>
-          <?php foreach ($companiesDd as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <?php else: ?><input type="hidden" name="company" value="<?= $fCompany ?>"><?php endif; ?>
+      <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
       <div class="col-6 col-sm-4 col-md-2"><label class="form-label small mb-1">From (<?= $fType==='left'?'Exit':'Join' ?>)</label>
         <input type="date" name="from" class="form-control form-control-sm" value="<?= htmlspecialchars($fFrom) ?>">
       </div>

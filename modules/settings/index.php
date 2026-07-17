@@ -18,19 +18,14 @@ $db->exec("CREATE TABLE IF NOT EXISTS tblSettings (
 )");
 
 // ── Company scope ──────────────────────────────────────────────────────────────
-if ($user['role'] === 'superadmin') {
-    $companiesDd = []; // superadmin edits global (CompanyId = 0)
-    $fCompany    = 0;
-} else {
-    $cStmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $cStmt->execute([$user['scope_id']]);
-    $companiesDd = $cStmt->fetchAll();
-    $fCompany    = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
-    if ($fCompany) {
-        $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-        $chk->execute([$fCompany, $user['scope_id']]);
-        if (!$chk->fetch()) $fCompany = 0;
-    }
+// Superadmin edits global defaults (CompanyId = 0); everyone else follows the
+// global topbar company switcher.
+$fCompany = $user['role'] === 'superadmin' ? 0 : activeCompanyId($db, $user);
+$fCompanyName = '';
+if ($fCompany) {
+    $cn = $db->prepare("SELECT Name FROM tblCompany WHERE id=?");
+    $cn->execute([$fCompany]);
+    $fCompanyName = (string)$cn->fetchColumn();
 }
 
 // ── Save ──────────────────────────────────────────────────────────────────────
@@ -117,19 +112,6 @@ $activePage = 'settings';
 require_once __DIR__ . '/../../includes/header.php';
 ?>
 
-<?php if ($user['role'] !== 'superadmin' && count($companiesDd) > 1): ?>
-<div class="mb-3">
-  <form method="GET" class="d-flex gap-2 align-items-center">
-    <label class="form-label mb-0 fw-semibold">Company</label>
-    <select name="company" class="form-select form-select-sm" style="width:220px" onchange="this.form.submit()">
-      <?php foreach ($companiesDd as $c): ?>
-      <option value="<?= $c['id'] ?>" <?= $fCompany == $c['id'] ? 'selected' : '' ?>><?= htmlspecialchars($c['Name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </form>
-</div>
-<?php endif; ?>
-
 <?php if (!$fCompany && $user['role'] !== 'superadmin'): ?>
 <div class="alert alert-info">Select a company to configure its settings.</div>
 <?php else: ?>
@@ -145,7 +127,7 @@ require_once __DIR__ . '/../../includes/header.php';
       <?php if ($user['role'] === 'superadmin'): ?>
       <span class="badge bg-secondary ms-1">Global Defaults</span>
       <?php elseif ($fCompany): ?>
-      <span class="badge bg-primary ms-1"><?= htmlspecialchars($companiesDd[0]['Name'] ?? '') ?></span>
+      <span class="badge bg-primary ms-1"><?= htmlspecialchars($fCompanyName) ?></span>
       <?php endif; ?>
     </div>
     <div class="card-body">
@@ -301,7 +283,7 @@ require_once __DIR__ . '/../../includes/header.php';
       <?php if ($user['role'] === 'superadmin'): ?>
       <span class="badge bg-secondary ms-1">Global Defaults</span>
       <?php elseif ($fCompany): ?>
-      <span class="badge bg-primary ms-1"><?= htmlspecialchars($companiesDd[0]['Name'] ?? '') ?></span>
+      <span class="badge bg-primary ms-1"><?= htmlspecialchars($fCompanyName) ?></span>
       <?php endif; ?>
     </div>
     <div class="card-body">

@@ -6,25 +6,13 @@ requireLogin();
 
 $db   = getDb();
 $user = currentUser();
-$role = $user['role'];
 
-if ($role === 'user') {
-    $scopeWhere = 'e.CompanyId = ' . (int)$user['company_id'];
-    $coName = $db->prepare("SELECT Name FROM tblCompany WHERE id=?");
-    $coName->execute([(int)$user['company_id']]);
-    $scopeName = $coName->fetchColumn() ?: 'Company';
-} elseif ($role === 'superadmin') {
-    $fCompany   = (int)($_GET['company'] ?? 0);
-    $scopeWhere = $fCompany ? "e.CompanyId = $fCompany" : '1';
-    $scopeName  = 'All Companies';
-    if ($fCompany) { $n = $db->prepare("SELECT Name FROM tblCompany WHERE id=?"); $n->execute([$fCompany]); $scopeName = $n->fetchColumn() ?: 'Company'; }
-} else {
-    $fCompany   = (int)($_GET['company'] ?? 0);
-    $base       = 'c.AdminId = ' . (int)$user['scope_id'];
-    $scopeWhere = $fCompany ? "$base AND e.CompanyId = $fCompany" : $base;
-    $scopeName  = 'All Companies';
-    if ($fCompany) { $n = $db->prepare("SELECT Name FROM tblCompany WHERE id=?"); $n->execute([$fCompany]); $scopeName = $n->fetchColumn() ?: 'Company'; }
-}
+// Company comes from the global topbar switcher (?company= deep-link still honored)
+$fCompany   = activeCompanyId($db, $user);
+$scopeWhere = 'e.CompanyId = ' . (int)$fCompany;
+$n = $db->prepare("SELECT Name FROM tblCompany WHERE id=?");
+$n->execute([$fCompany]);
+$scopeName = $n->fetchColumn() ?: 'Company';
 
 // ── Aggregates ────────────────────────────────────────────────────────────────
 $byCompany = $db->query(

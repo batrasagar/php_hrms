@@ -8,15 +8,8 @@ $db   = getDb();
 $user = currentUser();
 $msg  = '';
 
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companiesDd = $stmt->fetchAll();
-}
-
-$fCompany = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 $fDept    = trim($_GET['dept'] ?? '');
 $fPage    = max(1, (int)($_GET['p'] ?? 1));
 $perPage  = 50;
@@ -111,15 +104,7 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2">
     <form method="GET" class="row g-2 align-items-end">
-      <div class="col-sm-4">
-        <label class="form-label small mb-1">Company</label>
-        <select name="company" class="form-select form-select-sm" onchange="this.form.submit()">
-          <option value="">All Companies</option>
-          <?php foreach ($companiesDd as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
+      <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
       <div class="col-sm-3">
         <label class="form-label small mb-1">Department</label>
         <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -146,7 +131,7 @@ require_once __DIR__ . '/../../includes/header.php';
   <div class="card-body p-0" style="overflow-x:auto">
     <form id="bulkForm" method="POST" data-ajax>
     <?php if (empty($employees)): ?>
-    <div class="p-4 text-center text-muted">No employees found. Select a company above.</div>
+    <div class="p-4 text-center text-muted">No employees found. Pick a company from the top-bar switcher.</div>
     <?php else: ?>
     <style>
       #tblBulkEdit td { padding: 0 !important; vertical-align: middle; }

@@ -10,19 +10,8 @@ $user = currentUser();
 try { $db->query("SELECT 1 FROM tblDocTemplate LIMIT 1"); }
 catch (PDOException $e) { header('Location: ' . BASE_URL . '/migrate.php'); exit; }
 
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['scope_id']]);
-    $companiesDd = $s->fetchAll();
-}
-$fCompany = (int)($_REQUEST['company'] ?? ($companiesDd[0]['id'] ?? 0));
-if ($fCompany && in_array($user['role'], ['admin','operator'], true)) {
-    $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$fCompany, $user['scope_id']]);
-    if (!$chk->fetch()) $fCompany = 0;
-}
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 
 $docTypes = [
     'offer_letter'       => 'Offer Letter',
@@ -110,13 +99,7 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="col-lg-3" id="tplSidebar">
   <div class="card border-0 shadow-sm h-100">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
-      <form method="GET" class="d-inline">
-        <select name="company" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:120px">
-          <?php foreach ($companiesDd as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </form>
+      <span class="fw-semibold small">Templates</span>
       <a href="templates.php?company=<?= $fCompany ?>" class="btn btn-primary btn-sm ms-1"><i class="bi bi-plus-lg"></i></a>
     </div>
     <div class="list-group list-group-flush" style="overflow-y:auto;max-height:580px">

@@ -8,15 +8,8 @@ $db   = getDb();
 $user = currentUser();
 $msg  = '';
 
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['scope_id']]);
-    $companiesDd = $s->fetchAll();
-}
-
-$fCompany = (int)($_REQUEST['company'] ?? ($companiesDd[0]['id'] ?? 0));
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 $fDept    = trim($_GET['dept'] ?? '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
@@ -110,14 +103,7 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2">
     <form method="GET" class="row g-2 align-items-end">
-      <div class="col-sm-4">
-        <label class="form-label small mb-1">Company</label>
-        <select name="company" class="form-select form-select-sm" onchange="this.form.submit()">
-          <?php foreach ($companiesDd as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
+      <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
       <div class="col-sm-3">
         <label class="form-label small mb-1">Department</label>
         <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -161,7 +147,7 @@ require_once __DIR__ . '/../../includes/header.php';
   <div class="card-body p-0" style="overflow-x:auto">
     <form id="assignForm" method="POST" action="assign.php?company=<?= $fCompany ?>&dept=<?= urlencode($fDept) ?>" data-ajax>
     <?php if (empty($employees)): ?>
-    <div class="p-4 text-center text-muted">No active employees. Select a company above.</div>
+    <div class="p-4 text-center text-muted">No active employees for this company.</div>
     <?php else: ?>
     <style>
       #tblAssign td { padding:3px 6px !important; vertical-align:middle; }

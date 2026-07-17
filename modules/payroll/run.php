@@ -188,21 +188,9 @@ try { $db->query("SELECT 1 FROM tblPayrollRun LIMIT 1"); }
 catch (PDOException $e) { header('Location: ' . BASE_URL . '/migrate.php'); exit; }
 
 /* ── company scoping ──────────────────────────────────────────────────── */
-if ($user['role'] === 'superadmin') {
-    $companies = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $s = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $s->execute([$user['scope_id']]);
-    $companies = $s->fetchAll();
-}
-
-$fCompany = (int)($_REQUEST['company'] ?? ($companies[0]['id'] ?? 0));
-if ($fCompany && in_array($user['role'], ['admin','operator'], true)) {
-    $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
-    $chk->execute([$fCompany, $user['scope_id']]);
-    if (!$chk->fetch()) $fCompany = 0;
-}
-$fMonth = trim($_REQUEST['month'] ?? date('Y-m'));
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
+$fMonth   = trim($_REQUEST['month'] ?? date('Y-m'));
 
 /* ── action handling ─────────────────────────────────────────────────── */
 $msg = ''; $msgType = 'success';
@@ -438,14 +426,7 @@ require_once __DIR__ . '/../../includes/header.php';
 
 <!-- Filter bar -->
 <form method="GET" class="row g-2 mb-4 align-items-end">
-  <div class="col-auto">
-    <label class="form-label">Company</label>
-    <select name="company" class="form-select form-select-sm" style="min-width:180px">
-      <?php foreach ($companies as $c): ?>
-        <option value="<?= $c['id'] ?>" <?= $c['id']==$fCompany?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-      <?php endforeach; ?>
-    </select>
-  </div>
+  <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
   <div class="col-auto">
     <label class="form-label">Month</label>
     <input type="month" name="month" class="form-control form-control-sm" value="<?= htmlspecialchars($fMonth) ?>">
@@ -454,7 +435,7 @@ require_once __DIR__ . '/../../includes/header.php';
 </form>
 
 <?php if (!$fCompany): ?>
-<div class="alert alert-warning">Select a company to continue.</div>
+<div class="alert alert-warning">Select a company from the topbar switcher to continue.</div>
 <?php elseif (!$run): ?>
 <!-- No run yet -->
 <div class="card" style="max-width:500px">

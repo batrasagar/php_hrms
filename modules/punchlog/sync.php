@@ -10,15 +10,8 @@ requireAdmin();
 $db   = getDb();
 $user = currentUser();
 
-// ── Company list scoped to user ───────────────────────────────────────────────
-if ($user['role'] === 'superadmin') {
-    $companies = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $adminId   = (in_array($user['role'], ['admin','operator'], true)) ? $user['scope_id'] : ($user['parent_admin_id'] ?? null);
-    $stmt      = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$adminId]);
-    $companies = $stmt->fetchAll();
-}
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 
 $result     = null;
 $syncRes    = null;
@@ -114,15 +107,7 @@ require_once __DIR__ . '/../../includes/header.php';
     <?php endif; ?>
 
     <form method="POST" data-ajax>
-      <div class="mb-3">
-        <label class="form-label">Company <span class="text-danger">*</span></label>
-        <select name="company" class="form-select" required>
-          <option value="">— Select Company —</option>
-          <?php foreach ($companies as $c): ?>
-          <option value="<?= $c['id'] ?>"><?= htmlspecialchars($c['Name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
+      <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
       <div class="row g-3 mb-3">
         <div class="col">
           <label class="form-label">From Date</label>

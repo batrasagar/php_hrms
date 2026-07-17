@@ -7,15 +7,8 @@ requireAdmin();
 $db   = getDb();
 $user = currentUser();
 
-if ($user['role'] === 'superadmin') {
-    $companiesDd = $db->query("SELECT id, Name FROM tblCompany WHERE IsActive=1 ORDER BY Name")->fetchAll();
-} else {
-    $stmt = $db->prepare("SELECT id, Name FROM tblCompany WHERE AdminId=? AND IsActive=1 ORDER BY Name");
-    $stmt->execute([$user['scope_id']]);
-    $companiesDd = $stmt->fetchAll();
-}
-
-$fCompany = (int)($_GET['company'] ?? ($companiesDd[0]['id'] ?? 0));
+// Company comes from the global topbar switcher
+$fCompany = activeCompanyId($db, $user);
 
 // Scope guard helper
 function canAccessCompany($db, $user, $cid) {
@@ -106,23 +99,6 @@ require_once __DIR__ . '/../../includes/header.php';
 ?>
 <?php if ($msg): ?><div class="alert alert-success py-2"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
 <?php if ($err): ?><div class="alert alert-danger py-2"><?= htmlspecialchars($err) ?></div><?php endif; ?>
-
-<!-- Company filter -->
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-body py-2">
-    <form method="GET" class="row g-2 align-items-end">
-      <div class="col-sm-4">
-        <label class="form-label small mb-1">Company</label>
-        <select name="company" class="form-select form-select-sm" onchange="this.form.submit()">
-          <option value="">— Select Company —</option>
-          <?php foreach ($companiesDd as $c): ?>
-          <option value="<?= $c['id'] ?>" <?= $fCompany==$c['id']?'selected':'' ?>><?= htmlspecialchars($c['Name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-    </form>
-  </div>
-</div>
 
 <?php if ($fCompany): ?>
 <div class="row g-3">
@@ -216,7 +192,7 @@ require_once __DIR__ . '/../../includes/header.php';
   </div>
 </div>
 <?php else: ?>
-<div class="alert alert-info">Select a company to manage leave types.</div>
+<div class="alert alert-info">Select a company from the topbar switcher to manage leave types.</div>
 <?php endif; ?>
 
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

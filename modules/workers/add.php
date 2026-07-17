@@ -134,9 +134,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ];
 }
 
-// Preselect company from ?company= (kept after each add)
+// Preselect the globally active company (?company= override still wins inside the helper)
 if (!$editId && !$rec['CompanyId']) {
-    $pre = (int)($_GET['company'] ?? 0);
+    $pre = activeCompanyId($db, $user);
     if ($pre && in_array($pre, $companyIds)) $rec['CompanyId'] = $pre;
     elseif (count($companies) === 1)         $rec['CompanyId'] = (int)$companies[0]['id'];
 }
