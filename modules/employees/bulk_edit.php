@@ -217,7 +217,8 @@ require_once __DIR__ . '/../../includes/header.php';
     <?php else: ?>
     <style>
       #tblBulkEdit td { padding: 0 !important; vertical-align: middle; }
-      #tblBulkEdit td.ro { padding: 2px 6px !important; color:#333; white-space:nowrap; }
+      #tblBulkEdit td.ro { padding: 2px 6px !important; color:#333; white-space:nowrap; background:#f1f3f5; }
+      #tblBulkEdit th.roh { background:#e9ecef; }
       #tblBulkEdit td.rn { padding: 2px 4px !important; }
       #tblBulkEdit th .bi-pencil-fill { font-size:9px; }
       #tblBulkEdit .form-control,
@@ -237,7 +238,7 @@ require_once __DIR__ . '/../../includes/header.php';
           <th>#</th>
           <?php foreach ($showList as $key):
               $m = $CAT[$key]; $ed = isset($editSet[$key]); ?>
-          <th style="min-width:<?= (int)($m['w'] ?? 100) ?>px">
+          <th class="<?= $ed ? '' : 'roh' ?>" style="min-width:<?= (int)($m['w'] ?? 100) ?>px">
             <?= htmlspecialchars($m['label']) ?>
             <?php if ($ed): ?><i class="bi bi-pencil-fill text-success" title="Editable"></i><?php endif; ?>
             <?php if (!empty($m['req']) && $ed): ?><span class="text-danger">*</span><?php endif; ?>
