@@ -150,11 +150,32 @@ $printedAt  = date('d-m-Y H:i');
     return ['dt', ''];
   }
 
+  // Minutes → "Hh Mm" (mirrors attendMinsToHm() in ajax/attendance_data.php)
+  function otHm(m) {
+    m = m || 0; if (m <= 0) return '';
+    var h = Math.floor(m / 60), mn = m % 60;
+    return (h ? h + 'h' : '') + (mn ? mn + 'm' : (h ? '' : '0m'));
+  }
+  function daysTxt(p, hp) { var d = (p || 0) + 0.5 * (hp || 0); return d ? (Number.isInteger(d) ? d : d.toFixed(1)) : '&mdash;'; }
+
+  // Summary cells (P/HP/A/L/CO/HL + Total Days + OT) for a department subtotal row.
+  function sumCells(a, showOt) {
+    return '<td class="sum sum-p">'  + (a.P  || 0) + '</td>'
+         + '<td class="sum sum-hp">' + (a.HP || 0) + '</td>'
+         + '<td class="sum sum-a">'  + (a.A  || 0) + '</td>'
+         + '<td class="sum sum-l">'  + (a.L  || 0) + '</td>'
+         + '<td class="sum sum-co">' + (a.CO || 0) + '</td>'
+         + '<td class="sum sum-hl">' + (a.HL || 0) + '</td>'
+         + '<td class="sum">'        + daysTxt(a.P, a.HP) + '</td>'
+         + (showOt ? '<td class="sum sum-l">' + (otHm(a.otMins) || '&mdash;') + '</td>' : '');
+  }
+
   function render(data) {
     var dates  = data.dates;
     var emps   = data.employees;
     var totals = data.dayTotals;
     var grand  = data.grand;
+    var showOt = !!data.showOt;
     var html   = '';
 
     html += '<div class="no-print">'
@@ -198,10 +219,32 @@ $printedAt  = date('d-m-Y H:i');
     });
     html += '<th style="min-width:20px">P</th><th style="min-width:20px">HP</th>'
           + '<th style="min-width:20px">A</th><th style="min-width:20px">L</th>'
-          + '<th style="min-width:20px">CO</th><th style="min-width:20px">HL</th></tr></thead>';
+          + '<th style="min-width:20px">CO</th><th style="min-width:20px">HL</th>'
+          + '<th style="min-width:24px">Days</th>'
+          + (showOt ? '<th style="min-width:28px">OT</th>' : '')
+          + '</tr></thead>';
+
+    // tbody — grouped by department, with a subtotal row per department
+    var colBefore = 1 + dates.length;                     // Employee name col + date columns
+    var totalCols = colBefore + 7 + (showOt ? 1 : 0);      // + P/HP/A/L/CO/HL/Days (+OT)
+    var curDept = null, deptAgg = null;
+    function flushDept() {
+      if (!deptAgg) return;
+      html += '<tr style="background:#e8e8e8;font-weight:bold"><td colspan="' + colBefore + '" style="text-align:right;font-size:8px">'
+            + esc(curDept || '(No Department)') + ' — subtotal (' + deptAgg.n + ')</td>'
+            + sumCells(deptAgg, showOt) + '</tr>';
+    }
 
     html += '<tbody>';
     emps.forEach(function (emp) {
+      var dep = emp.department || '';
+      if (dep !== curDept) {
+        flushDept();
+        curDept = dep;
+        deptAgg = { P:0, HP:0, A:0, L:0, CO:0, HL:0, otMins:0, n:0 };
+        html += '<tr style="background:#c8c8c8"><td colspan="' + totalCols + '" style="text-align:left;font-weight:bold;font-size:9px">'
+              + esc(dep || '(No Department)') + '</td></tr>';
+      }
       html += '<tr><td class="col-name" style="text-align:left">'
             + '<div style="font-weight:bold">' + esc(emp.code || '&mdash;') + '</div>'
             + '<div>' + esc(emp.name) + '</div>'
@@ -216,13 +259,19 @@ $printedAt  = date('d-m-Y H:i');
         html += '<td class="' + r[0] + '">' + r[1] + '</td>';
       });
       var s = emp.summary;
+      deptAgg.P += s.P || 0; deptAgg.HP += s.HP || 0; deptAgg.A += s.A || 0; deptAgg.L += s.L || 0;
+      deptAgg.CO += s.CO || 0; deptAgg.HL += s.HL || 0; deptAgg.otMins += s.otMins || 0; deptAgg.n++;
       html += '<td class="sum sum-p">'  + s.P + '</td>'
             + '<td class="sum sum-hp">' + (s.HP || '&mdash;') + '</td>'
             + '<td class="sum sum-a">'  + s.A  + '</td>'
             + '<td class="sum sum-l">'  + (s.L  || '&mdash;') + '</td>'
             + '<td class="sum sum-co">' + (s.CO || '&mdash;') + '</td>'
-            + '<td class="sum sum-hl">' + (s.HL || '&mdash;') + '</td></tr>';
+            + '<td class="sum sum-hl">' + (s.HL || '&mdash;') + '</td>'
+            + '<td class="sum">'        + daysTxt(s.P, s.HP) + '</td>'
+            + (showOt ? '<td class="sum sum-l">' + (otHm(s.otMins) || '&mdash;') + '</td>' : '')
+            + '</tr>';
     });
+    flushDept();
     html += '</tbody>';
 
     html += '<tfoot><tr style="background:#222;color:#fff">';
@@ -250,12 +299,16 @@ $printedAt  = date('d-m-Y H:i');
           + '<td style="color:#ef9a9a;font-weight:bold">' + (grand.L  || '&mdash;') + '</td>'
           + '<td style="color:#4dd0e1;font-weight:bold">' + (grand.CO || '&mdash;') + '</td>'
           + '<td style="color:#ffe082;font-weight:bold">' + (grand.HL || '&mdash;') + '</td>'
+          + '<td style="color:#fff;font-weight:bold">' + daysTxt(grand.P, grand.HP) + '</td>'
+          + (showOt ? '<td style="color:#ffcc80;font-weight:bold">' + (otHm(data.grandOtMins) || '&mdash;') + '</td>' : '')
           + '</tr></tfoot></table>';
 
     html += '<table class="summary-box" style="margin-top:8px"><thead><tr>'
           + '<th>Employees</th><th>Working Days</th><th>Present (P)</th>'
           + '<th>Half-Present (HP)</th><th>Absent (A)</th><th>Full Leave (L)</th>'
-          + '<th>Comp Off (CO)</th><th>Half Leave (HL)</th><th>Holidays</th><th>Attendance %</th>'
+          + '<th>Comp Off (CO)</th><th>Half Leave (HL)</th>'
+          + '<th>Total Days</th>' + (showOt ? '<th>Total OT</th>' : '')
+          + '<th>Holidays</th><th>Attendance %</th>'
           + '</tr></thead><tbody><tr>'
           + '<td>' + data.totalEmps   + '</td>'
           + '<td>' + data.workingDays + '</td>'
@@ -265,6 +318,8 @@ $printedAt  = date('d-m-Y H:i');
           + '<td style="color:#e65100">' + grand.L  + '</td>'
           + '<td style="color:#087990">' + grand.CO + '</td>'
           + '<td style="color:#856404">' + grand.HL + '</td>'
+          + '<td>' + daysTxt(grand.P, grand.HP) + '</td>'
+          + (showOt ? '<td style="color:#b85c00">' + (otHm(data.grandOtMins) || '&mdash;') + '</td>' : '')
           + '<td>' + data.holidayCount + '</td>'
           + '<td>' + data.pctP + '% P &nbsp; ' + data.pctA + '% A</td>'
           + '</tr></tbody></table>';
