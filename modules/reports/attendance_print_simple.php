@@ -3,6 +3,7 @@ define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/weekoff.php';
+require_once __DIR__ . '/../../includes/punch_source.php';
 requireLogin();
 requirePermission('report_attendance.view');
 
@@ -141,6 +142,16 @@ if (!empty($employees)) {
                 if (!$empCode) continue;
                 if (!isset($punchMap[$empCode][$date])) $punchMap[$empCode][$date] = true;
             }
+        }
+    }
+
+    // Local shards — same fix as ajax/attendance_data.php. This view only needs to
+    // know whether a punch exists, so collapse the detailed map to booleans.
+    $localPm = [];
+    punchMapAddLocal($db, (int)$fCompany, $fFrom, $fTo, $localPm);
+    foreach ($localPm as $empCode => $dayList) {
+        foreach ($dayList as $date => $_) {
+            if (!isset($punchMap[$empCode][$date])) $punchMap[$empCode][$date] = true;
         }
     }
 }

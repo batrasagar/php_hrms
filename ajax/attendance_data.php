@@ -3,6 +3,7 @@ define('BASE_URL', '..');
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/weekoff.php';
+require_once __DIR__ . '/../includes/punch_source.php';
 requireLogin();
 requirePermission('report_attendance.view');
 
@@ -250,6 +251,18 @@ if (!empty($employees)) {
                 unset($entry);
             }
         }
+    }
+
+    // Local shards (tblPunchLog_YYMM) — covers tenants whose punches were imported
+    // from a legacy system and never came through ADMS, and backfills any punch the
+    // sync cron already stored. Keyed on EmpCode, so no enrollment mapping needed.
+    $localPunches = punchMapAddLocal($db, (int)$fCompany, $fFrom, $fTo, $punchMap);
+    if ($localPunches > 0) {
+        // Device warnings are noise once local records supplied the punches.
+        $fetchErrors = array_values(array_filter(
+            $fetchErrors,
+            fn($e) => $e !== 'No devices linked to this company.'
+        ));
     }
 }
 
