@@ -279,10 +279,12 @@ foreach ($dates as $dt) {
 $dayTotals    = [];
 foreach ($dates as $dt) $dayTotals[$dt] = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
 $grand        = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
+$grandOtMins  = 0;
 $employeeRows = [];
 
 foreach ($employees as $e) {
     $presentDays = 0; $hpDays = 0; $absentDays = 0; $fullLv = 0; $halfLv = 0; $compOff = 0;
+    $otTotalMins = 0;
     $days = [];
 
     foreach ($dates as $dt) {
@@ -412,6 +414,7 @@ foreach ($employees as $e) {
                 }
                 if ($otMaxMin !== null) $otMins = min($otMins, $otMaxMin);   // cap auto OT
             }
+            if ($showOt) $otTotalMins += $otMins;   // per-employee OT total (matches the per-cell OT shown)
 
             if ($shiftRec && $totMins > 0 && $totMins < $shiftHrsH * 60) {
                 $code = 'HP'; $hpDays++; $dayTotals[$dt]['HP']++;
@@ -443,6 +446,7 @@ foreach ($employees as $e) {
     $grand['L']  += $fullLv;
     $grand['HL'] += $halfLv;
     $grand['CO'] += $compOff;
+    $grandOtMins += $otTotalMins;
 
     $employeeRows[] = [
         'id'         => (int)$e['id'],
@@ -454,7 +458,8 @@ foreach ($employees as $e) {
         'department' => $e['Department'] ?? '',
         'shiftNo'    => $e['ShiftNo'] ?? '',
         'days'       => $days,
-        'summary'    => ['P'=>$presentDays,'HP'=>$hpDays,'A'=>$absentDays,'L'=>$fullLv,'HL'=>$halfLv,'CO'=>$compOff],
+        'summary'    => ['P'=>$presentDays,'HP'=>$hpDays,'A'=>$absentDays,'L'=>$fullLv,'HL'=>$halfLv,'CO'=>$compOff,
+                         'otMins'=>$otTotalMins,'ot'=>attendMinsToHm($otTotalMins)],
     ];
 }
 
@@ -504,6 +509,9 @@ echo json_encode([
     'employees'    => $employeeRows,
     'dayTotals'    => $dayTotals,
     'grand'        => $grand,
+    'grandOtMins'  => $grandOtMins,
+    'grandOt'      => attendMinsToHm($grandOtMins),
+    'showOt'       => $showOt,
     'leaveTypes'   => $leaveTypesOut,
     'shifts'       => $shiftsOut,
     'leaveBalances'=> $leaveBalances,

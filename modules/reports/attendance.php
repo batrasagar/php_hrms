@@ -370,9 +370,30 @@ document.addEventListener('DOMContentLoaded', function(){
          + '<div class="small text-muted">'+label+'</div></div></div>';
   }
 
+  // Minutes → "Hh Mm" (mirrors attendMinsToHm() in ajax/attendance_data.php)
+  function otHm(m) {
+    m = m || 0; if (m <= 0) return '';
+    var h = Math.floor(m / 60), mn = m % 60;
+    return (h ? h + 'h' : '') + (mn ? mn + 'm' : (h ? '' : '0m'));
+  }
+  function daysTxt(p, hp) { var d = (p || 0) + 0.5 * (hp || 0); return d ? (Number.isInteger(d) ? d : d.toFixed(1)) : '—'; }
+
+  // Summary cells (P/HP/A/L/CO/HL + Total Days + OT) for a department subtotal row.
+  function summaryCells(a, showOt) {
+    return '<td class="text-center fw-bold text-success">'+(a.P||0)+'</td>'
+         + '<td class="text-center fw-bold text-primary">'+(a.HP||0)+'</td>'
+         + '<td class="text-center fw-bold text-danger">'+(a.A||0)+'</td>'
+         + '<td class="text-center fw-bold" style="color:#c0392b">'+(a.L||0)+'</td>'
+         + '<td class="text-center fw-bold text-info">'+(a.CO||0)+'</td>'
+         + '<td class="text-center fw-bold text-warning">'+(a.HL||0)+'</td>'
+         + '<td class="text-center fw-bold">'+daysTxt(a.P, a.HP)+'</td>'
+         + (showOt ? '<td class="text-center fw-bold" style="color:#e65100">'+(otHm(a.otMins)||'—')+'</td>' : '');
+  }
+
   function render(data) {
     var html = '';
     lastData = data; window.__attLastData = data;
+    var showOt = !!data.showOt;
 
     if (data.notice) html += '<div class="alert alert-warning py-2 small">'+esc(data.notice)+'</div>';
     (data.errors||[]).forEach(function(e){ html += '<div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>'+esc(e)+'</div>'; });
@@ -396,7 +417,7 @@ document.addEventListener('DOMContentLoaded', function(){
           + '<span class="badge bg-secondary">S</span> Sunday &nbsp;'
           + '<span style="color:#e65100;font-weight:600">+Xm</span> Overtime</div>';
 
-    var minW = 210 + data.dates.length * 40;
+    var minW = 210 + data.dates.length * 40 + (showOt ? 76 : 38);
     html += '<div class="card border-0 shadow-sm" style="overflow-x:auto">';
     html += '<div class="card-header bg-white fw-semibold">Attendance &mdash; '+esc(data.fFrom)+' to '+esc(data.fTo)+'</div>';
     html += '<table id="tblAttendance" class="table table-sm table-bordered mb-0" style="min-width:'+minW+'px">';
@@ -415,11 +436,30 @@ document.addEventListener('DOMContentLoaded', function(){
           + '<th class="text-center" style="min-width:28px" title="Full Leave">L</th>'
           + '<th class="text-center" style="min-width:28px" title="Comp Off">CO</th>'
           + '<th class="text-center" style="min-width:28px" title="Half Leave">HL</th>'
+          + '<th class="text-center" style="min-width:36px" title="Total present days (P + ½ HP)">Days</th>'
+          + (showOt ? '<th class="text-center" style="min-width:40px" title="Total overtime">OT</th>' : '')
           + '</tr></thead>';
 
-    // tbody
+    // tbody — grouped by department, with a subtotal row per department
     html += '<tbody>';
+    var colBefore = 2 + data.dates.length;                 // Code + Name + date columns
+    var totalCols = colBefore + 7 + (showOt ? 1 : 0);       // + P/HP/A/L/CO/HL/Days (+OT)
+    var curDept = null, deptAgg = null;
+    function flushDept() {
+      if (!deptAgg) return;
+      html += '<tr class="table-secondary"><td colspan="'+colBefore+'" class="text-end fw-semibold small text-uppercase">'
+            + esc(curDept || '— No Department —') + ' &middot; subtotal ('+deptAgg.n+')</td>'
+            + summaryCells(deptAgg, showOt) + '</tr>';
+    }
     data.employees.forEach(function(emp){
+      var dep = emp.department || '';
+      if (dep !== curDept) {
+        flushDept();
+        curDept = dep;
+        deptAgg = {P:0,HP:0,A:0,L:0,CO:0,HL:0,otMins:0,n:0};
+        html += '<tr class="table-primary"><td colspan="'+totalCols+'" class="fw-semibold">'
+              + '<i class="bi bi-diagram-3 me-1"></i>'+esc(dep || '— No Department —')+'</td></tr>';
+      }
       var srch = ((emp.code||'')+' '+(emp.name||'')).toLowerCase();
       html += '<tr data-search="'+esc(srch)+'"><td class="small"><code>'+esc(emp.code||'—')+'</code></td><td class="small">'+esc(emp.name)
             + (emp.fatherName ? '<div style="font-size:8px;color:#888;line-height:1.15">S/o '+esc(emp.fatherName)+'</div>' : '')
@@ -434,13 +474,19 @@ document.addEventListener('DOMContentLoaded', function(){
         html += '<td class="'+cls+'" style="background:'+r[1]+'"'+attrs+'>'+r[0]+mark+'</td>';
       });
       var s = emp.summary;
+      deptAgg.P+=s.P||0; deptAgg.HP+=s.HP||0; deptAgg.A+=s.A||0; deptAgg.L+=s.L||0;
+      deptAgg.CO+=s.CO||0; deptAgg.HL+=s.HL||0; deptAgg.otMins+=s.otMins||0; deptAgg.n++;
       html += '<td class="text-center fw-semibold text-success">'+s.P+'</td>'
             + '<td class="text-center fw-semibold text-primary">'+(s.HP||'—')+'</td>'
             + '<td class="text-center fw-semibold text-danger">'+s.A+'</td>'
             + '<td class="text-center fw-semibold" style="color:#c0392b">'+(s.L||'—')+'</td>'
             + '<td class="text-center fw-semibold text-info">'+(s.CO||'—')+'</td>'
-            + '<td class="text-center fw-semibold text-warning">'+(s.HL||'—')+'</td></tr>';
+            + '<td class="text-center fw-semibold text-warning">'+(s.HL||'—')+'</td>'
+            + '<td class="text-center fw-bold">'+daysTxt(s.P, s.HP)+'</td>'
+            + (showOt ? '<td class="text-center fw-semibold" style="color:#e65100">'+(otHm(s.otMins)||'—')+'</td>' : '')
+            + '</tr>';
     });
+    flushDept();
     html += '</tbody>';
 
     // tfoot
@@ -469,6 +515,8 @@ document.addEventListener('DOMContentLoaded', function(){
           + '<td class="text-center fw-bold" style="color:#ef9a9a">'+(g.L||'—')+'</td>'
           + '<td class="text-center fw-bold" style="color:#4dd0e1">'+(g.CO||'—')+'</td>'
           + '<td class="text-center text-warning fw-bold">'+(g.HL||'—')+'</td>'
+          + '<td class="text-center text-white fw-bold">'+daysTxt(g.P, g.HP)+'</td>'
+          + (showOt ? '<td class="text-center fw-bold" style="color:#ffcc80">'+(otHm(data.grandOtMins)||'—')+'</td>' : '')
           + '</tr></tfoot></table></div>';
 
     // Summary stats
