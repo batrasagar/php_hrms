@@ -84,6 +84,7 @@ if ($fCompany && !empty($employees) && !empty($leaveTypes)) {
     );
     $s->execute(array_merge([$fYear], $empIds, $ltIds));
     foreach ($s->fetchAll() as $b) {
+        $b['Used'] = 0;   // authoritative Used is computed live from tblLeave below, never the stored column
         $balanceMap[$b['EmployeeId']][$b['LeaveTypeId']] = $b;
     }
 

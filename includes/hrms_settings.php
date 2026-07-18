@@ -52,3 +52,53 @@ function hrmsLeaveBalanceAfter(PDO $db, int $companyId, int $empId, int $ltId, i
 
     return $alloc + $adj - ($usedOther + $addDays);
 }
+
+/**
+ * Recompute tblLeaveBalance.Used for the given employees + year from live tblLeave rows.
+ *
+ * A plain "SUM(...) GROUP BY LeaveTypeId" recompute only touches leave types that still
+ * have rows, so a type whose leaves are all deleted keeps its stale Used and shows a
+ * phantom negative balance. This resets every existing balance row for the employee/year
+ * to its live value first (0 when the type no longer has any leaves), then inserts any
+ * new types — keeping stored Used authoritative after deletes.
+ */
+function hrmsRecalcLeaveUsed(PDO $db, int $companyId, array $empIds, int $year): void {
+    $empIds = array_values(array_unique(array_filter(array_map('intval', $empIds))));
+    if (!$empIds || !$year || !$companyId) return;
+    $phE = implode(',', array_fill(0, count($empIds), '?'));
+
+    // Live usage per employee + leave type
+    $rows = $db->prepare(
+        "SELECT EmployeeId, LeaveTypeId,
+                SUM(CASE WHEN LeaveType='full_day' THEN 1.0 ELSE 0.5 END) AS Used
+         FROM tblLeave
+         WHERE CompanyId=? AND YEAR(LeaveDate)=? AND LeaveTypeId IS NOT NULL
+           AND EmployeeId IN ($phE)
+         GROUP BY EmployeeId, LeaveTypeId"
+    );
+    $rows->execute(array_merge([$companyId, $year], $empIds));
+    $used = [];   // [empId][ltId] = days
+    foreach ($rows->fetchAll() as $r) { $used[(int)$r['EmployeeId']][(int)$r['LeaveTypeId']] = $r['Used']; }
+
+    $upd = $db->prepare(
+        "INSERT INTO tblLeaveBalance (EmployeeId, CompanyId, LeaveTypeId, Year, Used)
+         VALUES (?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE Used=VALUES(Used)"
+    );
+
+    // Reset every existing balance row to its live value (0 when the type has no leaves left)
+    $existing = $db->prepare(
+        "SELECT EmployeeId, LeaveTypeId FROM tblLeaveBalance
+         WHERE CompanyId=? AND Year=? AND EmployeeId IN ($phE)"
+    );
+    $existing->execute(array_merge([$companyId, $year], $empIds));
+    foreach ($existing->fetchAll() as $e) {
+        $eid = (int)$e['EmployeeId']; $lt = (int)$e['LeaveTypeId'];
+        $upd->execute([$eid, $companyId, $lt, $year, $used[$eid][$lt] ?? 0]);
+        unset($used[$eid][$lt]);
+    }
+    // Insert live usage for types that had no balance row yet
+    foreach ($used as $eid => $byLt) {
+        foreach ($byLt as $lt => $u) { $upd->execute([$eid, $companyId, $lt, $year, $u]); }
+    }
+}

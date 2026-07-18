@@ -18,7 +18,14 @@ $fDate    = trim($_GET['date'] ?? date('Y-m-d'));
 if (isset($_GET['delete'])) {
     requirePermission('leaves.edit');
     $did = (int)$_GET['delete'];
+    $lv = $db->prepare("SELECT CompanyId, EmployeeId, LeaveDate FROM tblLeave WHERE id=?");
+    $lv->execute([$did]);
+    $del = $lv->fetch();
     $db->prepare("DELETE FROM tblLeave WHERE id=?")->execute([$did]);
+    if ($del) {
+        // Re-derive Used so the removed leave's category drops back (was left stale before)
+        hrmsRecalcLeaveUsed($db, (int)$del['CompanyId'], [(int)$del['EmployeeId']], (int)substr($del['LeaveDate'], 0, 4));
+    }
     header("Location: index.php?company=$fCompany&date=" . urlencode($fDate)); exit;
 }
 
@@ -81,28 +88,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
         }
     }
 
-    // Recalculate Used in tblLeaveBalance for this employee+year from tblLeave
-    // (simpler than delta tracking)
+    // Recalculate Used in tblLeaveBalance for these employees + year from live tblLeave.
+    // The helper resets categories that dropped to zero, so removals don't leave stale Used.
     if ($year && $companyId) {
-        $empIds = array_map('intval', $ids);
-        $phE = implode(',', array_fill(0, count($empIds), '?'));
-        $recalc = $db->prepare(
-            "SELECT EmployeeId, LeaveTypeId,
-                    SUM(CASE WHEN LeaveType='full_day' THEN 1.0 ELSE 0.5 END) AS UsedDays
-             FROM tblLeave
-             WHERE CompanyId=? AND YEAR(LeaveDate)=? AND LeaveTypeId IS NOT NULL
-               AND EmployeeId IN ($phE)
-             GROUP BY EmployeeId, LeaveTypeId"
-        );
-        $recalc->execute(array_merge([$companyId, $year], $empIds));
-        $updBal = $db->prepare(
-            "INSERT INTO tblLeaveBalance (EmployeeId, CompanyId, LeaveTypeId, Year, Used)
-             VALUES (?,?,?,?,?)
-             ON DUPLICATE KEY UPDATE Used=?"
-        );
-        foreach ($recalc->fetchAll() as $r) {
-            $updBal->execute([$r['EmployeeId'], $companyId, $r['LeaveTypeId'], $year, $r['UsedDays'], $r['UsedDays']]);
-        }
+        hrmsRecalcLeaveUsed($db, $companyId, array_map('intval', $ids), $year);
     }
 
     $successMsg = "Leave marked for $saved employee(s)." . ($skipped ? " $skipped skipped — insufficient balance." : '');

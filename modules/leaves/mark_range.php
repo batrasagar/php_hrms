@@ -105,33 +105,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['do_mark'])) {
             }
         }
 
-        // Recalc Used balances for affected employees, per year touched
-        $years = array_unique(array_map(fn($d) => (int)substr($d, 0, 4), $dates));
+        // Recalc Used balances for affected employees, per year touched. The helper resets
+        // categories that dropped to zero, keeping stored Used authoritative after overwrites.
+        $years  = array_unique(array_map(fn($d) => (int)substr($d, 0, 4), $dates));
         $empIds = array_keys($empWo);
-        if ($empIds && $years) {
-            $phE = implode(',', array_fill(0, count($empIds), '?'));
-            foreach ($years as $yr) {
-                $recalc = $db->prepare(
-                    "SELECT EmployeeId, LeaveTypeId,
-                            SUM(CASE WHEN LeaveType='full_day' THEN 1.0 ELSE 0.5 END) AS UsedDays
-                     FROM tblLeave
-                     WHERE CompanyId=? AND YEAR(LeaveDate)=? AND LeaveTypeId IS NOT NULL
-                       AND EmployeeId IN ($phE)
-                     GROUP BY EmployeeId, LeaveTypeId"
-                );
-                $recalc->execute(array_merge([$cid, $yr], $empIds));
-                $rows = $recalc->fetchAll();
-                $used = [];
-                foreach ($rows as $r) { $used[$r['EmployeeId']][$r['LeaveTypeId']] = $r['UsedDays']; }
-                $upd = $db->prepare(
-                    "INSERT INTO tblLeaveBalance (EmployeeId, CompanyId, LeaveTypeId, Year, Used)
-                     VALUES (?,?,?,?,?)
-                     ON DUPLICATE KEY UPDATE Used=VALUES(Used)"
-                );
-                foreach ($used as $eid => $byLt) {
-                    foreach ($byLt as $lt2 => $u) { $upd->execute([$eid, $cid, $lt2, $yr, $u]); }
-                }
-            }
+        foreach ($years as $yr) {
+            hrmsRecalcLeaveUsed($db, $cid, $empIds, $yr);
         }
 
         $msg = "Leave marked: $marked entr" . ($marked === 1 ? 'y' : 'ies') .
