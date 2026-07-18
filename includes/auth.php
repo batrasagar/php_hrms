@@ -65,6 +65,12 @@ function isCompliance(): bool {
     return ($_SESSION['user_role'] ?? '') === 'compliance';
 }
 
+/** Human-facing label for a role. The compliance (auditor) role is shown as "hrms" so the
+ *  role name is not surfaced to the auditor; all other roles display as-is. */
+function roleLabel(?string $role): string {
+    return $role === 'compliance' ? 'hrms' : (string)$role;
+}
+
 /** Extra WHERE fragment limiting employee queries to compliance employees (for the compliance role). */
 function complianceEmpFilter(string $alias = 'e'): string {
     return isCompliance() ? " AND {$alias}.Compliance = 1" : '';

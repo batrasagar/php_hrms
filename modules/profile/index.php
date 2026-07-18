@@ -97,7 +97,7 @@ require_once __DIR__ . '/../../includes/header.php';
         <div class="fw-semibold fs-6"><?= htmlspecialchars($user['name']) ?></div>
         <div class="text-muted" style="font-size:12px;"><?= htmlspecialchars($dbUser['Email'] ?? '') ?></div>
       </div>
-      <span class="badge bg-primary ms-auto text-capitalize"><?= htmlspecialchars($user['role']) ?></span>
+      <span class="badge bg-primary ms-auto text-capitalize"><?= htmlspecialchars(roleLabel($user['role'])) ?></span>
     </div>
   </div>
 

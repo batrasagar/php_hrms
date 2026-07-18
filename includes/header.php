@@ -1173,9 +1173,9 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <?php if (can('employees.view')): ?>
       <div class="sb-section-label">Employees</div>
       <li>
-        <a class="sb-item <?= $ap==='employees'?'active':'' ?>" href="<?= BASE_URL ?>/modules/employees/index.php" data-tip="Compliance Employees">
+        <a class="sb-item <?= $ap==='employees'?'active':'' ?>" href="<?= BASE_URL ?>/modules/employees/index.php" data-tip="Employees">
           <span class="sb-item-icon"><i class="bi bi-person-vcard"></i></span>
-          <span class="sb-item-label">Compliance Employees</span>
+          <span class="sb-item-label">Employees</span>
         </a>
       </li>
       <?php endif; ?>
@@ -1319,7 +1319,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <div class="sb-avatar <?= $ap==='profile'?'ring-active':'' ?>"><?= mb_substr($user['name'], 0, 1) ?></div>
       <div class="sb-user-info">
         <div class="sb-user-name"><?= htmlspecialchars($user['name']) ?></div>
-        <div class="sb-user-role"><?= htmlspecialchars($user['role']) ?></div>
+        <div class="sb-user-role"><?= htmlspecialchars(roleLabel($user['role'])) ?></div>
       </div>
     </a>
     <a href="<?= BASE_URL ?>/logout.php" class="sb-logout" title="Sign out">
@@ -1397,7 +1397,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         <li class="px-3 pt-2 pb-1">
           <div class="fw-semibold" style="font-size:13px"><?= htmlspecialchars($user['Name'] ?? '') ?></div>
           <div class="text-muted" style="font-size:11px"><?= htmlspecialchars($user['Email'] ?? '') ?></div>
-          <span class="badge mt-1" style="font-size:10px;background:var(--blue-lt);color:var(--blue);text-transform:capitalize"><?= htmlspecialchars($user['role']) ?></span>
+          <span class="badge mt-1" style="font-size:10px;background:var(--blue-lt);color:var(--blue);text-transform:capitalize"><?= htmlspecialchars(roleLabel($user['role'])) ?></span>
         </li>
         <li><hr class="dropdown-divider my-1"></li>
         <li><a class="dropdown-item d-flex align-items-center gap-2" href="<?= BASE_URL ?>/modules/profile/index.php">
