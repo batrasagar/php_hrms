@@ -1,5 +1,5 @@
 <?php
-define('BASE_URL', ($_SERVER['HTTP_HOST'] ?? '') === 'hr.attnlog.in' ? '' : '/php_hrms');
+define('BASE_URL', preg_match('#(^|\.)hr\.attnlog\.in$#', $_SERVER['HTTP_HOST'] ?? '') ? '' : '/php_hrms');
 
 // ── DB credential update (submitted before connection attempt) ────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['db_host'])) {
