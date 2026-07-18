@@ -297,7 +297,7 @@ require_once __DIR__ . '/../../includes/header.php';
               <h6 class="modal-title"><i class="bi bi-sliders me-1"></i>Configure Bulk-Edit Fields</h6>
               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="max-height:65vh;overflow-y:auto">
               <p class="small text-muted mb-2">Tick <strong>Show</strong> to display a column (view-only by default). Tick <strong>Edit</strong> to make it editable in the grid.</p>
               <table class="table table-sm align-middle mb-0">
                 <thead class="table-light">
@@ -327,6 +327,12 @@ require_once __DIR__ . '/../../includes/header.php';
 
 <script>
 (function () {
+  // Move the config modal to <body> so it escapes the card's overflow container /
+  // any transformed ancestor — otherwise the dialog renders taller than the viewport
+  // and its footer (Save button) and lower fields get clipped.
+  var fm = document.getElementById('fieldsModal');
+  if (fm && fm.parentNode !== document.body) document.body.appendChild(fm);
+
   // Modal: Edit implies Show; clearing Show clears Edit.
   document.querySelectorAll('#fieldsModal tbody tr').forEach(function (tr) {
     var show = tr.querySelector('.be-show'), edit = tr.querySelector('.be-edit');
