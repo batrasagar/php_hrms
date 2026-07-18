@@ -76,13 +76,17 @@ function complianceEmpFilter(string $alias = 'e'): string {
     return isCompliance() ? " AND {$alias}.Compliance = 1" : '';
 }
 
-/** Redirect a compliance user away from a page they may not use (to their Employees landing). */
+/** Redirect a compliance user away from a page they may not use, to the first page they
+ *  actually have permission for. Landing blindly on Employees loops with requirePermission()
+ *  when the user's RBAC role excludes employees.view (→ back to index → back here → …). */
 function blockCompliance(): void {
-    if (isCompliance()) {
-        $base = defined('BASE_URL') ? BASE_URL : '';
-        header('Location: ' . $base . '/modules/employees/index.php');
-        exit;
-    }
+    if (!isCompliance()) return;
+    $base = defined('BASE_URL') ? BASE_URL : '';
+    if (can('employees.view'))              $target = '/modules/employees/index.php';
+    elseif (can('report_attendance.view'))  $target = '/modules/reports/attendance.php';
+    else                                    $target = '/modules/profile/index.php';
+    header('Location: ' . $base . $target);
+    exit;
 }
 
 function csrf_token(): string {
