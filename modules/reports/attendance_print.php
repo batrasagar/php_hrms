@@ -81,6 +81,7 @@ $printedAt  = date('d-m-Y H:i');
   td.c-co { background: #cff4fc; }
   td.c-wo { background: #e2e3e5; }
   td.c-hl { background: #fff3cd; }
+  td.c-cut { background: #f8d7da; color: #b02a37; }
   td.sum  { font-weight: bold; font-size: 10px; }
   td.sum-p  { color: #1b5e20; }
   td.sum-hp { color: #004085; }
@@ -88,6 +89,7 @@ $printedAt  = date('d-m-Y H:i');
   td.sum-l  { color: #e65100; }
   td.sum-co { color: #087990; }
   td.sum-hl { color: #856404; }
+  td.sum-hs { color: #495057; }
   .summary-box { margin-top: 8px; border-collapse: collapse; width: auto; }
   .summary-box th { background: #222; color: #fff; font-size: 8px; padding: 3px 6px; text-align: center; }
   .summary-box td { border: 1px solid #999; font-size: 9px; padding: 3px 8px; text-align: center; font-weight: bold; }
@@ -128,6 +130,12 @@ $printedAt  = date('d-m-Y H:i');
   }
 
   function renderCell(c) {
+    // Week off withheld by the week-off pay rules — struck through, reason on hover.
+    if (c.woCut) {
+      var lbl = c.type === 'WO' ? 'WO' : 'S';
+      return ['dt c-cut', '<span style="text-decoration:line-through" title="Week off not paid — ' + esc(c.woWhy || '') + '">'
+                        + lbl + '</span><div style="font-size:7px">unpaid</div>'];
+    }
     if (c.type === 'SUN') return ['dt c-s', '<span>S</span>'];
     if (c.type === 'HOL') return ['dt c-h', '<span title="' + esc(c.holName || '') + '">H</span>'];
     if (c.type === 'L')   return ['dt c-l', '<b>L</b>'];
@@ -156,9 +164,10 @@ $printedAt  = date('d-m-Y H:i');
     var h = Math.floor(m / 60), mn = m % 60;
     return (h ? h + 'h' : '') + (mn ? mn + 'm' : (h ? '' : '0m'));
   }
-  function daysTxt(p, hp) { var d = (p || 0) + 0.5 * (hp || 0); return d ? (Number.isInteger(d) ? d : d.toFixed(1)) : '&mdash;'; }
+  // Payable days = full present + ½ half-present + paid holidays/week-offs (H+S)
+  function daysTxt(p, hp, hs) { var d = (p || 0) + 0.5 * (hp || 0) + (hs || 0); return d ? (Number.isInteger(d) ? d : d.toFixed(1)) : '&mdash;'; }
 
-  // Summary cells (P/HP/A/L/CO/HL + Total Days + OT) for a department subtotal row.
+  // Summary cells (P/HP/A/L/CO/HL/H+S + Total Days + OT) for a department subtotal row.
   function sumCells(a, showOt) {
     return '<td class="sum sum-p">'  + (a.P  || 0) + '</td>'
          + '<td class="sum sum-hp">' + (a.HP || 0) + '</td>'
@@ -166,7 +175,8 @@ $printedAt  = date('d-m-Y H:i');
          + '<td class="sum sum-l">'  + (a.L  || 0) + '</td>'
          + '<td class="sum sum-co">' + (a.CO || 0) + '</td>'
          + '<td class="sum sum-hl">' + (a.HL || 0) + '</td>'
-         + '<td class="sum">'        + daysTxt(a.P, a.HP) + '</td>'
+         + '<td class="sum sum-hs">' + (a.HS || 0) + '</td>'
+         + '<td class="sum">'        + daysTxt(a.P, a.HP, a.HS) + '</td>'
          + (showOt ? '<td class="sum sum-l">' + (otHm(a.otMins) || '&mdash;') + '</td>' : '');
   }
 
@@ -201,6 +211,7 @@ $printedAt  = date('d-m-Y H:i');
           + '<span><span class="l-box" style="background:#fff3cd"></span>HL Half-Leave</span>'
           + '<span><span class="l-box" style="background:#f0f0f0"></span>H Holiday</span>'
           + '<span><span class="l-box" style="background:#e0e0e0"></span>S Sunday</span>'
+          + '<span><span class="l-box" style="background:#f8d7da"></span><s>S</s> Unpaid Week Off</span>'
           + '<span style="color:#b85c00">+Xm OT</span></div>';
 
     if (!emps || !emps.length) {
@@ -220,13 +231,14 @@ $printedAt  = date('d-m-Y H:i');
     html += '<th style="min-width:20px">P</th><th style="min-width:20px">HP</th>'
           + '<th style="min-width:20px">A</th><th style="min-width:20px">L</th>'
           + '<th style="min-width:20px">CO</th><th style="min-width:20px">HL</th>'
+          + '<th style="min-width:24px">H+S</th>'
           + '<th style="min-width:24px">Days</th>'
           + (showOt ? '<th style="min-width:28px">OT</th>' : '')
           + '</tr></thead>';
 
     // tbody — grouped by department, with a subtotal row per department
     var colBefore = 1 + dates.length;                     // Employee name col + date columns
-    var totalCols = colBefore + 7 + (showOt ? 1 : 0);      // + P/HP/A/L/CO/HL/Days (+OT)
+    var totalCols = colBefore + 8 + (showOt ? 1 : 0);      // + P/HP/A/L/CO/HL/H+S/Days (+OT)
     var curDept = null, deptAgg = null;
     function flushDept() {
       if (!deptAgg) return;
@@ -241,7 +253,7 @@ $printedAt  = date('d-m-Y H:i');
       if (dep !== curDept) {
         flushDept();
         curDept = dep;
-        deptAgg = { P:0, HP:0, A:0, L:0, CO:0, HL:0, otMins:0, n:0 };
+        deptAgg = { P:0, HP:0, A:0, L:0, CO:0, HL:0, HS:0, otMins:0, n:0 };
         html += '<tr style="background:#c8c8c8"><td colspan="' + totalCols + '" style="text-align:left;font-weight:bold;font-size:9px">'
               + esc(dep || '(No Department)') + '</td></tr>';
       }
@@ -260,14 +272,15 @@ $printedAt  = date('d-m-Y H:i');
       });
       var s = emp.summary;
       deptAgg.P += s.P || 0; deptAgg.HP += s.HP || 0; deptAgg.A += s.A || 0; deptAgg.L += s.L || 0;
-      deptAgg.CO += s.CO || 0; deptAgg.HL += s.HL || 0; deptAgg.otMins += s.otMins || 0; deptAgg.n++;
+      deptAgg.CO += s.CO || 0; deptAgg.HL += s.HL || 0; deptAgg.HS += s.HS || 0; deptAgg.otMins += s.otMins || 0; deptAgg.n++;
       html += '<td class="sum sum-p">'  + s.P + '</td>'
             + '<td class="sum sum-hp">' + (s.HP || '&mdash;') + '</td>'
             + '<td class="sum sum-a">'  + s.A  + '</td>'
             + '<td class="sum sum-l">'  + (s.L  || '&mdash;') + '</td>'
             + '<td class="sum sum-co">' + (s.CO || '&mdash;') + '</td>'
             + '<td class="sum sum-hl">' + (s.HL || '&mdash;') + '</td>'
-            + '<td class="sum">'        + daysTxt(s.P, s.HP) + '</td>'
+            + '<td class="sum sum-hs">' + (s.HS || '&mdash;') + '</td>'
+            + '<td class="sum">'        + daysTxt(s.P, s.HP, s.HS) + '</td>'
             + (showOt ? '<td class="sum sum-l">' + (otHm(s.otMins) || '&mdash;') + '</td>' : '')
             + '</tr>';
     });
@@ -299,7 +312,8 @@ $printedAt  = date('d-m-Y H:i');
           + '<td style="color:#ef9a9a;font-weight:bold">' + (grand.L  || '&mdash;') + '</td>'
           + '<td style="color:#4dd0e1;font-weight:bold">' + (grand.CO || '&mdash;') + '</td>'
           + '<td style="color:#ffe082;font-weight:bold">' + (grand.HL || '&mdash;') + '</td>'
-          + '<td style="color:#fff;font-weight:bold">' + daysTxt(grand.P, grand.HP) + '</td>'
+          + '<td style="color:#ced4da;font-weight:bold">' + (grand.HS || '&mdash;') + '</td>'
+          + '<td style="color:#fff;font-weight:bold">' + daysTxt(grand.P, grand.HP, grand.HS) + '</td>'
           + (showOt ? '<td style="color:#ffcc80;font-weight:bold">' + (otHm(data.grandOtMins) || '&mdash;') + '</td>' : '')
           + '</tr></tfoot></table>';
 
@@ -307,6 +321,7 @@ $printedAt  = date('d-m-Y H:i');
           + '<th>Employees</th><th>Working Days</th><th>Present (P)</th>'
           + '<th>Half-Present (HP)</th><th>Absent (A)</th><th>Full Leave (L)</th>'
           + '<th>Comp Off (CO)</th><th>Half Leave (HL)</th>'
+          + '<th>Hol + Week Off (H+S)</th>'
           + '<th>Total Days</th>' + (showOt ? '<th>Total OT</th>' : '')
           + '<th>Holidays</th><th>Attendance %</th>'
           + '</tr></thead><tbody><tr>'
@@ -318,7 +333,8 @@ $printedAt  = date('d-m-Y H:i');
           + '<td style="color:#e65100">' + grand.L  + '</td>'
           + '<td style="color:#087990">' + grand.CO + '</td>'
           + '<td style="color:#856404">' + grand.HL + '</td>'
-          + '<td>' + daysTxt(grand.P, grand.HP) + '</td>'
+          + '<td style="color:#495057">' + (grand.HS || 0) + '</td>'
+          + '<td>' + daysTxt(grand.P, grand.HP, grand.HS) + '</td>'
           + (showOt ? '<td style="color:#b85c00">' + (otHm(data.grandOtMins) || '&mdash;') + '</td>' : '')
           + '<td>' + data.holidayCount + '</td>'
           + '<td>' + data.pctP + '% P &nbsp; ' + data.pctA + '% A</td>'

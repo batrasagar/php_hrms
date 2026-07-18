@@ -2,6 +2,7 @@
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/weekoff.php';
 requireLogin();
 requirePermission('report_attendance.view');
 
@@ -25,6 +26,15 @@ if (in_array($user['role'], ['admin','operator'], true)) {
 $companyName = $db->prepare("SELECT Name FROM tblCompany WHERE id=?");
 $companyName->execute([$fCompany]);
 $companyName = $companyName->fetchColumn() ?: '';
+
+// ── Week-off pay rules (company overrides global) ─────────────────────────────
+$settings = [];
+try {
+    $sStmt = $db->prepare("SELECT SettingKey, SettingValue FROM tblSettings WHERE CompanyId IN (0, ?) ORDER BY CompanyId ASC");
+    $sStmt->execute([$fCompany]);
+    foreach ($sStmt->fetchAll() as $sr) $settings[$sr['SettingKey']] = $sr['SettingValue']; // company row wins
+} catch (Exception $e) { /* table may not exist yet */ }
+$woCfg = woConfig($settings);
 
 // ── Flush loader to browser before heavy ADMS fetch ───────────────────────────
 while (@ob_get_level()) @ob_end_clean();
@@ -143,7 +153,7 @@ $today = date('Y-m-d');
 
 $dayTotals = [];
 foreach ($dates as $dt) $dayTotals[$dt] = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
-$grand = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
+$grand = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0,'HS'=>0];
 ?>
 <style>
   .no-print { margin: 10px; }
@@ -166,6 +176,7 @@ $grand = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
   td.c-hl { background: #fff3cd; }
   td.c-h  { background: #f0f0f0; }
   td.c-s  { background: #e0e0e0; }
+  td.c-cut { background: #f8d7da; color: #b02a37; }
   td.sum  { font-weight: bold; }
   .legend { margin: 4px 0; font-size: 9px; }
   .legend span { margin-right: 10px; }
@@ -216,7 +227,8 @@ function exportExcel() {
   <b>CO</b> Comp Off &nbsp;
   <b>HL</b> Half-Leave (AM/PM) &nbsp;
   <b>H</b> Holiday &nbsp;
-  <b>S</b> Sunday
+  <b>S</b> Sunday &nbsp;
+  <b><s>S</s></b> Unpaid Week Off
 </div>
 
 <?php if (!empty($employees)): ?>
@@ -241,11 +253,53 @@ function exportExcel() {
       <th style="min-width:18px">L</th>
       <th style="min-width:18px">CO</th>
       <th style="min-width:18px">HL</th>
+      <th style="min-width:22px">H+S</th>
+      <th style="min-width:24px">Days</th>
     </tr>
   </thead>
   <tbody>
   <?php foreach ($employees as $e):
-    $presentDays = 0; $hpDays = 0; $absentDays = 0; $fullLv = 0; $halfLv = 0; $compOff = 0;
+    $presentDays = 0; $hpDays = 0; $absentDays = 0; $fullLv = 0; $halfLv = 0; $compOff = 0; $hsDays = 0;
+
+    // ── Pass 1: classify every date (types match ajax/attendance_data.php) ─────
+    $cells = [];
+    foreach ($dates as $dt) {
+        $isSun  = ((int)date('N', strtotime($dt)) === 7);
+        $isHol  = isset($holidayDates[$dt]);
+        $isFut  = ($dt > $today);
+        $lvType = $leaveDates[$e['id']][$dt] ?? null;
+        $lvCode = $leaveCodes[$e['id']][$dt] ?? null;
+        $present = isset($punchMap[$e['EmployeeCode']][$dt]);
+        $c = ['type' => ''];
+
+        if ($isSun) {
+            $c['type'] = 'SUN'; $hsDays++;
+        } elseif ($isHol) {
+            $c['type'] = 'HOL'; $hsDays++;
+        } elseif ($lvType === 'full_day' && $lvCode === 'CO') {
+            $c['type'] = 'CO';  $compOff++; $dayTotals[$dt]['CO']++;
+        } elseif ($lvType === 'full_day') {
+            $c['type'] = 'L';   $fullLv++;  $dayTotals[$dt]['L']++;
+        } elseif ($lvType === 'half_am' || $lvType === 'half_pm') {
+            $c['type'] = 'HL';  $c['sub'] = ($lvType === 'half_am') ? 'AM' : 'PM';
+            $halfLv++; $dayTotals[$dt]['HL']++;
+        } elseif ($present) {
+            // HP detection not applicable in this view — no shift data is loaded.
+            $c['type'] = 'P';   $presentDays++; $dayTotals[$dt]['P']++;
+        } elseif (!$isFut) {
+            $c['type'] = 'A';   $absentDays++;  $dayTotals[$dt]['A']++;
+        } else {
+            $c['type'] = 'FUT';
+        }
+        $cells[$dt] = $c;
+    }
+
+    // ── Pass 2: week-off pay rules — unpaid offs drop out of H+S (and Days) ────
+    if ($woCfg['adj'] || $woCfg['low']) {
+        $hsDays -= woDeductWeekOffs($cells, $dates, $woCfg['adj'], $woCfg['low'], $woCfg['minDays']);
+        if ($hsDays < 0) $hsDays = 0;
+    }
+    $payDays = $presentDays + 0.5 * $hpDays + $hsDays;
   ?>
   <tr>
     <td class="col-emp">
@@ -257,40 +311,24 @@ function exportExcel() {
       <?php if (!empty($e['ShiftNo'])): ?><div style="color:#444">Shift: <?= htmlspecialchars($e['ShiftNo']) ?></div><?php endif; ?>
     </td>
     <?php foreach ($dates as $dt):
-      $dow    = (int)date('N', strtotime($dt));
-      $isSun  = ($dow === 7);
-      $isHol  = isset($holidayDates[$dt]);
-      $isFut  = ($dt > $today);
-      $lvType = $leaveDates[$e['id']][$dt] ?? null;
-      $lvCode = $leaveCodes[$e['id']][$dt] ?? null;
-      $present = isset($punchMap[$e['EmployeeCode']][$dt]);
+      $c = $cells[$dt];
+      $cls = 'dt'; $label = ''; $title = '';
 
-      $cls = 'dt'; $label = '';
-
-      if ($isSun) {
-          $cls .= ' c-s'; $label = 'S';
-      } elseif ($isHol) {
-          $cls .= ' c-h'; $label = 'H';
-      } elseif ($lvType === 'full_day' && $lvCode === 'CO') {
-          $compOff++; $dayTotals[$dt]['CO']++;
-          $cls .= ' c-co'; $label = 'CO';
-      } elseif ($lvType === 'full_day') {
-          $fullLv++; $dayTotals[$dt]['L']++;
-          $cls .= ' c-l'; $label = 'L';
-      } elseif ($lvType === 'half_am') {
-          $halfLv++; $dayTotals[$dt]['HL']++;
-          $cls .= ' c-hl'; $label = 'HL<br><small>AM</small>';
-      } elseif ($lvType === 'half_pm') {
-          $halfLv++; $dayTotals[$dt]['HL']++;
-          $cls .= ' c-hl'; $label = 'HL<br><small>PM</small>';
-      } elseif ($present) {
-          if (false) { /* HP detection not applicable in simple view — no shift data */ }
-          $presentDays++; $dayTotals[$dt]['P']++; $cls .= ' c-p'; $label = 'P';
-      } elseif (!$isFut) {
-          $absentDays++; $dayTotals[$dt]['A']++; $label = 'A';
+      if (!empty($c['woCut'])) {                    // week off withheld by the pay rules
+          $cls  .= ' c-cut';
+          $label = '<s>' . ($c['type'] === 'WO' ? 'WO' : 'S') . '</s>';
+          $title = 'Week off not paid — ' . $c['woWhy'];
+      } else switch ($c['type']) {
+          case 'SUN': $cls .= ' c-s';  $label = 'S';  break;
+          case 'HOL': $cls .= ' c-h';  $label = 'H';  break;
+          case 'CO':  $cls .= ' c-co'; $label = 'CO'; break;
+          case 'L':   $cls .= ' c-l';  $label = 'L';  break;
+          case 'HL':  $cls .= ' c-hl'; $label = 'HL<br><small>' . $c['sub'] . '</small>'; break;
+          case 'P':   $cls .= ' c-p';  $label = 'P';  break;
+          case 'A':   $label = 'A'; break;
       }
     ?>
-    <td class="<?= $cls ?>"><?= $label ?></td>
+    <td class="<?= $cls ?>"<?= $title ? ' title="'.htmlspecialchars($title).'"' : '' ?>><?= $label ?></td>
     <?php endforeach; ?>
     <td class="sum" style="color:#1b5e20"><?= $presentDays ?></td>
     <td class="sum" style="color:#004085"><?= $hpDays ?: '—' ?></td>
@@ -298,11 +336,13 @@ function exportExcel() {
     <td class="sum" style="color:#e65100"><?= $fullLv ?: '—' ?></td>
     <td class="sum" style="color:#087990"><?= $compOff ?: '—' ?></td>
     <td class="sum" style="color:#856404"><?= $halfLv ?: '—' ?></td>
+    <td class="sum" style="color:#495057"><?= $hsDays ?: '—' ?></td>
+    <td class="sum"><?= $payDays ? rtrim(rtrim(number_format($payDays, 1), '0'), '.') : '—' ?></td>
   </tr>
   <?php
     $grand['P']  += $presentDays; $grand['HP'] += $hpDays;
     $grand['A']  += $absentDays;  $grand['L']  += $fullLv; $grand['HL'] += $halfLv;
-    $grand['CO'] += $compOff;
+    $grand['CO'] += $compOff;     $grand['HS'] += $hsDays;
   endforeach; ?>
   </tbody>
   <tfoot>
@@ -332,6 +372,9 @@ function exportExcel() {
       <td style="color:#ef9a9a;font-weight:bold"><?= $grand['L'] ?: '—' ?></td>
       <td style="color:#4dd0e1;font-weight:bold"><?= $grand['CO'] ?: '—' ?></td>
       <td style="color:#ffe082;font-weight:bold"><?= $grand['HL'] ?: '—' ?></td>
+      <td style="color:#ced4da;font-weight:bold"><?= $grand['HS'] ?: '—' ?></td>
+      <?php $grandPay = $grand['P'] + 0.5 * $grand['HP'] + $grand['HS']; ?>
+      <td style="color:#fff;font-weight:bold"><?= $grandPay ? rtrim(rtrim(number_format($grandPay, 1), '0'), '.') : '—' ?></td>
     </tr>
   </tfoot>
 </table>
@@ -352,6 +395,8 @@ function exportExcel() {
       <th>Full Leave (L)</th>
       <th>Comp Off (CO)</th>
       <th>Half Leave (HL)</th>
+      <th>Hol + Week Off (H+S)</th>
+      <th>Total Days</th>
       <th>Holidays</th>
       <th>Attendance %</th>
     </tr>
@@ -365,6 +410,8 @@ function exportExcel() {
       <td style="color:#e65100"><?= $grand['L'] ?></td>
       <td style="color:#087990"><?= $grand['CO'] ?></td>
       <td style="color:#856404"><?= $grand['HL'] ?></td>
+      <td style="color:#495057"><?= $grand['HS'] ?></td>
+      <td><?= $grandPay ? rtrim(rtrim(number_format($grandPay, 1), '0'), '.') : '—' ?></td>
       <td><?= count($holidayDates) ?></td>
       <td><?= $pctP ?>% P &nbsp; <?= $pctA ?>% A</td>
     </tr>

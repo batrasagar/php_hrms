@@ -44,7 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     $keys = ['show_holiday_punches','show_leave_punches','show_weekoff_punches','show_before_doj','show_after_dol','allow_negative_leave','show_ot_report',
-             'ot_before_shift','ot_after_shift','ot_manual_only','ot_clamp_out'];
+             'ot_before_shift','ot_after_shift','ot_manual_only','ot_clamp_out',
+             'wo_deduct_adj_absent','wo_deduct_low_present'];
     $ins  = $db->prepare("INSERT INTO tblSettings (CompanyId,SettingKey,SettingValue) VALUES (?,?,?) ON DUPLICATE KEY UPDATE SettingValue=VALUES(SettingValue)");
     foreach ($keys as $k) {
         $ins->execute([$saveFor, $k, isset($_POST[$k]) ? '1' : '0']);
@@ -53,6 +54,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $maxOt = (float)($_POST['ot_max_hours'] ?? 2);
     if ($maxOt < 0) $maxOt = 0;
     $ins->execute([$saveFor, 'ot_max_hours', (string)$maxOt]);
+    // Min present days in a week to earn that week's week-off (0 = no minimum)
+    $minWoPresent = (float)($_POST['wo_min_present_days'] ?? 3);
+    if ($minWoPresent < 0) $minWoPresent = 0;
+    if ($minWoPresent > 7) $minWoPresent = 7;
+    $ins->execute([$saveFor, 'wo_min_present_days', (string)$minWoPresent]);
     // OT slab rules → JSON [{from,to,credit} in minutes]
     $slabs = [];
     $sf = (array)($_POST['ot_from'] ?? []); $st = (array)($_POST['ot_to'] ?? []); $sc = (array)($_POST['ot_credit'] ?? []);
@@ -89,6 +95,9 @@ if ($fCompany) {
 
 // OT max hours for the form (default 2 when never set)
 $otMaxHours = array_key_exists('ot_max_hours', $settings) ? (float)$settings['ot_max_hours'] : 2;
+
+// Min present days per week to earn the week off (default 3 when never set)
+$woMinPresent = array_key_exists('wo_min_present_days', $settings) ? (float)$settings['wo_min_present_days'] : 3;
 
 // OT slab rules for the form (default to a sensible example when never set)
 $otSlabs = json_decode($settings['ot_slabs'] ?? '', true);
@@ -270,6 +279,72 @@ require_once __DIR__ . '/../../includes/header.php';
           </div>
         </div>
 
+      </div><!-- /.row -->
+    </div>
+    <div class="card-footer bg-white">
+      <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Save Settings</button>
+    </div>
+  </div>
+
+  <!-- ── Week Off Settings ───────────────────────────────────────────────────── -->
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white fw-semibold d-flex align-items-center gap-2">
+      <i class="bi bi-calendar2-week text-primary"></i>
+      Week Off Settings
+      <?php if ($user['role'] === 'superadmin'): ?>
+      <span class="badge bg-secondary ms-1">Global Defaults</span>
+      <?php elseif ($fCompany): ?>
+      <span class="badge bg-primary ms-1"><?= htmlspecialchars($fCompanyName) ?></span>
+      <?php endif; ?>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-4">
+        Rules that decide whether a week off is <strong>paid</strong>. A deducted week off is dropped from the
+        <em>H+S</em> count and from <em>Days</em> in the attendance report, and is shown struck through in the grid.
+        These rules apply to Sundays and marked week-offs (WO) only &mdash; declared holidays are always paid.
+      </p>
+
+      <div class="row g-4">
+        <div class="col-12">
+          <div class="d-flex align-items-start gap-3 p-3 border rounded">
+            <div class="form-check form-switch mb-0 pt-1">
+              <input class="form-check-input" type="checkbox" role="switch" id="wo_deduct_adj_absent" name="wo_deduct_adj_absent" <?= checked($settings, 'wo_deduct_adj_absent') ?>>
+            </div>
+            <div>
+              <label class="form-check-label fw-semibold" for="wo_deduct_adj_absent">Deduct week off if absent on either adjoining day</label>
+              <div class="text-muted small mt-1">
+                When ON &mdash; if the employee is absent on the working day <strong>before or after</strong> a week off, that week off is not paid.
+                Intervening holidays / other week-offs are skipped, so a Fri absence still costs a Sat&ndash;Sun weekend.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="d-flex align-items-start gap-3 p-3 border rounded">
+            <div class="form-check form-switch mb-0 pt-1">
+              <input class="form-check-input" type="checkbox" role="switch" id="wo_deduct_low_present" name="wo_deduct_low_present" <?= checked($settings, 'wo_deduct_low_present') ?>>
+            </div>
+            <div>
+              <label class="form-check-label fw-semibold" for="wo_deduct_low_present">Deduct week off if present less than the minimum days that week</label>
+              <div class="text-muted small mt-1">
+                When ON &mdash; the week off is paid only if the employee worked at least the minimum days in that
+                Monday&ndash;Sunday week (half-days count as &frac12;).
+                <strong>Note:</strong> run the report over whole weeks or whole months &mdash; a range that starts mid-week
+                can only count the days inside the range.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <div class="p-3 border rounded h-100">
+            <label class="form-check-label fw-semibold" for="wo_min_present_days">Minimum present days per week</label>
+            <div class="text-muted small mt-1 mb-2">Used by the toggle above. Default 3. Set 0 to never deduct on this rule.</div>
+            <input type="number" step="0.5" min="0" max="7" class="form-control" style="max-width:140px"
+                   id="wo_min_present_days" name="wo_min_present_days" value="<?= rtrim(rtrim(number_format($woMinPresent, 1), '0'), '.') ?>">
+          </div>
+        </div>
       </div><!-- /.row -->
     </div>
     <div class="card-footer bg-white">

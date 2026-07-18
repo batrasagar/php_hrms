@@ -2,6 +2,7 @@
 define('BASE_URL', '..');
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/weekoff.php';
 requireLogin();
 requirePermission('report_attendance.view');
 
@@ -56,6 +57,11 @@ $showWoPunch  = !empty($settings['show_weekoff_punches']);
 $showBefDoj   = !empty($settings['show_before_doj']);
 $showAftDol   = !empty($settings['show_after_dol']);
 $showOt       = ($settings['show_ot_report'] ?? '1') !== '0';  // default: show
+
+// ── Week-off pay config ───────────────────────────────────────────────────────
+$woAdjAbsent   = !empty($settings['wo_deduct_adj_absent']);    // absent either side → WO unpaid
+$woLowPresent  = !empty($settings['wo_deduct_low_present']);   // too few present days that week → WO unpaid
+$woMinPresent  = array_key_exists('wo_min_present_days', $settings) ? (float)$settings['wo_min_present_days'] : 3.0;
 
 // ── OT calculation config ─────────────────────────────────────────────────────
 $otBefore     = !empty($settings['ot_before_shift']);   // count early arrival
@@ -279,12 +285,12 @@ foreach ($dates as $dt) {
 // ── Build employee rows & totals ──────────────────────────────────────────────
 $dayTotals    = [];
 foreach ($dates as $dt) $dayTotals[$dt] = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
-$grand        = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
+$grand        = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0,'HS'=>0];
 $grandOtMins  = 0;
 $employeeRows = [];
 
 foreach ($employees as $e) {
-    $presentDays = 0; $hpDays = 0; $absentDays = 0; $fullLv = 0; $halfLv = 0; $compOff = 0;
+    $presentDays = 0; $hpDays = 0; $absentDays = 0; $fullLv = 0; $halfLv = 0; $compOff = 0; $hsDays = 0;
     $otTotalMins = 0;
     $days = [];
 
@@ -327,7 +333,8 @@ foreach ($employees as $e) {
                 case 'A':   $absentDays++;  $dayTotals[$dt]['A']++;  break;
                 case 'L':   $fullLv++;      $dayTotals[$dt]['L']++;  break;
                 case 'CO':  $compOff++;     $dayTotals[$dt]['CO']++; break;
-                case 'HOL': $cell['holName'] = $holidayDates[$dt] ?? 'Holiday'; break;
+                case 'HOL': $hsDays++; $cell['holName'] = $holidayDates[$dt] ?? 'Holiday'; break;
+                case 'WO':  $hsDays++; break;
             }
             // Keep punch times visible for present/half days AND for forced-absent
             // days (mark-absent-but-show-punches). 'A' is flagged so the grid renders
@@ -349,9 +356,11 @@ foreach ($employees as $e) {
 
         if ($isSun && !($showWoPunch && $punch)) {
             $cell['type'] = 'SUN';
+            $hsDays++;
         } elseif ($isHol && !($showHolPunch && $punch)) {
             $cell['type']    = 'HOL';
             $cell['holName'] = $holidayDates[$dt];
+            $hsDays++;
         } elseif ($lvType === 'full_day' && !($showLvPunch && $punch)) {
             // Comp-off (code CO) renders as its own marker, tallied separately
             if ($lvCode === 'CO') {
@@ -441,12 +450,19 @@ foreach ($employees as $e) {
         $days[$dt] = $cell;
     }
 
+    // Week-off pay rules — unpaid offs drop out of H+S (and therefore out of Days).
+    if ($woAdjAbsent || $woLowPresent) {
+        $hsDays -= woDeductWeekOffs($days, $dates, $woAdjAbsent, $woLowPresent, $woMinPresent);
+        if ($hsDays < 0) $hsDays = 0;
+    }
+
     $grand['P']  += $presentDays;
     $grand['HP'] += $hpDays;
     $grand['A']  += $absentDays;
     $grand['L']  += $fullLv;
     $grand['HL'] += $halfLv;
     $grand['CO'] += $compOff;
+    $grand['HS'] += $hsDays;
     $grandOtMins += $otTotalMins;
 
     $employeeRows[] = [
@@ -459,7 +475,7 @@ foreach ($employees as $e) {
         'department' => $e['Department'] ?? '',
         'shiftNo'    => $e['ShiftNo'] ?? '',
         'days'       => $days,
-        'summary'    => ['P'=>$presentDays,'HP'=>$hpDays,'A'=>$absentDays,'L'=>$fullLv,'HL'=>$halfLv,'CO'=>$compOff,
+        'summary'    => ['P'=>$presentDays,'HP'=>$hpDays,'A'=>$absentDays,'L'=>$fullLv,'HL'=>$halfLv,'CO'=>$compOff,'HS'=>$hsDays,
                          'otMins'=>$otTotalMins,'ot'=>attendMinsToHm($otTotalMins)],
     ];
 }

@@ -332,6 +332,12 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 
   function renderCell(c) {
+    // Week off withheld by the week-off pay rules — show it struck through, reason on hover.
+    if (c.woCut) {
+      var lbl = c.type === 'WO' ? 'WO' : 'S';
+      return ['<span style="font-size:9px;text-decoration:line-through" title="Week off not paid — '+esc(c.woWhy||'')+'">'+lbl+'</span>'
+             +'<div style="font-size:7px;color:#b02a37;line-height:1">unpaid</div>', '#f8d7da', 'text-danger'];
+    }
     switch (c.type) {
       case 'SUN': return ['<span style="font-size:9px">S</span>', '#f0f0f0', 'text-muted'];
       case 'HOL': return ['<span style="font-size:9px" title="'+esc(c.holName)+'">H</span>', '#e8f5e9', 'text-success'];
@@ -376,7 +382,8 @@ document.addEventListener('DOMContentLoaded', function(){
     var h = Math.floor(m / 60), mn = m % 60;
     return (h ? h + 'h' : '') + (mn ? mn + 'm' : (h ? '' : '0m'));
   }
-  function daysTxt(p, hp) { var d = (p || 0) + 0.5 * (hp || 0); return d ? (Number.isInteger(d) ? d : d.toFixed(1)) : '—'; }
+  // Payable days = full present + ½ half-present + holidays/Sundays (H+S)
+  function daysTxt(p, hp, hs) { var d = (p || 0) + 0.5 * (hp || 0) + (hs || 0); return d ? (Number.isInteger(d) ? d : d.toFixed(1)) : '—'; }
 
   // Summary cells (P/HP/A/L/CO/HL + Total Days + OT) for a department subtotal row.
   function summaryCells(a, showOt) {
@@ -386,7 +393,8 @@ document.addEventListener('DOMContentLoaded', function(){
          + '<td class="text-center fw-bold" style="color:#c0392b">'+(a.L||0)+'</td>'
          + '<td class="text-center fw-bold text-info">'+(a.CO||0)+'</td>'
          + '<td class="text-center fw-bold text-warning">'+(a.HL||0)+'</td>'
-         + '<td class="text-center fw-bold">'+daysTxt(a.P, a.HP)+'</td>'
+         + '<td class="text-center fw-bold text-secondary">'+(a.HS||0)+'</td>'
+         + '<td class="text-center fw-bold">'+daysTxt(a.P, a.HP, a.HS)+'</td>'
          + (showOt ? '<td class="text-center fw-bold" style="color:#e65100">'+(otHm(a.otMins)||'—')+'</td>' : '');
   }
 
@@ -415,9 +423,10 @@ document.addEventListener('DOMContentLoaded', function(){
           + '<span class="badge bg-warning text-dark">HL</span> Half Leave &nbsp;'
           + '<span class="badge bg-light text-muted border">H</span> Holiday &nbsp;'
           + '<span class="badge bg-secondary">S</span> Sunday &nbsp;'
+          + '<span class="badge bg-danger-subtle text-danger border" style="text-decoration:line-through">S</span> Unpaid Week Off &nbsp;'
           + '<span style="color:#e65100;font-weight:600">+Xm</span> Overtime</div>';
 
-    var minW = 210 + data.dates.length * 40 + (showOt ? 76 : 38);
+    var minW = 244 + data.dates.length * 40 + (showOt ? 76 : 38);
     html += '<div class="card border-0 shadow-sm" style="overflow-x:auto">';
     html += '<div class="card-header bg-white fw-semibold">Attendance &mdash; '+esc(data.fFrom)+' to '+esc(data.fTo)+'</div>';
     html += '<table id="tblAttendance" class="table table-sm table-bordered mb-0" style="min-width:'+minW+'px">';
@@ -436,14 +445,15 @@ document.addEventListener('DOMContentLoaded', function(){
           + '<th class="text-center" style="min-width:28px" title="Full Leave">L</th>'
           + '<th class="text-center" style="min-width:28px" title="Comp Off">CO</th>'
           + '<th class="text-center" style="min-width:28px" title="Half Leave">HL</th>'
-          + '<th class="text-center" style="min-width:36px" title="Total present days (P + ½ HP)">Days</th>'
+          + '<th class="text-center" style="min-width:34px" title="Holidays + Sundays">H+S</th>'
+          + '<th class="text-center" style="min-width:36px" title="Total payable days (P + ½ HP + H+S)">Days</th>'
           + (showOt ? '<th class="text-center" style="min-width:40px" title="Total overtime">OT</th>' : '')
           + '</tr></thead>';
 
     // tbody — grouped by department, with a subtotal row per department
     html += '<tbody>';
     var colBefore = 2 + data.dates.length;                 // Code + Name + date columns
-    var totalCols = colBefore + 7 + (showOt ? 1 : 0);       // + P/HP/A/L/CO/HL/Days (+OT)
+    var totalCols = colBefore + 8 + (showOt ? 1 : 0);       // + P/HP/A/L/CO/HL/H+S/Days (+OT)
     var curDept = null, deptAgg = null;
     function flushDept() {
       if (!deptAgg) return;
@@ -456,7 +466,7 @@ document.addEventListener('DOMContentLoaded', function(){
       if (dep !== curDept) {
         flushDept();
         curDept = dep;
-        deptAgg = {P:0,HP:0,A:0,L:0,CO:0,HL:0,otMins:0,n:0};
+        deptAgg = {P:0,HP:0,A:0,L:0,CO:0,HL:0,HS:0,otMins:0,n:0};
         html += '<tr class="table-primary"><td colspan="'+totalCols+'" class="fw-semibold">'
               + '<i class="bi bi-diagram-3 me-1"></i>'+esc(dep || '— No Department —')+'</td></tr>';
       }
@@ -475,14 +485,15 @@ document.addEventListener('DOMContentLoaded', function(){
       });
       var s = emp.summary;
       deptAgg.P+=s.P||0; deptAgg.HP+=s.HP||0; deptAgg.A+=s.A||0; deptAgg.L+=s.L||0;
-      deptAgg.CO+=s.CO||0; deptAgg.HL+=s.HL||0; deptAgg.otMins+=s.otMins||0; deptAgg.n++;
+      deptAgg.CO+=s.CO||0; deptAgg.HL+=s.HL||0; deptAgg.HS+=s.HS||0; deptAgg.otMins+=s.otMins||0; deptAgg.n++;
       html += '<td class="text-center fw-semibold text-success">'+s.P+'</td>'
             + '<td class="text-center fw-semibold text-primary">'+(s.HP||'—')+'</td>'
             + '<td class="text-center fw-semibold text-danger">'+s.A+'</td>'
             + '<td class="text-center fw-semibold" style="color:#c0392b">'+(s.L||'—')+'</td>'
             + '<td class="text-center fw-semibold text-info">'+(s.CO||'—')+'</td>'
             + '<td class="text-center fw-semibold text-warning">'+(s.HL||'—')+'</td>'
-            + '<td class="text-center fw-bold">'+daysTxt(s.P, s.HP)+'</td>'
+            + '<td class="text-center fw-semibold text-secondary">'+(s.HS||'—')+'</td>'
+            + '<td class="text-center fw-bold">'+daysTxt(s.P, s.HP, s.HS)+'</td>'
             + (showOt ? '<td class="text-center fw-semibold" style="color:#e65100">'+(otHm(s.otMins)||'—')+'</td>' : '')
             + '</tr>';
     });
@@ -515,7 +526,8 @@ document.addEventListener('DOMContentLoaded', function(){
           + '<td class="text-center fw-bold" style="color:#ef9a9a">'+(g.L||'—')+'</td>'
           + '<td class="text-center fw-bold" style="color:#4dd0e1">'+(g.CO||'—')+'</td>'
           + '<td class="text-center text-warning fw-bold">'+(g.HL||'—')+'</td>'
-          + '<td class="text-center text-white fw-bold">'+daysTxt(g.P, g.HP)+'</td>'
+          + '<td class="text-center fw-bold" style="color:#ced4da">'+(g.HS||'—')+'</td>'
+          + '<td class="text-center text-white fw-bold">'+daysTxt(g.P, g.HP, g.HS)+'</td>'
           + (showOt ? '<td class="text-center fw-bold" style="color:#ffcc80">'+(otHm(data.grandOtMins)||'—')+'</td>' : '')
           + '</tr></tfoot></table></div>';
 
