@@ -43,6 +43,12 @@
   .qrbox           { flex-shrink: 0; margin-left: 2mm; }
   .qrbox img, .qrbox canvas { width: 48px !important; height: 48px !important; }
 
+  /* Signature + company stamp — static labels in blue */
+  .id-card-sign    { display: flex; justify-content: space-between; gap: 3mm;
+                     margin-top: 2.5mm; padding-top: 1mm; border-top: 0.4mm dashed #99a; }
+  .id-card-sign > div { flex: 1; text-align: center; }
+  .id-card-sign .sign-label { font-size: 6.5pt; font-weight: bold; color: #0d47a1; }
+
   .no-print { display: none; }
   @media screen {
     body { background: #ddd; padding: 20px; }
@@ -133,6 +139,11 @@ foreach ($printEmps as $e):
     </div>
 
   </div><!-- /id-card-body -->
+
+  <div class="id-card-sign">
+    <div><span class="sign-label">Employee Signature</span></div>
+    <div><span class="sign-label">Company Stamp</span></div>
+  </div>
 </div><!-- /id-card -->
 <?php endforeach; ?>
 </div><!-- /cards-grid -->

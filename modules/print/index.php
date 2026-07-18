@@ -88,9 +88,11 @@ require_once __DIR__ . '/../../includes/header.php';
   <input type="hidden" name="ptype" value="">
   <div class="card border-0 shadow-sm">
     <div class="card-header bg-white d-flex justify-content-between align-items-center">
-      <div>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
         <input type="checkbox" id="selAll" class="form-check-input me-1" style="width:22px;height:22px;cursor:pointer">
-        <label for="selAll" class="fw-semibold" style="vertical-align:middle;cursor:pointer">Select All (<?= count($employees) ?> employees)</label>
+        <label for="selAll" class="fw-semibold mb-0" style="vertical-align:middle;cursor:pointer">Select All (<span id="empCount"><?= count($employees) ?></span> employees)</label>
+        <input type="text" id="empSearch" class="form-control form-control-sm ms-2" style="max-width:220px"
+               placeholder="Search name / code…" autocomplete="off">
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <?php if ($cardTpls): ?>
@@ -127,7 +129,7 @@ require_once __DIR__ . '/../../includes/header.php';
         </thead>
         <tbody>
         <?php foreach ($employees as $e): ?>
-        <tr>
+        <tr class="emp-row" data-search="<?= htmlspecialchars(strtolower($e['Name'] . ' ' . ($e['EmployeeCode'] ?? ''))) ?>">
           <td><input type="checkbox" name="emp_ids[]" value="<?= $e['id'] ?>" class="emp-chk form-check-input" style="width:22px;height:22px;cursor:pointer"></td>
           <td>
             <?php if (!empty($e['Photo'])): ?>
@@ -157,8 +159,22 @@ require_once __DIR__ . '/../../includes/header.php';
 <?php
 $extraJs = <<<'JS'
 <script>
+// Select All — only affects rows currently visible (respects the search filter)
 document.getElementById('selAll')?.addEventListener('change', function(){
-  document.querySelectorAll('.emp-chk').forEach(c => c.checked = this.checked);
+  var on = this.checked;
+  document.querySelectorAll('.emp-row').forEach(function(row){
+    if (row.style.display !== 'none') { var c = row.querySelector('.emp-chk'); if (c) c.checked = on; }
+  });
+});
+// Live search by employee name / code
+document.getElementById('empSearch')?.addEventListener('input', function(){
+  var q = this.value.trim().toLowerCase(), shown = 0;
+  document.querySelectorAll('.emp-row').forEach(function(row){
+    var match = !q || (row.dataset.search || '').indexOf(q) !== -1;
+    row.style.display = match ? '' : 'none';
+    if (match) shown++;
+  });
+  var cnt = document.getElementById('empCount'); if (cnt) cnt.textContent = shown;
 });
 </script>
 JS;
