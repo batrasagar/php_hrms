@@ -47,7 +47,9 @@ if ($user['role'] === 'superadmin') {
     $s->execute([$user['id']]);
     $companiesDd = $s->fetchAll();
 }
-$fCompany = (int)($_GET['company'] ?? 0);
+// Default to the globally-selected company (topbar switcher); an explicit ?company= wins
+// (including the dropdown's "All companies" = empty value).
+$fCompany = isset($_GET['company']) ? (int)$_GET['company'] : (int)activeCompanyId($db, $user);
 $fAdminId = 0;
 foreach ($companiesDd as $c) if ((int)$c['id'] === $fCompany) $fAdminId = (int)$c['AdminId'];
 if ($fCompany && !$fAdminId) $fCompany = 0;   // selected company not in scope
