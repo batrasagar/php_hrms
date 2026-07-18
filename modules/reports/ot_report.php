@@ -28,6 +28,7 @@ if ($fDept)       { $where[] = 'e.Department = ?';  $params[] = $fDept; }
 if ($fContractor) { $where[] = 'e.Contractor = ?';  $params[] = $fContractor; }
 $where[] = 'ot.OTDate >= ?'; $params[] = $fFrom;
 $where[] = 'ot.OTDate <= ?'; $params[] = $fTo;
+if (isCompliance()) $where[] = 'e.Compliance = 1';   // compliance role → only compliance employees
 $wsql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 $stmt = $db->prepare(

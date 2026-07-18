@@ -67,6 +67,7 @@ $where  = ['e.CompanyId = ?'];
 $params = [$fCompany];
 if ($fDept)       { $where[] = 'e.Department = ?'; $params[] = $fDept; }
 if ($fContractor) { $where[] = 'e.Contractor = ?'; $params[] = $fContractor; }
+if (isCompliance()) $where[] = 'e.Compliance = 1';   // compliance role → only compliance employees
 $estmt = $db->prepare(
     "SELECT e.id, e.EmployeeCode, e.EnrollId, e.Name, e.FatherName, e.Contractor, e.Department, e.ShiftNo FROM tblEmployee e
      WHERE " . implode(' AND ', $where) . " AND e.Status='active' ORDER BY e.Department, ISNULL(e.Sr), e.Sr, e.Name"

@@ -37,6 +37,7 @@ if ($fQ) {
     $where[] = '(e.EmployeeCode LIKE ? OR e.Name LIKE ?)';
     $params[] = "%$fQ%"; $params[] = "%$fQ%";
 }
+if (isCompliance()) $where[] = 'e.Compliance = 1';   // compliance role → only compliance employees
 $wsql = 'WHERE ' . implode(' AND ', $where);
 
 $stmt = $db->prepare(
