@@ -12,8 +12,16 @@ $msg  = '';
 // Company comes from the global topbar switcher
 $fCompany = activeCompanyId($db, $user);
 $fDept    = trim($_GET['dept'] ?? '');
+$fSearch  = trim($_GET['q'] ?? '');
+$fComp    = in_array($_GET['compliance'] ?? '', ['1','0'], true) ? $_GET['compliance'] : '';
 $fPage    = max(1, (int)($_GET['p'] ?? 1));
 $perPage  = 50;
+
+// Shared filter query-string for links & redirects (keeps company/dept/search/compliance)
+$FQS = http_build_query(array_filter(
+    ['company'=>$fCompany, 'dept'=>$fDept, 'q'=>$fSearch, 'compliance'=>$fComp],
+    fn($v) => $v !== '' && $v !== null
+));
 
 // ── Field catalog: the columns that may be shown / edited in the grid ──────────
 // key = tblEmployee column; type drives the input + value coercion on save.
@@ -75,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     if (!$show) $show = $DEFAULT_SHOW;                                             // never blank the grid
     beSet($db, $fCompany, 'bulk_edit_show', implode(',', $show));
     beSet($db, $fCompany, 'bulk_edit_edit', implode(',', $edit));
-    header("Location: bulk_edit.php?company=$fCompany&dept=" . urlencode($fDept) . "&p=$fPage&fields=1"); exit;
+    header("Location: bulk_edit.php?$FQS&p=$fPage&fields=1"); exit;
 }
 if (isset($_GET['fields'])) $msg = 'Field settings saved.';
 
@@ -136,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['emp_ids'])) {
     }
     $msg = "Saved $saved row(s).";
     if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'message'=>$msg]); exit; }
-    header("Location: bulk_edit.php?company=$fCompany&dept=" . urlencode($fDept) . "&p=$fPage&saved=$saved"); exit;
+    header("Location: bulk_edit.php?$FQS&p=$fPage&saved=$saved"); exit;
 }
 if (isset($_GET['saved'])) $msg = 'Saved ' . (int)$_GET['saved'] . ' row(s).';
 
@@ -145,6 +153,9 @@ $where  = $fCompany ? ['e.CompanyId = ?'] : [];
 $params = $fCompany ? [$fCompany] : [];
 if ($user['role'] !== 'superadmin') { $where[] = 'c.AdminId = ?'; $params[] = $user['scope_id']; }
 if ($fDept) { $where[] = 'e.Department = ?'; $params[] = $fDept; }
+if ($fSearch !== '') { $where[] = '(e.EmployeeCode LIKE ? OR e.Name LIKE ?)'; $params[] = "%$fSearch%"; $params[] = "%$fSearch%"; }
+if ($fComp === '1')     { $where[] = 'e.Compliance = 1'; }
+elseif ($fComp === '0') { $where[] = '(e.Compliance = 0 OR e.Compliance IS NULL)'; }
 $wsql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 $totalStmt = $db->prepare("SELECT COUNT(*) FROM tblEmployee e JOIN tblCompany c ON c.id=e.CompanyId $wsql");
@@ -182,6 +193,10 @@ require_once __DIR__ . '/../../includes/header.php';
     <form method="GET" class="row g-2 align-items-end">
       <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
       <div class="col-sm-3">
+        <label class="form-label small mb-1">Search</label>
+        <input type="text" name="q" value="<?= htmlspecialchars($fSearch) ?>" class="form-control form-control-sm" placeholder="Emp code / name…" autocomplete="off">
+      </div>
+      <div class="col-sm-3">
         <label class="form-label small mb-1">Department</label>
         <select name="dept" class="form-select form-select-sm" onchange="this.form.submit()">
           <option value="">All</option>
@@ -189,6 +204,17 @@ require_once __DIR__ . '/../../includes/header.php';
           <option value="<?= htmlspecialchars($d) ?>" <?= $fDept===$d?'selected':'' ?>><?= htmlspecialchars($d) ?></option>
           <?php endforeach; ?>
         </select>
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label small mb-1">Compliance</label>
+        <select name="compliance" class="form-select form-select-sm" onchange="this.form.submit()">
+          <option value="">All</option>
+          <option value="1" <?= $fComp==='1'?'selected':'' ?>>Compliance</option>
+          <option value="0" <?= $fComp==='0'?'selected':'' ?>>Non-Compliance</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-outline-secondary btn-sm"><i class="bi bi-search"></i> Search</button>
       </div>
       <div class="col-auto">
         <span class="text-muted small">Showing <?= count($employees) ?> of <?= $total ?> employees (page <?= $fPage ?>/<?= $pages ?>)</span>
@@ -291,7 +317,7 @@ require_once __DIR__ . '/../../includes/header.php';
     <div class="modal fade" id="fieldsModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-scrollable">
         <div class="modal-content">
-          <form method="POST" action="bulk_edit.php?company=<?= (int)$fCompany ?>&dept=<?= urlencode($fDept) ?>&p=<?= $fPage ?>">
+          <form method="POST" action="bulk_edit.php?<?= htmlspecialchars($FQS) ?>&p=<?= $fPage ?>">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="save_fields">
             <div class="modal-header py-2">
@@ -370,7 +396,7 @@ require_once __DIR__ . '/../../includes/header.php';
   <?php if ($pages > 1): ?>
   <div class="card-footer bg-white d-flex justify-content-center gap-1 flex-wrap">
     <?php for ($pg = 1; $pg <= $pages; $pg++): ?>
-    <a href="?company=<?= $fCompany ?>&dept=<?= urlencode($fDept) ?>&p=<?= $pg ?>"
+    <a href="?<?= $FQS ?>&p=<?= $pg ?>"
        class="btn btn-sm <?= $pg===$fPage?'btn-primary':'btn-outline-secondary' ?>"><?= $pg ?></a>
     <?php endfor; ?>
   </div>
