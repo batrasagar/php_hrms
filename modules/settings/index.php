@@ -18,6 +18,49 @@ $db->exec("CREATE TABLE IF NOT EXISTS tblSettings (
     UNIQUE KEY uk_cs (CompanyId, SettingKey)
 )");
 
+/**
+ * Every setting key this page manages, with a label and how to render its value.
+ * Drives the per-company override panel — add new keys here as well as to the form,
+ * or an override on them will be invisible to a superadmin.
+ */
+function settingCatalog(): array {
+    return [
+        'show_holiday_punches'  => ['Show punches on holidays',        'bool'],
+        'show_leave_punches'    => ['Show punches on leave days',      'bool'],
+        'show_weekoff_punches'  => ['Show punches on week offs',       'bool'],
+        'show_ot_report'        => ['Show OT column in reports',       'bool'],
+        'allow_negative_leave'  => ['Allow negative leave balance',    'bool'],
+        'show_before_doj'       => ['Show punches before DOJ',         'bool'],
+        'show_after_dol'        => ['Show punches after DOL',          'bool'],
+        'ot_before_shift'       => ['OT for early arrival',            'bool'],
+        'ot_after_shift'        => ['OT for late departure',           'bool'],
+        'ot_manual_only'        => ['Manual OT only',                  'bool'],
+        'ot_clamp_out'          => ['Clamp out-punch beyond OT limit', 'bool'],
+        'ot_max_hours'          => ['Max OT hours',                    'num'],
+        'ot_slabs'              => ['OT rounding slabs',               'json'],
+        'wo_deduct_adj_absent'  => ['Deduct week off — absent adjoining day', 'bool'],
+        'wo_deduct_low_present' => ['Deduct week off — below min present days', 'bool'],
+        'wo_min_present_days'   => ['Min present days per week',       'num'],
+    ];
+}
+
+/** Render a stored setting value for display in the override panel. */
+function settingValueLabel(string $key, ?string $val): string {
+    $type = settingCatalog()[$key][1] ?? 'num';
+    if ($val === null) return '<span class="text-muted">not set</span>';
+    if ($type === 'bool') {
+        return !empty($val) && $val !== '0'
+            ? '<span class="badge bg-success-subtle text-success border">On</span>'
+            : '<span class="badge bg-secondary-subtle text-secondary border">Off</span>';
+    }
+    if ($type === 'json') {
+        $d = json_decode($val, true);
+        return is_array($d) ? '<span class="text-muted small">' . count($d) . ' rule(s)</span>'
+                            : '<span class="text-muted small">—</span>';
+    }
+    return '<span class="fw-semibold">' . htmlspecialchars($val) . '</span>';
+}
+
 // ── Company scope ──────────────────────────────────────────────────────────────
 // Superadmin edits global defaults (CompanyId = 0); everyone else follows the
 // global topbar company switcher.
@@ -33,6 +76,28 @@ if ($fCompany) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requirePermission('settings.edit');
     csrf_verify();
+
+    // Drop a company-level override so that company falls back to the global default.
+    // Superadmin only — this edits companies other than the one in the topbar switcher.
+    if (($_POST['action'] ?? '') === 'clear_override') {
+        if ($user['role'] !== 'superadmin') {
+            header('Location: index.php'); exit;
+        }
+        $ocId = (int)($_POST['override_company'] ?? 0);
+        $oKey = trim($_POST['override_key'] ?? '');
+        if ($ocId > 0) {
+            if ($oKey !== '' && array_key_exists($oKey, settingCatalog())) {
+                $del = $db->prepare("DELETE FROM tblSettings WHERE CompanyId=? AND SettingKey=?");
+                $del->execute([$ocId, $oKey]);
+            } elseif ($oKey === '') {                       // clear every managed key for this company
+                $keysIn = implode(',', array_fill(0, count(settingCatalog()), '?'));
+                $del = $db->prepare("DELETE FROM tblSettings WHERE CompanyId=? AND SettingKey IN ($keysIn)");
+                $del->execute(array_merge([$ocId], array_keys(settingCatalog())));
+            }
+        }
+        header('Location: index.php?cleared=1'); exit;
+    }
+
     $saveFor = (int)($_POST['company_id'] ?? 0);
     if ($user['role'] !== 'superadmin') {
         $chk = $db->prepare("SELECT id FROM tblCompany WHERE id=? AND AdminId=?");
@@ -481,6 +546,114 @@ require_once __DIR__ . '/../../includes/header.php';
   });
 })();
 </script>
+<?php endif; ?>
+
+<?php
+// ── Per-company overrides ─────────────────────────────────────────────────────
+// The form above edits GLOBAL defaults for a superadmin, so any company-level row
+// silently wins over what is shown there. Surface those rows or they are invisible.
+if ($user['role'] === 'superadmin'):
+    $catalog  = settingCatalog();
+    $globalS  = loadSettings($db, 0);
+    $ovRows   = $db->query(
+        "SELECT s.CompanyId, s.SettingKey, s.SettingValue, s.UpdatedAt, c.Name
+           FROM tblSettings s
+           LEFT JOIN tblCompany c ON c.id = s.CompanyId
+          WHERE s.CompanyId <> 0
+          ORDER BY c.Name, s.SettingKey"
+    )->fetchAll();
+    // Keep only keys this page manages — other subsystems store their own rows here.
+    $ovRows = array_values(array_filter($ovRows, fn($r) => array_key_exists($r['SettingKey'], $catalog)));
+    $byCompany = [];
+    foreach ($ovRows as $r) $byCompany[(int)$r['CompanyId']][] = $r;
+?>
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-white fw-semibold d-flex align-items-center gap-2">
+    <i class="bi bi-diagram-2 text-primary"></i>
+    Per-Company Overrides
+    <span class="badge bg-secondary ms-1"><?= count($byCompany) ?> compan<?= count($byCompany) === 1 ? 'y' : 'ies' ?></span>
+  </div>
+  <div class="card-body">
+    <?php if (isset($_GET['cleared'])): ?>
+    <div class="alert alert-success py-2 small"><i class="bi bi-check-circle me-1"></i>Override cleared — that company now follows the global default.</div>
+    <?php endif; ?>
+
+    <p class="text-muted small mb-3">
+      The settings above are the <strong>global defaults</strong>. A company listed here has its own
+      stored value that <strong>overrides</strong> the global one — changing the toggle above will
+      <em>not</em> affect it. Clear an override to make that company follow the global default again.
+    </p>
+
+    <?php if (!$byCompany): ?>
+      <div class="alert alert-light border py-2 small mb-0">
+        <i class="bi bi-info-circle me-1"></i>No company overrides — every company follows the global defaults above.
+      </div>
+    <?php else: ?>
+      <?php foreach ($byCompany as $cid => $rows): ?>
+      <div class="border rounded mb-3">
+        <div class="d-flex align-items-center justify-content-between px-3 py-2 bg-light border-bottom">
+          <div class="fw-semibold">
+            <i class="bi bi-building me-1"></i>
+            <?= htmlspecialchars($rows[0]['Name'] ?? ('Company #' . $cid)) ?>
+            <span class="text-muted small ms-1">(id <?= (int)$cid ?>)</span>
+          </div>
+          <form method="POST" class="m-0" onsubmit="return confirm('Clear all <?= count($rows) ?> override(s) for this company? It will then follow the global defaults.');">
+            <?= csrf_field() ?? '' ?>
+            <input type="hidden" name="action" value="clear_override">
+            <input type="hidden" name="override_company" value="<?= (int)$cid ?>">
+            <input type="hidden" name="override_key" value="">
+            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle me-1"></i>Clear all</button>
+          </form>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Setting</th>
+                <th style="width:130px">Company value</th>
+                <th style="width:130px">Global value</th>
+                <th style="width:110px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($rows as $r):
+                $k       = $r['SettingKey'];
+                $gVal    = $globalS[$k] ?? null;
+                $differs = ((string)$r['SettingValue'] !== (string)($gVal ?? ''));
+              ?>
+              <tr>
+                <td>
+                  <?= htmlspecialchars($catalog[$k][0]) ?>
+                  <div class="text-muted" style="font-size:11px"><code><?= htmlspecialchars($k) ?></code></div>
+                </td>
+                <td>
+                  <?= settingValueLabel($k, $r['SettingValue']) ?>
+                  <?php if ($differs): ?>
+                  <div><span class="badge bg-warning-subtle text-warning border mt-1" style="font-size:10px">differs</span></div>
+                  <?php else: ?>
+                  <div><span class="text-muted" style="font-size:10px">same as global</span></div>
+                  <?php endif; ?>
+                </td>
+                <td><?= settingValueLabel($k, $gVal) ?></td>
+                <td>
+                  <form method="POST" class="m-0">
+                    <?= csrf_field() ?? '' ?>
+                    <input type="hidden" name="action" value="clear_override">
+                    <input type="hidden" name="override_company" value="<?= (int)$cid ?>">
+                    <input type="hidden" name="override_key" value="<?= htmlspecialchars($k) ?>">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">Clear</button>
+                  </form>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+</div>
 <?php endif; ?>
 
 <?php if ($user['role'] === 'superadmin'):
