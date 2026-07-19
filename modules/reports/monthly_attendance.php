@@ -43,6 +43,8 @@ $autoload = $fCompany ? 1 : 0;
 .s-h  { color:#6c757d; }
 .s-s  { color:#adb5bd; }
 #tblMonthly td.dc { vertical-align: middle; }
+#tblMonthly td.ma-smry { font-size:10px; line-height:1.3; white-space:nowrap; text-align:left;
+                         padding:2px 5px !important; font-weight:600; background:#f8fbff; }
 .att-badge {
     display: inline-block;
     min-width: 20px;
@@ -170,13 +172,7 @@ $extraJs = <<<JS
       html += '<th class="text-center dc"' + (d.isSun ? ' style="background:#f0f0f0"' : '') + '>'
             + parseInt(d.dayNum, 10) + '</th>';
     });
-    html += '<th class="text-center" style="min-width:30px" title="Present">P</th>'
-          + '<th class="text-center" style="min-width:30px" title="Half Day">HP</th>'
-          + '<th class="text-center" style="min-width:30px" title="Absent">A</th>'
-          + '<th class="text-center" style="min-width:30px" title="Leave">L</th>'
-          + '<th class="text-center" style="min-width:30px" title="Comp Off">CO</th>'
-          + '<th class="text-center" style="min-width:30px" title="Holiday / Sunday">H+S</th>'
-          + '<th class="text-center" style="min-width:44px" title="Total Pay Days = P + ½·HP + L + CO + Holidays/Sundays">Pay Days</th>'
+    html += '<th class="text-center" style="min-width:92px" title="P/HP, A/L, CO/HL, H+S and Pay Days">Smry</th>'
           + '</tr><tr class="table-light"><th></th>';
 
     dates.forEach(function (d) {
@@ -185,56 +181,63 @@ $extraJs = <<<JS
       html += '<th class="text-center dc" style="font-size:9px;' + (d.isSun ? 'background:#f0f0f0' : '') + '">'
             + DAY_NAMES[dayIdx] + '</th>';
     });
-    html += '<th colspan="7"></th></tr></thead><tbody>';
+    html += '<th></th></tr></thead><tbody>';
 
     // Running totals across every employee, for the KPI tiles above the grid.
-    var totP = 0, totHP = 0, totA = 0, totL = 0, totCO = 0, totHS = 0, totPay = 0;
+    var totP = 0, totHP = 0, totA = 0, totL = 0, totCO = 0, totHS = 0, totPay = 0, totHL = 0;
 
     emps.forEach(function (emp) {
-      var cntP = 0, cntHP = 0, cntA = 0, cntL = 0, cntCO = 0, cntHS = 0;
+      var cntP = 0, cntHP = 0, cntA = 0, cntL = 0, cntCO = 0, cntHS = 0, cntHL = 0;
       var dayCells = '';
       dates.forEach(function (d) {
         var c = emp.days[d.date] || { type: '' };
         if      (c.type === 'SUN') cntHS++;
         else if (c.type === 'HOL') cntHS++;
         else if (c.type === 'L')   cntL++;
-        else if (c.type === 'HL')  cntL += 0.5;
+        else if (c.type === 'HL')  cntHL++;
         else if (c.type === 'CO')  cntCO++;
         else if (c.type === 'P')   cntP++;
         else if (c.type === 'HP')  cntHP++;
         else if (c.type === 'A')   cntA++;
         dayCells += '<td class="dc text-center">' + badgeHtml(c.type) + '</td>';
       });
-      var payDays = cntP + cntHP * 0.5 + cntL + cntCO + cntHS;
-      totP += cntP; totHP += cntHP; totA += cntA; totL += cntL;
+      var payDays = cntP + cntHP * 0.5 + cntL + cntHL * 0.5 + cntCO + cntHS;
+      totP += cntP; totHP += cntHP; totA += cntA; totL += cntL; totHL += cntHL;
       totCO += cntCO; totHS += cntHS; totPay += payDays;
       html += '<tr><td style="font-size:11px"><strong>' + (emp.code || '&mdash;') + '</strong> ' + emp.name;
       if (emp.department) html += '<br><span style="font-size:9px;color:#888">' + emp.department + '</span>';
       html += '</td>' + dayCells
-            + '<td class="text-center fw-semibold s-p">'  + (cntP  || '') + '</td>'
-            + '<td class="text-center fw-semibold s-hp">' + (cntHP || '') + '</td>'
-            + '<td class="text-center fw-semibold s-a">'  + (cntA  || '') + '</td>'
-            + '<td class="text-center fw-semibold s-l">'  + (cntL  ? (Number.isInteger(cntL) ? cntL : cntL.toFixed(1)) : '') + '</td>'
-            + '<td class="text-center fw-semibold s-co">' + (cntCO || '') + '</td>'
-            + '<td class="text-center s-h">'              + (cntHS || '') + '</td>'
-            + '<td class="text-center fw-bold" style="background:#eef6ff">' + (payDays ? (Number.isInteger(payDays) ? payDays : payDays.toFixed(1)) : '') + '</td></tr>';
+            + smryCell({P:cntP, HP:cntHP, A:cntA, L:cntL, CO:cntCO, HL:cntHL, HS:cntHS, days:payDays})
+            + '</tr>';
     });
 
     html += '</tbody></table></div></div>';
 
     // KPI tiles, prepended so the headline numbers sit above the wide grid.
     var hpNote = totHP ? ' <small class="fs-6 text-primary">+' + totHP + 'HP</small>' : '';
+    var hlNote = totHL ? ' <small class="fs-6 text-warning">+' + totHL + 'HL</small>' : '';
     var tiles = '<div class="row g-2 mb-2">'
               + kpiTile(emps.length, 'text-secondary', 'Employees')
               + kpiTile(totP + hpNote, 'text-success', 'Present')
               + kpiTile(totA, 'text-danger', 'Absent')
-              + kpiTile(num(totL), 'text-warning', 'Leave')
+              + kpiTile(num(totL) + hlNote, 'text-warning', 'Leave')
               + kpiTile(totCO, 'text-info', 'Comp Off')
               + kpiTile(totHS, 'text-muted', 'Holiday + Sunday')
               + kpiTile(num(totPay), 'text-primary', 'Pay Days')
               + '</div>';
 
     \$('#filter-results').html(tiles + html);
+  }
+
+  /** One compact summary cell, matching the attendance report and its print view. */
+  function smryCell(a) {
+    function n(v) { return (v === 0 || v === undefined || v === null) ? '0' : num(v); }
+    return '<td class="ma-smry">'
+         + '<span class="s-p">P:'   + n(a.P)  + '</span> | <span class="s-hp">HP:' + n(a.HP) + '</span><br>'
+         + '<span class="s-a">A:'   + n(a.A)  + '</span> | <span class="s-l">L:'   + n(a.L)  + '</span><br>'
+         + '<span class="s-co">CO:' + n(a.CO) + '</span> | <span class="s-hl">HL:' + n(a.HL) + '</span><br>'
+         + '<span class="s-h">H+S:' + n(a.HS) + '</span> <strong>Days:' + n(a.days) + '</strong>'
+         + '</td>';
   }
 
   /** Whole numbers stay whole; halves show one decimal. */
