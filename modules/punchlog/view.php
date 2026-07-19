@@ -5,6 +5,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 requireLogin();
 blockCompliance(); // compliance role has no access to the punch log
 requirePermission('punchlog.view');
+require_once __DIR__ . '/../../includes/punch_source.php';
 require_once __DIR__ . '/../../services/ShardManager.php';
 require_once __DIR__ . '/../../services/AdmsSyncService.php';
 $pageTitle  = 'Punch Log';
@@ -142,12 +143,80 @@ if ($fSN) {
                     ];
                 }
 
-                usort($logs, fn($a, $b) => strcmp($b['PunchTime'], $a['PunchTime']));
-                $logs    = array_slice($logs, 0, 5000);
                 $fetched = true;
             }
         }
     }
+
+    // ── Local shards ─────────────────────────────────────────────────────────
+    // Punches bulk-imported from a legacy system exist only in tblPunchLog_YYMM —
+    // the ADMS API knows nothing about them (it 404s for those serials), so without
+    // this the page is blank for a migrated tenant even though the data is present.
+    // Rows already returned by ADMS are skipped, keyed on enroll id + timestamp.
+    $seen = [];
+    foreach ($logs as $l) $seen[$l['EnrollId'] . '|' . $l['PunchTime']] = true;
+
+    // Code → name for the device's company, fetched once rather than per punch row.
+    $codeToName = [];
+    $cn = $db->prepare(
+        "SELECT e.EmployeeCode, e.Name FROM tblEmployee e
+           JOIN tblCompany c ON c.Name = (SELECT Company FROM tblDevices WHERE SerialNumber = ? LIMIT 1)
+          WHERE e.CompanyId = c.id"
+    );
+    try {
+        $cn->execute([$fSN]);
+        foreach ($cn->fetchAll() as $r) $codeToName[(string)$r['EmployeeCode']] = (string)$r['Name'];
+    } catch (PDOException $e) { /* leave names blank */ }
+
+    $shardEnroll = [];
+    $em2 = $db->prepare(
+        "SELECT de.EnrollId, de.EmpCode, e.Name AS EmpName
+           FROM tblDeviceEnrollment de
+           LEFT JOIN tblEmployee e ON e.CompanyId = de.CompanyId AND e.EmployeeCode = de.EmpCode
+          WHERE de.DeviceSerial = ?"
+    );
+    $em2->execute([$fSN]);
+    foreach ($em2->fetchAll() as $r) {
+        $shardEnroll[(string)$r['EnrollId']] = ['EmpCode' => $r['EmpCode'], 'EmpName' => $r['EmpName']];
+    }
+
+    foreach (punchShardsForRange($fFrom, $fTo) as $tbl) {
+        try {
+            $ls = $db->prepare(
+                "SELECT EmpCode, EnrollId, PunchTime, PunchType
+                   FROM `$tbl`
+                  WHERE DeviceSerial = ? AND PunchTime BETWEEN ? AND ?
+                  ORDER BY PunchTime DESC"
+            );
+            $ls->execute([$fSN, $fFrom . ' 00:00:00', $fTo . ' 23:59:59']);
+        } catch (PDOException $e) { continue; }     // shard for that month never created
+
+        foreach ($ls->fetchAll() as $r) {
+            $eid = (string)($r['EnrollId'] ?? '');
+            if ($fEId !== '' && $eid !== $fEId) continue;
+            $key = $eid . '|' . $r['PunchTime'];
+            if (isset($seen[$key])) continue;
+            $seen[$key] = true;
+            // The import resolved EmpCode directly, so prefer it over the enroll map.
+            $map = $shardEnroll[$eid] ?? null;
+            $code = $r['EmpCode'] ?: ($map['EmpCode'] ?? '');
+            $name = $map['EmpName'] ?? ($codeToName[$code] ?? '');
+            $logs[] = [
+                'DeviceSerial' => $fSN,
+                'EnrollId'     => $eid,
+                'EmpCode'      => $code,
+                'EmpName'      => $name,
+                'PunchTime'    => $r['PunchTime'],
+                'PunchType'    => (int)($r['PunchType'] ?? 0),
+            ];
+            $fetched = true;
+        }
+    }
+
+    usort($logs, fn($a, $b) => strcmp($b['PunchTime'], $a['PunchTime']));
+    $logs = array_slice($logs, 0, 5000);
+    // Local rows answered the query, so an ADMS transport error is no longer fatal.
+    if ($logs && $fetchError) $fetchError = null;
 }
 
 $punchTypeLabel = [0 => '—', 1 => 'In', 2 => 'Out'];

@@ -2,6 +2,7 @@
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/punch_source.php';
 requireLogin();
 requirePermission('punchlog.view');
 
@@ -22,10 +23,12 @@ try {
     $cred = $db->query("SELECT * FROM tblAdmsCredentials WHERE IsActive = 1 ORDER BY id ASC LIMIT 1")->fetch();
 } catch (Exception $e) {}
 
-if (!$cred) {
-    http_response_code(503);
-    exit('No active ADMS credential configured.');
-}
+// ADMS problems are collected rather than fatal — punches imported from a legacy
+// system live only in the local shards, and the API 404s for those serials.
+$admsError = null;
+$rows      = [];
+if (!$cred) $admsError = 'No active ADMS credential configured.';
+if ($cred) {
 
 $url = rtrim($cred['Endpoint'], '/') . '/api/punchlog.php?SerialNumber=' . urlencode($fSN);
 
@@ -40,27 +43,51 @@ $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-if ($httpCode !== 200) {
-    $body   = json_decode($response, true);
-    $detail = $body['error'] ?? $body['message'] ?? substr($response, 0, 200);
-    http_response_code(502);
-    exit("ADMS API returned HTTP {$httpCode}: {$detail}  [{$url}]");
+    if ($httpCode !== 200) {
+        $body      = json_decode($response, true);
+        $detail    = $body['error'] ?? $body['message'] ?? substr($response, 0, 200);
+        $admsError = "ADMS API returned HTTP {$httpCode}: {$detail}";
+    } else {
+        $data = json_decode($response, true);
+        if (!$data || empty($data['success'])) {
+            $admsError = 'ADMS API error: ' . ($data['error'] ?? $data['message'] ?? 'Unknown');
+        } else {
+            $fromDt = $fFrom . ' 00:00:00';
+            $toDt   = $fTo   . ' 23:59:59';
+            foreach ($data['data'] ?? [] as $r) {
+                if ($r['PunchDateTime'] < $fromDt || $r['PunchDateTime'] > $toDt) continue;
+                if ($fEId && $r['EnrollId'] !== $fEId) continue;
+                $rows[] = ['SerialNumber' => $r['SerialNumber'] ?? $fSN, 'EnrollId' => $r['EnrollId'],
+                           'PunchDateTime' => $r['PunchDateTime'], 'Mode' => $r['Mode'] ?? ''];
+            }
+        }
+    }
 }
 
-$data = json_decode($response, true);
-if (!$data || empty($data['success'])) {
-    http_response_code(502);
-    exit('ADMS API error: ' . ($data['error'] ?? $data['message'] ?? 'Unknown'));
+// Local shards — the only source for bulk-imported tenants.
+$seen = [];
+foreach ($rows as $r) $seen[$r['EnrollId'] . '|' . $r['PunchDateTime']] = true;
+foreach (punchShardsForRange($fFrom, $fTo) as $tbl) {
+    try {
+        $ls = $db->prepare(
+            "SELECT EnrollId, EmpCode, PunchTime, PunchType FROM `$tbl`
+              WHERE DeviceSerial = ? AND PunchTime BETWEEN ? AND ?"
+        );
+        $ls->execute([$fSN, $fFrom . ' 00:00:00', $fTo . ' 23:59:59']);
+    } catch (PDOException $e) { continue; }
+    foreach ($ls->fetchAll() as $r) {
+        $eid = (string)($r['EnrollId'] ?? '');
+        if ($fEId && $eid !== $fEId) continue;
+        $key = $eid . '|' . $r['PunchTime'];
+        if (isset($seen[$key])) continue;
+        $seen[$key] = true;
+        $rows[] = ['SerialNumber' => $fSN, 'EnrollId' => $eid,
+                   'PunchDateTime' => $r['PunchTime'], 'Mode' => $r['PunchType'] ?? ''];
+    }
 }
 
-$fromDt = $fFrom . ' 00:00:00';
-$toDt   = $fTo   . ' 23:59:59';
-
-$rows = array_filter($data['data'] ?? [], function ($r) use ($fromDt, $toDt, $fEId) {
-    if ($r['PunchDateTime'] < $fromDt || $r['PunchDateTime'] > $toDt) return false;
-    if ($fEId && $r['EnrollId'] !== $fEId) return false;
-    return true;
-});
+// Only fail when nothing at all could be gathered.
+if (!$rows && $admsError) { http_response_code(502); exit($admsError); }
 
 usort($rows, fn($a, $b) => strcmp($b['PunchDateTime'], $a['PunchDateTime']));
 
