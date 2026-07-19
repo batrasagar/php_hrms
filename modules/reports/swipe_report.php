@@ -242,6 +242,12 @@ $extraJs = <<<JS
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
   }
 
+  function swTile(val, cls, label) {
+    return '<div class="col-6 col-sm-4 col-md-3 col-xl-2"><div class="card border-0 shadow-sm text-center py-2">'
+         + '<div class="fs-4 fw-bold ' + cls + '">' + val + '</div>'
+         + '<div class="small text-muted">' + label + '</div></div></div>';
+  }
+
   function render(data) {
     var dates = data.dates;
     var emps  = data.employees;
@@ -301,6 +307,9 @@ $extraJs = <<<JS
     });
     html += '<th colspan="6"></th></tr></thead><tbody>';
 
+    // Running totals across every employee, for the KPI tiles above the grid.
+    var totP = 0, totHP = 0, totA = 0, totL = 0, totCO = 0, totHL = 0;
+
     var prevDept = null;
     emps.forEach(function(emp) {
       if (!data.fDept && emp.department !== prevDept) {
@@ -324,6 +333,9 @@ $extraJs = <<<JS
         dayCells += '<td class="'+r[0]+'">'+r[1]+'</td>';
       });
 
+      totP += cntP; totHP += cntHP; totA += cntA;
+      totL += cntL; totCO += cntCO; totHL += cntHL;
+
       var srch = ((emp.code||'')+' '+(emp.name||'')).toLowerCase();
       html += '<tr class="sw-emp-row" data-search="'+esc(srch)+'">'
             + '<td style="font-size:10px">'
@@ -343,7 +355,19 @@ $extraJs = <<<JS
     });
 
     html += '</tbody></table></div></div>';
-    \$('#filter-results').html(html);
+
+    // KPI tiles, prepended so the headline numbers sit above the wide grid.
+    var hpNote = totHP ? ' <small class="fs-6 text-primary">+' + totHP + 'HP</small>' : '';
+    var hlNote = totHL ? ' <small class="fs-6 text-warning">+' + totHL + 'HL</small>' : '';
+    var tiles = '<div class="row g-2 mb-2">'
+              + swTile(emps.length, 'text-secondary', 'Employees')
+              + swTile(totP + hpNote, 'text-success', 'Present')
+              + swTile(totA, 'text-danger', 'Absent')
+              + swTile(totL + hlNote, 'text-warning', 'Leave')
+              + swTile(totCO, 'text-info', 'Comp Off')
+              + '</div>';
+
+    \$('#filter-results').html(tiles + html);
     \$('#swSearchBar').removeClass('d-none');
     applySwSearch();
   }

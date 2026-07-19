@@ -187,6 +187,9 @@ $extraJs = <<<JS
     });
     html += '<th colspan="7"></th></tr></thead><tbody>';
 
+    // Running totals across every employee, for the KPI tiles above the grid.
+    var totP = 0, totHP = 0, totA = 0, totL = 0, totCO = 0, totHS = 0, totPay = 0;
+
     emps.forEach(function (emp) {
       var cntP = 0, cntHP = 0, cntA = 0, cntL = 0, cntCO = 0, cntHS = 0;
       var dayCells = '';
@@ -203,6 +206,8 @@ $extraJs = <<<JS
         dayCells += '<td class="dc text-center">' + badgeHtml(c.type) + '</td>';
       });
       var payDays = cntP + cntHP * 0.5 + cntL + cntCO + cntHS;
+      totP += cntP; totHP += cntHP; totA += cntA; totL += cntL;
+      totCO += cntCO; totHS += cntHS; totPay += payDays;
       html += '<tr><td style="font-size:11px"><strong>' + (emp.code || '&mdash;') + '</strong> ' + emp.name;
       if (emp.department) html += '<br><span style="font-size:9px;color:#888">' + emp.department + '</span>';
       html += '</td>' + dayCells
@@ -216,7 +221,29 @@ $extraJs = <<<JS
     });
 
     html += '</tbody></table></div></div>';
-    \$('#filter-results').html(html);
+
+    // KPI tiles, prepended so the headline numbers sit above the wide grid.
+    var hpNote = totHP ? ' <small class="fs-6 text-primary">+' + totHP + 'HP</small>' : '';
+    var tiles = '<div class="row g-2 mb-2">'
+              + kpiTile(emps.length, 'text-secondary', 'Employees')
+              + kpiTile(totP + hpNote, 'text-success', 'Present')
+              + kpiTile(totA, 'text-danger', 'Absent')
+              + kpiTile(num(totL), 'text-warning', 'Leave')
+              + kpiTile(totCO, 'text-info', 'Comp Off')
+              + kpiTile(totHS, 'text-muted', 'Holiday + Sunday')
+              + kpiTile(num(totPay), 'text-primary', 'Pay Days')
+              + '</div>';
+
+    \$('#filter-results').html(tiles + html);
+  }
+
+  /** Whole numbers stay whole; halves show one decimal. */
+  function num(v) { return Number.isInteger(v) ? v : v.toFixed(1); }
+
+  function kpiTile(val, cls, label) {
+    return '<div class="col-6 col-sm-4 col-md-3 col-xl-2"><div class="card border-0 shadow-sm text-center py-2">'
+         + '<div class="fs-4 fw-bold ' + cls + '">' + val + '</div>'
+         + '<div class="small text-muted">' + label + '</div></div></div>';
   }
 
   function load() {

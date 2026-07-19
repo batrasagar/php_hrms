@@ -413,6 +413,29 @@ document.addEventListener('DOMContentLoaded', function(){
       return;
     }
 
+    // KPI tiles — kept above the grid so the headline numbers are visible without
+    // scrolling past a wide, horizontally-scrolling table.
+    var g = data.grand;
+    var hpBadge = g.HP ? ' <small class="fs-6 text-primary">+'+g.HP+'HP</small>' : '';
+    var hlBadge = g.HL ? ' <small class="fs-6 text-warning">+'+g.HL+'HL</small>' : '';
+    html += '<div class="row g-2 mb-2">'
+          + statCard(data.totalEmps,   'text-secondary', 'Employees')
+          + statCard(data.workingDays, 'text-muted',     'Working Days')
+          + '<div class="col-6 col-sm-4 col-md-2"><div class="card border-0 shadow-sm text-center py-2">'
+          +   '<div class="fs-4 fw-bold text-success">'+g.P+hpBadge+'</div>'
+          +   '<div class="small text-muted">Present <span class="badge bg-success-subtle text-success">'+data.pctP+'%</span></div>'
+          + '</div></div>'
+          + '<div class="col-6 col-sm-4 col-md-2"><div class="card border-0 shadow-sm text-center py-2">'
+          +   '<div class="fs-4 fw-bold text-danger">'+g.A+'</div>'
+          +   '<div class="small text-muted">Absent <span class="badge bg-danger-subtle text-danger">'+data.pctA+'%</span></div>'
+          + '</div></div>'
+          + '<div class="col-6 col-sm-4 col-md-2"><div class="card border-0 shadow-sm text-center py-2">'
+          +   '<div class="fs-4 fw-bold" style="color:#c0392b">'+g.L+hlBadge+'</div>'
+          +   '<div class="small text-muted">On Leave</div>'
+          + '</div></div>'
+          + statCard(data.holidayCount, 'text-muted', 'Holidays')
+          + '</div>';
+
     html += '<div class="alert alert-info small py-2">Legend: '
           + '<span class="badge bg-success">P</span> Present &nbsp;'
           + '<span class="badge bg-primary">HP</span> Half-Present &nbsp;'
@@ -519,7 +542,6 @@ document.addEventListener('DOMContentLoaded', function(){
       }
       html += '</td>';
     });
-    var g = data.grand;
     html += '<td class="text-center text-success fw-bold">'+g.P+'</td>'
           + '<td class="text-center text-primary fw-bold">'+(g.HP||'—')+'</td>'
           + '<td class="text-center text-danger fw-bold">'+g.A+'</td>'
@@ -530,27 +552,6 @@ document.addEventListener('DOMContentLoaded', function(){
           + '<td class="text-center text-white fw-bold">'+daysTxt(g.P, g.HP, g.HS)+'</td>'
           + (showOt ? '<td class="text-center fw-bold" style="color:#ffcc80">'+(otHm(data.grandOtMins)||'—')+'</td>' : '')
           + '</tr></tfoot></table></div>';
-
-    // Summary stats
-    var hpBadge = g.HP ? ' <small class="fs-6 text-primary">+'+g.HP+'HP</small>' : '';
-    var hlBadge = g.HL ? ' <small class="fs-6 text-warning">+'+g.HL+'HL</small>' : '';
-    html += '<div class="row g-2 mt-2">'
-          + statCard(data.totalEmps,   'text-secondary', 'Employees')
-          + statCard(data.workingDays, 'text-muted',     'Working Days')
-          + '<div class="col-6 col-sm-4 col-md-2"><div class="card border-0 shadow-sm text-center py-2">'
-          +   '<div class="fs-4 fw-bold text-success">'+g.P+hpBadge+'</div>'
-          +   '<div class="small text-muted">Present <span class="badge bg-success-subtle text-success">'+data.pctP+'%</span></div>'
-          + '</div></div>'
-          + '<div class="col-6 col-sm-4 col-md-2"><div class="card border-0 shadow-sm text-center py-2">'
-          +   '<div class="fs-4 fw-bold text-danger">'+g.A+'</div>'
-          +   '<div class="small text-muted">Absent <span class="badge bg-danger-subtle text-danger">'+data.pctA+'%</span></div>'
-          + '</div></div>'
-          + '<div class="col-6 col-sm-4 col-md-2"><div class="card border-0 shadow-sm text-center py-2">'
-          +   '<div class="fs-4 fw-bold" style="color:#c0392b">'+g.L+hlBadge+'</div>'
-          +   '<div class="small text-muted">On Leave</div>'
-          + '</div></div>'
-          + statCard(data.holidayCount, 'text-muted', 'Holidays')
-          + '</div>';
 
     $('#filter-results').html(html);
     updatePrintBtns(true);
