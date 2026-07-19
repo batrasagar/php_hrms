@@ -115,8 +115,18 @@ require_once __DIR__ . '/../../includes/header.php';
           <?php endforeach; ?>
         </select>
       </div>
+      <div class="col-sm-4">
+        <label class="form-label small mb-1">Search</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" id="assignSearch" class="form-control" placeholder="Code or name&hellip;" autocomplete="off">
+          <button class="btn btn-outline-secondary" type="button" id="assignSearchClear" title="Clear search"><i class="bi bi-x-lg"></i></button>
+        </div>
+      </div>
       <div class="col-auto">
-        <span class="text-muted small"><?= count($employees) ?> employee(s)</span>
+        <span class="text-muted small">
+          <span id="assignCount"><?= count($employees) ?></span> of <?= count($employees) ?> employee(s)
+        </span>
       </div>
     </form>
   </div>
@@ -177,13 +187,13 @@ require_once __DIR__ . '/../../includes/header.php';
           if ($e['Department'] !== $prevDept):
               $prevDept = $e['Department'];
       ?>
-      <tr class="table-light">
+      <tr class="table-light dept-row">
         <td colspan="6" class="small fw-semibold text-muted py-1 px-2">
           <?= htmlspecialchars($e['Department'] ?? '— No Department —') ?>
         </td>
       </tr>
       <?php endif; ?>
-      <tr>
+      <tr class="emp-row" data-search="<?= htmlspecialchars(strtolower(($e['EmployeeCode'] ?? '') . ' ' . $e['Name'])) ?>">
         <input type="hidden" name="emp_ids[]" value="<?= $e['id'] ?>">
         <td class="text-center"><input type="checkbox" class="form-check-input row-chk"></td>
         <td class="fw-semibold">
@@ -226,7 +236,50 @@ require_once __DIR__ . '/../../includes/header.php';
 </div>
 <script>
 $(function(){
-  $('#chkAll').on('change', function(){ $('.row-chk').prop('checked', this.checked); });
+  // ── Live filter by employee code / name ────────────────────────────────────
+  // Rows are hidden, never removed, so every row's selects still post and no
+  // unsaved shift/week-off edit is lost while searching.
+  function applyAssignSearch() {
+    var q = ($('#assignSearch').val() || '').trim().toLowerCase();
+    var shown = 0;
+    $('#tblAssign tbody tr.emp-row').each(function(){
+      var hit = !q || (this.getAttribute('data-search') || '').indexOf(q) !== -1;
+      this.style.display = hit ? '' : 'none';
+      // A hidden row must not stay ticked, or a bulk apply would silently reach
+      // employees the user can no longer see.
+      if (!hit) $(this).find('.row-chk').prop('checked', false);
+      if (hit) shown++;
+    });
+    // Hide a department heading once none of its employees are visible.
+    $('#tblAssign tbody tr.dept-row').each(function(){
+      var visible = false;
+      for (var n = this.nextElementSibling; n && !n.classList.contains('dept-row'); n = n.nextElementSibling) {
+        if (n.classList.contains('emp-row') && n.style.display !== 'none') { visible = true; break; }
+      }
+      this.style.display = visible ? '' : 'none';
+    });
+    $('#assignCount').text(shown);
+    $('#chkAll').prop('checked', false);
+  }
+
+  $('#assignSearch').on('input', applyAssignSearch);
+  // Enter would submit the surrounding GET filter form and drop the term.
+  $('#assignSearch').on('keydown', function(e){
+    if (e.key === 'Enter') { e.preventDefault(); }
+    if (e.key === 'Escape' && this.value) { e.preventDefault(); this.value = ''; applyAssignSearch(); }
+  });
+  $('#assignSearchClear').on('click', function(){
+    $('#assignSearch').val(''); applyAssignSearch(); $('#assignSearch').focus();
+  });
+
+  // Select-all applies to the rows actually on screen, not the filtered-out ones.
+  $('#chkAll').on('change', function(){
+    var on = this.checked;
+    $('#tblAssign tbody tr.emp-row').each(function(){
+      if (this.style.display !== 'none') $(this).find('.row-chk').prop('checked', on);
+    });
+  });
+
   $('#applyWO').on('click', function(){
     var wo = $('#bulkWO').val(), n = 0;
     $('.row-chk:checked').each(function(){
