@@ -146,6 +146,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->prepare("DELETE FROM tblUserRole WHERE UserId=?")->execute([$savedId]);
                 if ($permRoleSel) $db->prepare("INSERT INTO tblUserRole (UserId, RoleId) VALUES (?,?)")->execute([$savedId, $permRoleSel]);
             } catch (Throwable $exR) { /* migration pending */ }
+
+            // Company ownership for an admin (superadmin only). Ticked companies move to
+            // this admin; ones previously theirs but now unticked return to the acting
+            // superadmin rather than being left orphaned with a dangling AdminId.
+            if ($user['role'] === 'superadmin' && $role === 'admin' && isset($_POST['owned_companies'])) {
+                $want = array_map('intval', (array)$_POST['owned_companies']);
+                $cur  = $db->prepare("SELECT id FROM tblCompany WHERE AdminId=?");
+                $cur->execute([$savedId]);
+                $have = array_map('intval', $cur->fetchAll(PDO::FETCH_COLUMN));
+
+                $give = array_diff($want, $have);
+                $take = array_diff($have, $want);
+                $upd  = $db->prepare("UPDATE tblCompany SET AdminId=?, UpdatedAt=NOW() WHERE id=?");
+                foreach ($give as $cid) $upd->execute([$savedId, $cid]);
+                foreach ($take as $cid) $upd->execute([(int)$user['id'], $cid]);
+            }
+
             $_SESSION['flash'] = $editId ? 'User updated.' : 'User created.';
             if ($isAjax) { header('Content-Type: application/json'); echo json_encode(['success'=>true,'redirect'=>'list.php']); exit; }
             header('Location: list.php'); exit;
@@ -232,6 +249,46 @@ require_once __DIR__ . '/../../includes/header.php';
         </select>
         <div class="form-text">The user will only see data for this company.</div>
       </div>
+      <?php if ($user['role'] === 'superadmin'): ?>
+      <?php
+        // An admin's company scope is ownership (tblCompany.AdminId), not tblUser.CompanyId
+        // — that column only applies to the 'user' role. Without this control the only way
+        // to give an admin a company was to edit the company and retype its owner's email.
+        $ownedIds = [];
+        if ($editId) {
+            $oc = $db->prepare("SELECT id FROM tblCompany WHERE AdminId=?");
+            $oc->execute([$editId]);
+            $ownedIds = array_map('intval', $oc->fetchAll(PDO::FETCH_COLUMN));
+        }
+        $allCos = $db->query("SELECT c.id, c.Name, c.AdminId, u.Name AS OwnerName
+                                FROM tblCompany c LEFT JOIN tblUser u ON u.id = c.AdminId
+                               ORDER BY c.Name")->fetchAll();
+      ?>
+      <div class="mb-3" id="ownedCompaniesRow" <?= (($row['Role'] ?? 'user') === 'admin') ? '' : 'style="display:none"' ?>>
+        <label class="form-label">Owned Companies</label>
+        <div class="border rounded p-2" style="max-height:220px;overflow-y:auto">
+          <?php foreach ($allCos as $c):
+              $mine  = in_array((int)$c['id'], $ownedIds, true);
+              $other = !$mine && $c['AdminId']; ?>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="owned_companies[]"
+                   value="<?= (int)$c['id'] ?>" id="oc<?= (int)$c['id'] ?>" <?= $mine ? 'checked' : '' ?>>
+            <label class="form-check-label" for="oc<?= (int)$c['id'] ?>">
+              <?= htmlspecialchars($c['Name']) ?>
+              <?php if ($other): ?>
+              <span class="text-muted small">— currently <?= htmlspecialchars($c['OwnerName'] ?? 'unassigned') ?></span>
+              <?php endif; ?>
+            </label>
+          </div>
+          <?php endforeach; ?>
+          <?php if (!$allCos): ?><div class="text-muted small">No companies yet.</div><?php endif; ?>
+        </div>
+        <div class="form-text">
+          Companies this admin owns. Ticking one moves it to this admin; unticking returns it to you.
+          This is what the topbar company switcher and every report scope to.
+        </div>
+      </div>
+      <?php endif; ?>
       <?php if ($permRoles): ?>
       <div class="mb-3" id="permRoleRow" <?= (($row['Role'] ?? 'user') === 'admin') ? 'style="display:none"' : '' ?>>
         <label class="form-label">Permission Role <span class="text-muted">(optional)</span></label>
@@ -265,6 +322,9 @@ function toggleRole() {
   if (parentRow)  parentRow.style.display  = (role === 'operator' || role === 'compliance') ? '' : 'none';
   var permRow = document.getElementById('permRoleRow');
   if (permRow) permRow.style.display = (role === 'admin') ? 'none' : '';
+  // Company ownership is how an admin gets its scope — only meaningful for that role.
+  var ownedRow = document.getElementById('ownedCompaniesRow');
+  if (ownedRow) ownedRow.style.display = (role === 'admin') ? '' : 'none';
 }
 </script>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>
