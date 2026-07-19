@@ -317,6 +317,8 @@ document.addEventListener('DOMContentLoaded', function(){
 #tblAttendance td.att-cell.editable:hover { outline:2px solid #0d6efd; outline-offset:-2px; }
 .aa-dot { position:absolute; top:0; right:1px; color:#fd7e14; font-size:8px; line-height:1; }
 #tblAttendance tfoot td    { font-size:10px; padding:2px 3px !important; }
+#tblAttendance td.att-smry { font-size:10px; line-height:1.3; white-space:nowrap;
+                             text-align:left; padding:2px 5px !important; font-weight:600; }
 </style>
 <div id="att-loader"><div class="sp"></div><p>Loading attendance data&hellip;</p></div>
 <script>
@@ -385,17 +387,21 @@ document.addEventListener('DOMContentLoaded', function(){
   // Payable days = full present + ½ half-present + holidays/Sundays (H+S)
   function daysTxt(p, hp, hs) { var d = (p || 0) + 0.5 * (hp || 0) + (hs || 0); return d ? (Number.isInteger(d) ? d : d.toFixed(1)) : '—'; }
 
-  // Summary cells (P/HP/A/L/CO/HL + Total Days + OT) for a department subtotal row.
-  function summaryCells(a, showOt) {
-    return '<td class="text-center fw-bold text-success">'+(a.P||0)+'</td>'
-         + '<td class="text-center fw-bold text-primary">'+(a.HP||0)+'</td>'
-         + '<td class="text-center fw-bold text-danger">'+(a.A||0)+'</td>'
-         + '<td class="text-center fw-bold" style="color:#c0392b">'+(a.L||0)+'</td>'
-         + '<td class="text-center fw-bold text-info">'+(a.CO||0)+'</td>'
-         + '<td class="text-center fw-bold text-warning">'+(a.HL||0)+'</td>'
-         + '<td class="text-center fw-bold text-secondary">'+(a.HS||0)+'</td>'
-         + '<td class="text-center fw-bold">'+daysTxt(a.P, a.HP, a.HS)+'</td>'
-         + (showOt ? '<td class="text-center fw-bold" style="color:#e65100">'+(otHm(a.otMins)||'—')+'</td>' : '');
+  // One compact summary cell rather than nine narrow columns, matching the print
+  // view so both reports read the same way.
+  function smryCell(a, showOt, dark) {
+    function n(v) { return (v === 0 || v === undefined || v === null) ? '0' : v; }
+    var c = dark
+      ? { p:'#a5d6a7', hp:'#90caf9', a:'#ef9a9a', l:'#ffcc80', co:'#4dd0e1', hl:'#ffe082', hs:'#ced4da', d:'#fff', ot:'#ffcc80' }
+      : { p:'#1b5e20', hp:'#004085', a:'#b71c1c', l:'#c0392b', co:'#087990', hl:'#856404', hs:'#495057', d:'#000', ot:'#e65100' };
+    var ot = showOt ? ' <span style="color:'+c.ot+'">OT:'+(otHm(a.otMins) || '0m')+'</span>' : '';
+    return '<td class="att-smry">'
+         + '<span style="color:'+c.p +'">P:'  +n(a.P) +'</span> | <span style="color:'+c.hp+'">HP:'+n(a.HP)+'</span><br>'
+         + '<span style="color:'+c.a +'">A:'  +n(a.A) +'</span> | <span style="color:'+c.l +'">L:' +n(a.L) +'</span><br>'
+         + '<span style="color:'+c.co+'">CO:' +n(a.CO)+'</span> | <span style="color:'+c.hl+'">HL:'+n(a.HL)+'</span><br>'
+         + '<span style="color:'+c.hs+'">H+S:'+n(a.HS)+'</span> <span style="color:'+c.d+';font-weight:700">Days:'
+         + daysTxt(a.P, a.HP, a.HS)+'</span>'+ot
+         + '</td>';
   }
 
   function render(data) {
@@ -449,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function(){
           + '<span class="badge bg-danger-subtle text-danger border" style="text-decoration:line-through">S</span> Unpaid Week Off &nbsp;'
           + '<span style="color:#e65100;font-weight:600">+Xm</span> Overtime</div>';
 
-    var minW = 244 + data.dates.length * 40 + (showOt ? 76 : 38);
+    var minW = 210 + data.dates.length * 40 + 96;   // name cols + dates + Smry
     html += '<div class="card border-0 shadow-sm" style="overflow-x:auto">';
     html += '<div class="card-header bg-white fw-semibold">Attendance &mdash; '+esc(data.fFrom)+' to '+esc(data.fTo)+'</div>';
     html += '<table id="tblAttendance" class="table table-sm table-bordered mb-0" style="min-width:'+minW+'px">';
@@ -462,27 +468,19 @@ document.addEventListener('DOMContentLoaded', function(){
             + '<div>'+esc(d.dayNum)+'</div>'
             + '<div class="text-muted" style="font-size:9px">'+esc(d.dayLetter)+'</div></th>';
     });
-    html += '<th class="text-center" style="min-width:28px" title="Full Present">P</th>'
-          + '<th class="text-center" style="min-width:28px" title="Half Present">HP</th>'
-          + '<th class="text-center" style="min-width:28px" title="Absent">A</th>'
-          + '<th class="text-center" style="min-width:28px" title="Full Leave">L</th>'
-          + '<th class="text-center" style="min-width:28px" title="Comp Off">CO</th>'
-          + '<th class="text-center" style="min-width:28px" title="Half Leave">HL</th>'
-          + '<th class="text-center" style="min-width:34px" title="Holidays + Sundays">H+S</th>'
-          + '<th class="text-center" style="min-width:36px" title="Total payable days (P + ½ HP + H+S)">Days</th>'
-          + (showOt ? '<th class="text-center" style="min-width:40px" title="Total overtime">OT</th>' : '')
+    html += '<th class="text-center" style="min-width:92px" title="P/HP, A/L, CO/HL, H+S and payable Days">Smry</th>'
           + '</tr></thead>';
 
     // tbody — grouped by department, with a subtotal row per department
     html += '<tbody>';
     var colBefore = 2 + data.dates.length;                 // Code + Name + date columns
-    var totalCols = colBefore + 8 + (showOt ? 1 : 0);       // + P/HP/A/L/CO/HL/H+S/Days (+OT)
+    var totalCols = colBefore + 1;                          // + the single Smry column
     var curDept = null, deptAgg = null;
     function flushDept() {
       if (!deptAgg) return;
       html += '<tr class="table-secondary"><td colspan="'+colBefore+'" class="text-end fw-semibold small text-uppercase">'
             + esc(curDept || '— No Department —') + ' &middot; subtotal ('+deptAgg.n+')</td>'
-            + summaryCells(deptAgg, showOt) + '</tr>';
+            + smryCell(deptAgg, showOt, false) + '</tr>';
     }
     data.employees.forEach(function(emp){
       var dep = emp.department || '';
@@ -509,16 +507,7 @@ document.addEventListener('DOMContentLoaded', function(){
       var s = emp.summary;
       deptAgg.P+=s.P||0; deptAgg.HP+=s.HP||0; deptAgg.A+=s.A||0; deptAgg.L+=s.L||0;
       deptAgg.CO+=s.CO||0; deptAgg.HL+=s.HL||0; deptAgg.HS+=s.HS||0; deptAgg.otMins+=s.otMins||0; deptAgg.n++;
-      html += '<td class="text-center fw-semibold text-success">'+s.P+'</td>'
-            + '<td class="text-center fw-semibold text-primary">'+(s.HP||'—')+'</td>'
-            + '<td class="text-center fw-semibold text-danger">'+s.A+'</td>'
-            + '<td class="text-center fw-semibold" style="color:#c0392b">'+(s.L||'—')+'</td>'
-            + '<td class="text-center fw-semibold text-info">'+(s.CO||'—')+'</td>'
-            + '<td class="text-center fw-semibold text-warning">'+(s.HL||'—')+'</td>'
-            + '<td class="text-center fw-semibold text-secondary">'+(s.HS||'—')+'</td>'
-            + '<td class="text-center fw-bold">'+daysTxt(s.P, s.HP, s.HS)+'</td>'
-            + (showOt ? '<td class="text-center fw-semibold" style="color:#e65100">'+(otHm(s.otMins)||'—')+'</td>' : '')
-            + '</tr>';
+      html += smryCell(s, showOt, false) + '</tr>';
     });
     flushDept();
     html += '</tbody>';
@@ -542,15 +531,8 @@ document.addEventListener('DOMContentLoaded', function(){
       }
       html += '</td>';
     });
-    html += '<td class="text-center text-success fw-bold">'+g.P+'</td>'
-          + '<td class="text-center text-primary fw-bold">'+(g.HP||'—')+'</td>'
-          + '<td class="text-center text-danger fw-bold">'+g.A+'</td>'
-          + '<td class="text-center fw-bold" style="color:#ef9a9a">'+(g.L||'—')+'</td>'
-          + '<td class="text-center fw-bold" style="color:#4dd0e1">'+(g.CO||'—')+'</td>'
-          + '<td class="text-center text-warning fw-bold">'+(g.HL||'—')+'</td>'
-          + '<td class="text-center fw-bold" style="color:#ced4da">'+(g.HS||'—')+'</td>'
-          + '<td class="text-center text-white fw-bold">'+daysTxt(g.P, g.HP, g.HS)+'</td>'
-          + (showOt ? '<td class="text-center fw-bold" style="color:#ffcc80">'+(otHm(data.grandOtMins)||'—')+'</td>' : '')
+    html += smryCell({P:g.P, HP:g.HP, A:g.A, L:g.L, CO:g.CO, HL:g.HL, HS:g.HS,
+                      otMins:data.grandOtMins}, showOt, true)
           + '</tr></tfoot></table></div>';
 
     $('#filter-results').html(html);
