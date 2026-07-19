@@ -326,6 +326,14 @@ require_once __DIR__ . '/../../includes/header.php';
             </div>
             <div class="modal-body" style="max-height:65vh;overflow-y:auto">
               <p class="small text-muted mb-2">Tick <strong>Show</strong> to display a column (view-only by default). Tick <strong>Edit</strong> to make it editable in the grid.</p>
+              <div class="input-group input-group-sm mb-2 position-sticky top-0" style="z-index:3;background:#fff">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" id="fieldSearch" class="form-control" placeholder="Search fields&hellip;" autocomplete="off">
+                <button class="btn btn-outline-secondary" type="button" id="fieldSearchClear" title="Clear search"><i class="bi bi-x-lg"></i></button>
+              </div>
+              <div id="fieldSearchNone" class="alert alert-light border py-2 small d-none mb-2">
+                <i class="bi bi-info-circle me-1"></i>No field matches <span id="fieldSearchTerm" class="fw-semibold"></span>.
+              </div>
               <table class="table table-sm align-middle mb-0">
                 <thead class="table-light">
                   <tr><th>Field</th><th class="text-center" style="width:70px">Show</th><th class="text-center" style="width:70px">Edit</th></tr>
@@ -334,7 +342,7 @@ require_once __DIR__ . '/../../includes/header.php';
                 <?php foreach ($CAT as $key => $m):
                     $shown = in_array($key, $showList, true);
                     $edb   = isset($editSet[$key]); ?>
-                  <tr>
+                  <tr data-search="<?= htmlspecialchars(strtolower($m['label'] . ' ' . $key)) ?>">
                     <td><?= htmlspecialchars($m['label']) ?> <span class="text-muted small">(<?= htmlspecialchars($key) ?>)</span></td>
                     <td class="text-center"><input type="checkbox" class="form-check-input be-show" name="show[]" value="<?= $key ?>" <?= $shown?'checked':'' ?>></td>
                     <td class="text-center"><input type="checkbox" class="form-check-input be-edit" name="edit[]" value="<?= $key ?>" <?= $edb?'checked':'' ?>></td>
@@ -359,6 +367,49 @@ require_once __DIR__ . '/../../includes/header.php';
   // and its footer (Save button) and lower fields get clipped.
   var fm = document.getElementById('fieldsModal');
   if (fm && fm.parentNode !== document.body) document.body.appendChild(fm);
+
+  // Modal: live search over the field list. Rows are only hidden visually, so a
+  // ticked checkbox that scrolls out of the filter still submits with the form.
+  var fSearch = document.getElementById('fieldSearch');
+  var fClear  = document.getElementById('fieldSearchClear');
+  var fNone   = document.getElementById('fieldSearchNone');
+  var fTerm   = document.getElementById('fieldSearchTerm');
+  var fRows   = document.querySelectorAll('#fieldsModal tbody tr');
+
+  function applyFieldSearch() {
+    var q = (fSearch.value || '').trim().toLowerCase();
+    var hits = 0;
+    fRows.forEach(function (tr) {
+      var match = !q || (tr.getAttribute('data-search') || '').indexOf(q) !== -1;
+      tr.style.display = match ? '' : 'none';
+      if (match) hits++;
+    });
+    if (fNone) {
+      fNone.classList.toggle('d-none', hits > 0);
+      if (fTerm) fTerm.textContent = '"' + fSearch.value.trim() + '"';
+    }
+  }
+
+  if (fSearch) {
+    fSearch.addEventListener('input', applyFieldSearch);
+    // Enter inside the modal would otherwise submit the form mid-search.
+    fSearch.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); }
+      if (e.key === 'Escape' && fSearch.value) { e.preventDefault(); fSearch.value = ''; applyFieldSearch(); }
+    });
+  }
+  if (fClear) {
+    fClear.addEventListener('click', function () { fSearch.value = ''; applyFieldSearch(); fSearch.focus(); });
+  }
+  // Start each open from a clean, unfiltered list.
+  if (fm) {
+    fm.addEventListener('shown.bs.modal', function () {
+      if (!fSearch) return;
+      fSearch.value = '';
+      applyFieldSearch();
+      fSearch.focus();
+    });
+  }
 
   // Modal: Edit implies Show; clearing Show clears Edit.
   document.querySelectorAll('#fieldsModal tbody tr').forEach(function (tr) {
