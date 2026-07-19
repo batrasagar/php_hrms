@@ -16,6 +16,18 @@ $ownerId = $isSuper ? null : (int)$user['id'];
 $msg = $_SESSION['flash'] ?? ''; unset($_SESSION['flash']);
 $err = '';
 
+// Roles are per company. The company comes from the global topbar switcher, so a
+// role created while MARVEL is active belongs to MARVEL and is not offered to the
+// admin's other companies. CompanyId NULL means "all of the owner's companies",
+// which is what every role created before M035 is.
+$activeCompany = activeCompanyId($db, $user);
+$companyName   = '';
+if ($activeCompany) {
+    $cs = $db->prepare("SELECT Name FROM tblCompany WHERE id=?");
+    $cs->execute([$activeCompany]);
+    $companyName = (string)$cs->fetchColumn();
+}
+
 /** Roles visible to the current manager: own + (for admins) global built-ins. */
 function roleVisible(array $r, bool $isSuper, int $uid): bool {
     return $isSuper || $r['OwnerAdminId'] === null || (int)$r['OwnerAdminId'] === $uid;
@@ -23,6 +35,10 @@ function roleVisible(array $r, bool $isSuper, int $uid): bool {
 /** Roles editable by the current manager (global roles are superadmin-only to edit). */
 function roleEditable(array $r, bool $isSuper, int $uid): bool {
     return $isSuper ? true : (int)$r['OwnerAdminId'] === $uid;
+}
+/** A role applies to a company when it is pinned to it, or is company-agnostic. */
+function roleInCompany(array $r, int $companyId): bool {
+    return $r['CompanyId'] === null || (int)$r['CompanyId'] === $companyId;
 }
 
 // ── POST actions ──────────────────────────────────────────────────────────────
@@ -57,8 +73,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($row) {
                     $db->prepare("UPDATE tblRole SET Name=?, Description=? WHERE id=?")->execute([$name, $desc, $id]);
                 } else {
-                    $db->prepare("INSERT INTO tblRole (OwnerAdminId, Name, Description) VALUES (?,?,?)")
-                       ->execute([$ownerId, $name, $desc]);
+                    // New roles belong to the company that is active in the topbar.
+                    // Superadmin may still create a company-agnostic role by having
+                    // no active company selected.
+                    $db->prepare("INSERT INTO tblRole (OwnerAdminId, CompanyId, Name, Description) VALUES (?,?,?,?)")
+                       ->execute([$ownerId, $activeCompany ?: null, $name, $desc]);
                     $id = (int)$db->lastInsertId();
                 }
                 $db->prepare("DELETE FROM tblRolePerm WHERE RoleId=?")->execute([$id]);
@@ -99,13 +118,25 @@ if ($editId) {
 $rolesSql = $isSuper
     ? "SELECT r.*, (SELECT COUNT(*) FROM tblUserRole ur WHERE ur.RoleId=r.id) AS Users,
               (SELECT COUNT(*) FROM tblRolePerm rp WHERE rp.RoleId=r.id) AS Perms,
-              u.Name AS OwnerName
-       FROM tblRole r LEFT JOIN tblUser u ON u.id=r.OwnerAdminId ORDER BY r.Name"
+              u.Name AS OwnerName, c.Name AS CompanyName
+       FROM tblRole r
+       LEFT JOIN tblUser u    ON u.id = r.OwnerAdminId
+       LEFT JOIN tblCompany c ON c.id = r.CompanyId
+       ORDER BY r.Name"
     : "SELECT r.*, (SELECT COUNT(*) FROM tblUserRole ur WHERE ur.RoleId=r.id) AS Users,
               (SELECT COUNT(*) FROM tblRolePerm rp WHERE rp.RoleId=r.id) AS Perms,
-              NULL AS OwnerName
-       FROM tblRole r WHERE r.OwnerAdminId = " . (int)$user['id'] . " OR r.OwnerAdminId IS NULL ORDER BY r.Name";
+              NULL AS OwnerName, c.Name AS CompanyName
+       FROM tblRole r
+       LEFT JOIN tblCompany c ON c.id = r.CompanyId
+       WHERE (r.OwnerAdminId = " . (int)$user['id'] . " OR r.OwnerAdminId IS NULL)
+       ORDER BY r.Name";
 $roles = $db->query($rolesSql)->fetchAll();
+
+// Show only the roles that apply to the company currently selected in the topbar.
+// Superadmin sees everything, so cross-tenant roles remain manageable in one place.
+if (!$isSuper && $activeCompany) {
+    $roles = array_values(array_filter($roles, fn($r) => roleInCompany($r, (int)$activeCompany)));
+}
 
 $pageTitle  = 'Roles & Permissions';
 $activePage = 'roles';
@@ -117,7 +148,14 @@ require_once __DIR__ . '/../../includes/header.php';
 <?php if (!$showNew): ?>
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
-    <span class="fw-semibold">Permission Roles <span class="text-muted">(<?= count($roles) ?>)</span></span>
+    <span class="fw-semibold">
+      Permission Roles <span class="text-muted">(<?= count($roles) ?>)</span>
+      <?php if (!$isSuper && $companyName): ?>
+      <span class="badge bg-primary ms-1"><i class="bi bi-building me-1"></i><?= htmlspecialchars($companyName) ?></span>
+      <?php elseif ($isSuper): ?>
+      <span class="badge bg-secondary ms-1">All companies</span>
+      <?php endif; ?>
+    </span>
     <a href="index.php?new=1" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>New Role</a>
   </div>
   <div class="card-body p-0">
@@ -132,7 +170,7 @@ require_once __DIR__ . '/../../includes/header.php';
     <table class="table table-sm table-hover align-middle mb-0">
       <thead class="table-light">
         <tr><th>Role</th><th>Description</th><?php if ($isSuper): ?><th>Owner</th><?php endif; ?>
-            <th>Permissions</th><th>Users</th><th>Status</th><th class="text-end pe-3">Actions</th></tr>
+            <th>Company</th><th>Permissions</th><th>Users</th><th>Status</th><th class="text-end pe-3">Actions</th></tr>
       </thead>
       <tbody>
       <?php foreach ($roles as $r):
@@ -144,6 +182,13 @@ require_once __DIR__ . '/../../includes/header.php';
           </td>
           <td class="small text-muted"><?= htmlspecialchars($r['Description'] ?? '') ?></td>
           <?php if ($isSuper): ?><td class="small"><?= $r['OwnerAdminId'] ? htmlspecialchars($r['OwnerName'] ?? '') : '<span class="badge bg-primary-subtle text-primary">Global</span>' ?></td><?php endif; ?>
+          <td class="small">
+            <?php if ($r['CompanyId']): ?>
+              <span class="badge bg-info-subtle text-info border"><?= htmlspecialchars($r['CompanyName'] ?? ('#'.$r['CompanyId'])) ?></span>
+            <?php else: ?>
+              <span class="badge bg-light text-muted border" title="Applies to every company">All companies</span>
+            <?php endif; ?>
+          </td>
           <td><span class="badge bg-light text-dark border"><?= $r['Perms'] ?></span></td>
           <td><span class="badge bg-light text-dark border"><?= $r['Users'] ?></span></td>
           <td><span class="badge <?= $r['IsActive'] ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' ?>"><?= $r['IsActive'] ? 'Active' : 'Inactive' ?></span></td>

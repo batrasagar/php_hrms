@@ -29,12 +29,28 @@ if ($user['role'] === 'superadmin') {
 $permRoles = [];
 $curPermRole = 0;
 try {
+    // Roles are per company (M035): offer only those belonging to the company being
+    // worked in, plus company-agnostic ones. Without this an admin managing several
+    // companies could hand a user a role built for a different tenant.
+    $roleCompany = activeCompanyId($db, $user);
     if ($user['role'] === 'superadmin') {
-        $permRoles = $db->query("SELECT id, Name FROM tblRole WHERE IsActive=1 ORDER BY Name")->fetchAll();
+        $permRoles = $db->query(
+            "SELECT id, Name, CompanyId FROM tblRole WHERE IsActive=1 ORDER BY Name"
+        )->fetchAll();
     } else {
-        $pr = $db->prepare("SELECT id, Name FROM tblRole WHERE IsActive=1 AND (OwnerAdminId=? OR OwnerAdminId IS NULL) ORDER BY Name");
+        $pr = $db->prepare(
+            "SELECT id, Name, CompanyId FROM tblRole
+              WHERE IsActive=1 AND (OwnerAdminId=? OR OwnerAdminId IS NULL)
+              ORDER BY Name"
+        );
         $pr->execute([$user['id']]);
         $permRoles = $pr->fetchAll();
+        if ($roleCompany) {
+            $permRoles = array_values(array_filter(
+                $permRoles,
+                fn($r) => $r['CompanyId'] === null || (int)$r['CompanyId'] === (int)$roleCompany
+            ));
+        }
     }
     if ($editId) {
         $cr = $db->prepare("SELECT RoleId FROM tblUserRole WHERE UserId=? LIMIT 1");

@@ -897,6 +897,17 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M035',
+        'desc'  => 'Per-company permission roles — tblRole.CompanyId (NULL = applies to all of the owner\'s companies)',
+        'check' => "SELECT `CompanyId` FROM `tblRole` LIMIT 1",
+        'stmts' => [
+            "ALTER TABLE `tblRole`
+                ADD COLUMN `CompanyId` INT UNSIGNED NULL DEFAULT NULL
+                COMMENT 'Company this role belongs to; NULL = all companies of the owner (legacy/global)' AFTER `OwnerAdminId`",
+            "ALTER TABLE `tblRole` ADD INDEX `idx_company` (`CompanyId`)",
+        ],
+    ],
+    [
         'id'    => 'M034',
         'desc'  => 'Effective-dated shift / week-off assignments — tblEmployeeShiftAssign (shift history instead of one current value)',
         'check' => "SELECT `EffectiveFrom` FROM `tblEmployeeShiftAssign` LIMIT 1",
