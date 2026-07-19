@@ -490,7 +490,7 @@ require_once __DIR__ . '/../../includes/header.php';
         <div class="col-12 col-md-6">
           <div class="p-3 border rounded h-100">
             <label class="form-check-label fw-semibold" for="ot_max_hours">Max OT hours allowed</label>
-            <div class="text-muted small mt-1 mb-2">Caps auto-computed OT per day. Also the boundary for out-punch clamping below.</div>
+            <div class="text-muted small mt-1 mb-2">Caps auto-computed OT per day. Also the boundary for out-punch clamping below. <strong>0 means no OT beyond shift end</strong> &mdash; out-punches then clamp to the shift end itself.</div>
             <input type="number" step="0.25" min="0" max="24" class="form-control" style="max-width:140px"
                    id="ot_max_hours" name="ot_max_hours" value="<?= rtrim(rtrim(number_format($otMaxHours, 2), '0'), '.') ?>">
           </div>
@@ -503,7 +503,7 @@ require_once __DIR__ . '/../../includes/header.php';
             </div>
             <div>
               <label class="form-check-label fw-semibold" for="ot_clamp_out">Restrict out-punches beyond OT limit</label>
-              <div class="text-muted small mt-1">When ON — if an out-punch is later than <em>shift end + max OT hours</em>, the report shows a time close to that limit instead (random ±5 min). E.g. shift ends 18:00, max OT 2h &rarr; an out of 21:15 shows as ~20:00.</div>
+              <div class="text-muted small mt-1">When ON — if an out-punch is later than <em>shift end + max OT hours</em>, the report shows a time just under that limit instead (0–5 min before it, never after). E.g. shift ends 18:00, max OT 2h &rarr; an out of 21:15 shows as ~19:57. Admins and superadmins always see the real punch time.</div>
             </div>
           </div>
         </div>

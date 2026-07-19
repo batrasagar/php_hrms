@@ -75,14 +75,21 @@ $otManualOnly = !empty($settings['ot_manual_only']);    // ignore punch-based OT
 $otRawView    = in_array($user['role'], ['admin', 'superadmin'], true);
 $otClampOut   = !$otRawView && (!empty($settings['ot_clamp_out']) || isCompliance());
 $otMaxHours   = array_key_exists('ot_max_hours', $settings) ? (float)$settings['ot_max_hours'] : null;
-$otMaxMin     = ($otMaxHours !== null && $otMaxHours > 0) ? (int)round($otMaxHours * 60) : null;
+// 0 is a real limit ("no OT beyond shift end"), not "unlimited". Treating 0 as unset
+// silently disabled clamping altogether for any company that set Max OT hours to 0.
+// Only an absent setting means no cap.
+$otMaxMin     = ($otMaxHours !== null && $otMaxHours >= 0) ? (int)round($otMaxHours * 60) : null;
 $otSlabs      = json_decode($settings['ot_slabs'] ?? '', true);
 if (!is_array($otSlabs)) $otSlabs = [];
 
-/** Deterministic ±5 min jitter (stable per employee+date so the report doesn't flicker). */
+/**
+ * Clamped out-punch: up to 5 minutes BEFORE the boundary, never after it, so the
+ * shown time looks natural without ever exceeding the limit it is enforcing.
+ * Deterministic per employee+date so the report doesn't flicker between loads.
+ */
 function otClampMinutes(int $boundaryMin, string $seed): int {
-    $off = (int)(crc32($seed) % 11) - 5;   // -5..+5
-    return max(0, min(1439, $boundaryMin + $off));
+    $off = (int)(crc32($seed) % 6);        // 0..5 minutes early
+    return max(0, min(1439, $boundaryMin - $off));
 }
 
 /** Lunch minutes to subtract from worked time when the employee was present through
