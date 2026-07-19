@@ -90,6 +90,10 @@ $printedAt  = date('d-m-Y H:i');
   td.sum-co { color: #087990; }
   td.sum-hl { color: #856404; }
   td.sum-hs { color: #495057; }
+  /* Compact summary block: four stacked pairs in one column. */
+  td.smry   { font-size: 8px; line-height: 1.25; white-space: nowrap; text-align: left;
+              padding: 2px 4px !important; font-weight: bold; }
+  th.smry-h { min-width: 78px; }
   .summary-box { margin-top: 8px; border-collapse: collapse; width: auto; }
   .summary-box th { background: #222; color: #fff; font-size: 8px; padding: 3px 6px; text-align: center; }
   .summary-box td { border: 1px solid #999; font-size: 9px; padding: 3px 8px; text-align: center; font-weight: bold; }
@@ -167,17 +171,21 @@ $printedAt  = date('d-m-Y H:i');
   // Payable days = full present + ½ half-present + paid holidays/week-offs (H+S)
   function daysTxt(p, hp, hs) { var d = (p || 0) + 0.5 * (hp || 0) + (hs || 0); return d ? (Number.isInteger(d) ? d : d.toFixed(1)) : '&mdash;'; }
 
-  // Summary cells (P/HP/A/L/CO/HL/H+S + Total Days + OT) for a department subtotal row.
-  function sumCells(a, showOt) {
-    return '<td class="sum sum-p">'  + (a.P  || 0) + '</td>'
-         + '<td class="sum sum-hp">' + (a.HP || 0) + '</td>'
-         + '<td class="sum sum-a">'  + (a.A  || 0) + '</td>'
-         + '<td class="sum sum-l">'  + (a.L  || 0) + '</td>'
-         + '<td class="sum sum-co">' + (a.CO || 0) + '</td>'
-         + '<td class="sum sum-hl">' + (a.HL || 0) + '</td>'
-         + '<td class="sum sum-hs">' + (a.HS || 0) + '</td>'
-         + '<td class="sum">'        + daysTxt(a.P, a.HP, a.HS) + '</td>'
-         + (showOt ? '<td class="sum sum-l">' + (otHm(a.otMins) || '&mdash;') + '</td>' : '');
+  // One compact summary cell instead of nine narrow columns — nine columns ate the
+  // width the date grid needs on A4 landscape. Four stacked pairs, plus OT when on.
+  function smryCell(a, showOt, dark) {
+    function n(v) { return (v === 0 || v === undefined || v === null) ? '0' : v; }
+    var c = dark
+      ? { p:'#a5d6a7', hp:'#90caf9', a:'#ef9a9a', l:'#ffcc80', co:'#4dd0e1', hl:'#ffe082', hs:'#ced4da', d:'#fff', ot:'#ffcc80' }
+      : { p:'#1b5e20', hp:'#004085', a:'#b71c1c', l:'#e65100', co:'#087990', hl:'#856404', hs:'#495057', d:'#000', ot:'#b85c00' };
+    var ot = showOt ? ' <span style="color:' + c.ot + '">OT:' + (otHm(a.otMins) || '0m') + '</span>' : '';
+    return '<td class="smry">'
+         + '<span style="color:' + c.p  + '">P:'   + n(a.P)  + '</span> | <span style="color:' + c.hp + '">HP:' + n(a.HP) + '</span><br>'
+         + '<span style="color:' + c.a  + '">A:'   + n(a.A)  + '</span> | <span style="color:' + c.l  + '">L:'  + n(a.L)  + '</span><br>'
+         + '<span style="color:' + c.co + '">CO:'  + n(a.CO) + '</span> | <span style="color:' + c.hl + '">HL:' + n(a.HL) + '</span><br>'
+         + '<span style="color:' + c.hs + '">H+S:' + n(a.HS) + '</span> <span style="color:' + c.d + ';font-weight:bold">Days:'
+         + daysTxt(a.P, a.HP, a.HS) + '</span>' + ot
+         + '</td>';
   }
 
   function render(data) {
@@ -228,23 +236,17 @@ $printedAt  = date('d-m-Y H:i');
             + esc(d.dayNum) + '<br>'
             + '<span style="font-weight:normal;font-size:7px">' + esc(d.dayLetter) + '</span></th>';
     });
-    html += '<th style="min-width:20px">P</th><th style="min-width:20px">HP</th>'
-          + '<th style="min-width:20px">A</th><th style="min-width:20px">L</th>'
-          + '<th style="min-width:20px">CO</th><th style="min-width:20px">HL</th>'
-          + '<th style="min-width:24px">H+S</th>'
-          + '<th style="min-width:24px">Days</th>'
-          + (showOt ? '<th style="min-width:28px">OT</th>' : '')
-          + '</tr></thead>';
+    html += '<th class="smry-h" style="min-width:78px">Smry</th></tr></thead>';
 
     // tbody — grouped by department, with a subtotal row per department
     var colBefore = 1 + dates.length;                     // Employee name col + date columns
-    var totalCols = colBefore + 8 + (showOt ? 1 : 0);      // + P/HP/A/L/CO/HL/H+S/Days (+OT)
+    var totalCols = colBefore + 1;                          // + the single Smry column
     var curDept = null, deptAgg = null;
     function flushDept() {
       if (!deptAgg) return;
       html += '<tr style="background:#e8e8e8;font-weight:bold"><td colspan="' + colBefore + '" style="text-align:right;font-size:8px">'
             + esc(curDept || '(No Department)') + ' — subtotal (' + deptAgg.n + ')</td>'
-            + sumCells(deptAgg, showOt) + '</tr>';
+            + smryCell(deptAgg, showOt, false) + '</tr>';
     }
 
     html += '<tbody>';
@@ -273,16 +275,7 @@ $printedAt  = date('d-m-Y H:i');
       var s = emp.summary;
       deptAgg.P += s.P || 0; deptAgg.HP += s.HP || 0; deptAgg.A += s.A || 0; deptAgg.L += s.L || 0;
       deptAgg.CO += s.CO || 0; deptAgg.HL += s.HL || 0; deptAgg.HS += s.HS || 0; deptAgg.otMins += s.otMins || 0; deptAgg.n++;
-      html += '<td class="sum sum-p">'  + s.P + '</td>'
-            + '<td class="sum sum-hp">' + (s.HP || '&mdash;') + '</td>'
-            + '<td class="sum sum-a">'  + s.A  + '</td>'
-            + '<td class="sum sum-l">'  + (s.L  || '&mdash;') + '</td>'
-            + '<td class="sum sum-co">' + (s.CO || '&mdash;') + '</td>'
-            + '<td class="sum sum-hl">' + (s.HL || '&mdash;') + '</td>'
-            + '<td class="sum sum-hs">' + (s.HS || '&mdash;') + '</td>'
-            + '<td class="sum">'        + daysTxt(s.P, s.HP, s.HS) + '</td>'
-            + (showOt ? '<td class="sum sum-l">' + (otHm(s.otMins) || '&mdash;') + '</td>' : '')
-            + '</tr>';
+      html += smryCell(s, showOt, false) + '</tr>';
     });
     flushDept();
     html += '</tbody>';
@@ -306,15 +299,10 @@ $printedAt  = date('d-m-Y H:i');
       }
       html += '</td>';
     });
-    html += '<td style="color:#a5d6a7;font-weight:bold">' + grand.P + '</td>'
-          + '<td style="color:#90caf9;font-weight:bold">' + (grand.HP || '&mdash;') + '</td>'
-          + '<td style="color:#ef9a9a;font-weight:bold">' + grand.A  + '</td>'
-          + '<td style="color:#ef9a9a;font-weight:bold">' + (grand.L  || '&mdash;') + '</td>'
-          + '<td style="color:#4dd0e1;font-weight:bold">' + (grand.CO || '&mdash;') + '</td>'
-          + '<td style="color:#ffe082;font-weight:bold">' + (grand.HL || '&mdash;') + '</td>'
-          + '<td style="color:#ced4da;font-weight:bold">' + (grand.HS || '&mdash;') + '</td>'
-          + '<td style="color:#fff;font-weight:bold">' + daysTxt(grand.P, grand.HP, grand.HS) + '</td>'
-          + (showOt ? '<td style="color:#ffcc80;font-weight:bold">' + (otHm(data.grandOtMins) || '&mdash;') + '</td>' : '')
+    // OT is inside the summary block now — a separate OT cell here would make the
+    // footer one column wider than the header.
+    html += smryCell({P:grand.P, HP:grand.HP, A:grand.A, L:grand.L, CO:grand.CO, HL:grand.HL,
+                      HS:grand.HS, otMins:data.grandOtMins}, showOt, true)
           + '</tr></tfoot></table>';
 
     html += '<table class="summary-box" style="margin-top:8px"><thead><tr>'
