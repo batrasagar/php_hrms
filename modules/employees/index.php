@@ -81,15 +81,13 @@ if ($mustSelectCompany) {
     $employees = $stmt->fetchAll();
 }
 
-if ($user['role'] === 'user') {
-    $scopeJoin = 'WHERE e.CompanyId = ' . (int)$fCompany;
-    $depts       = array_filter(array_column($db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(), 'Department'));
-    $contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor FROM tblEmployee e $scopeJoin ORDER BY Contractor")->fetchAll(), 'Contractor'));
-} else {
-    $scopeJoin   = $user['role'] === 'superadmin' ? '' : 'JOIN tblCompany c ON c.id = e.CompanyId AND c.AdminId = ' . $user['scope_id'];
-    $depts       = array_filter(array_column($db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(), 'Department'));
-    $contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor FROM tblEmployee e $scopeJoin ORDER BY Contractor")->fetchAll(), 'Contractor'));
-}
+// Filter options come from the rows this viewer can actually see — the active
+// company, the compliance scope, and whatever status filter is applied. Previously
+// these listed every company the admin owned (every company in the system, for a
+// superadmin) with no compliance or status filter, so the dropdowns offered
+// contractors belonging to employees the viewer could not see.
+$depts       = employeeFilterValues($db, (int)$fCompany, 'Department',  $fStatus ?: null);
+$contractors = employeeFilterValues($db, (int)$fCompany, 'Contractor',  $fStatus ?: null);
 // Headcount split for the current (filtered) view
 $empTotal = count($employees);
 $empComp  = 0;

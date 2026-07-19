@@ -100,14 +100,34 @@ function complianceEmpFilter(string $alias = 'e'): string {
  * offered contractors that appear nowhere in the report below them — and for a
  * compliance-scoped user, contractors belonging to employees they cannot see.
  */
-function employeeFilterValues(PDO $db, int $companyId, string $column): array {
+function employeeFilterValues(PDO $db, int $companyId, string $column, ?string $status = 'active'): array {
     if (!in_array($column, ['Department', 'Contractor'], true)) return [];  // never interpolate raw input
-    if ($companyId <= 0) return [];
-    $where = ["e.CompanyId = ?", "e.Status = 'active'", "e.$column IS NOT NULL", "e.$column <> ''"];
+
+    $where  = ["e.$column IS NOT NULL", "e.$column <> ''"];
+    $params = [];
+
+    if ($companyId > 0) {
+        $where[]  = 'e.CompanyId = ?';
+        $params[] = $companyId;
+    } else {
+        // No single company in context (e.g. nothing picked yet): fall back to every
+        // company the viewer may reach, never the whole table.
+        $ids = array_map('intval', array_column(companiesForUser($db, currentUser()), 'id'));
+        if (!$ids) return [];
+        $where[] = 'e.CompanyId IN (' . implode(',', $ids) . ')';
+    }
+
+    // Pages that can list non-active employees pass their own status filter (or null
+    // for "any"), so the options match the rows actually on screen.
+    if ($status !== null && $status !== '') {
+        $where[]  = 'e.Status = ?';
+        $params[] = $status;
+    }
     if (complianceScoped()) $where[] = 'e.Compliance = 1';
+
     $sql = "SELECT DISTINCT e.$column AS v FROM tblEmployee e WHERE " . implode(' AND ', $where) . " ORDER BY e.$column";
     $st  = $db->prepare($sql);
-    $st->execute([$companyId]);
+    $st->execute($params);
     return array_values(array_filter(array_column($st->fetchAll(), 'v')));
 }
 
