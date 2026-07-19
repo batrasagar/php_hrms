@@ -493,7 +493,12 @@ foreach ($employees as $e) {
             }
             if ($showOt) $otTotalMins += $otMins;   // per-employee OT total (matches the per-cell OT shown)
 
-            if ($shiftRec && $totMins > 0 && $totMins < $shiftHrsH * 60) {
+            // A full day needs the shift's full-day hours (HrsP). This used to compare
+            // against HrsHlf, the HALF-day threshold, so anything at or above half a
+            // day counted as a full day — 3h40m on a 7h shift came out as P. Below the
+            // full-day mark is a half day, as before for the sub-half band.
+            $fullMin = (int)round($shiftHrsP * 60);
+            if ($shiftRec && $totMins > 0 && $fullMin > 0 && $totMins < $fullMin) {
                 $code = 'HP'; $hpDays++; $dayTotals[$dt]['HP']++;
             } else {
                 $code = 'P'; $presentDays++; $dayTotals[$dt]['P']++;
