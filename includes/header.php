@@ -328,7 +328,29 @@ body.sb-collapsed .app-main { margin-left: var(--sidebar-c); }
   background-repeat: no-repeat; background-position: right center;
 }
 .company-pill--empty { color: var(--text-2); font-size: 13px; }
-@media (max-width: 576px) { .company-select { max-width: 120px; } .cmdk-trigger-text, .cmdk-trigger kbd { display: none; } }
+/* Mobile / small tablet: the menu search collapses to just its magnifier, and the
+   company switcher to a single icon that opens the picker in a modal — the inline
+   <select> was too wide for the topbar and truncated company names to nothing. */
+@media (max-width: 767.98px) {
+  .cmdk-trigger-text, .cmdk-trigger kbd { display: none; }
+  .cmdk-trigger { padding: 6px 8px; gap: 0; }
+  /* The "No company" pill has no icon equivalent, so it stays visible. */
+  .company-pill:not(.company-pill--empty) { display: none !important; }
+  .company-icon-btn { display: flex !important; }
+}
+.company-icon-btn {
+  display: none;
+  align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex-shrink: 0;
+  border: 1px solid var(--line, #e5e7eb);
+  background: transparent; border-radius: 8px;
+  color: var(--text-2, #6b7280); cursor: pointer; position: relative;
+}
+.company-icon-btn:hover { background: rgba(0,0,0,.04); }
+.company-icon-btn .company-dot {
+  position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%;
+}
+#companyModal .list-group-item.active-company { font-weight: 600; }
 .topbar-profile-btn {
   border: none;
   background: transparent;
@@ -1363,7 +1385,66 @@ $fullMenu = in_array($user['role'], ['superadmin','admin','operator'], true)
         <?php endforeach; ?>
       </select>
     </div>
+    <!-- Mobile: icon opens the same picker in a modal -->
+    <?php
+      $navCompanyName = '';
+      foreach ($navCompanies as $c) if ($navActiveCompany == $c['id']) { $navCompanyName = (string)$c['Name']; break; }
+    ?>
+    <button type="button" class="company-icon-btn" id="companyIconBtn" title="Active company: <?= htmlspecialchars($navCompanyName) ?>"
+            data-bs-toggle="modal" data-bs-target="#companyModal">
+      <i class="bi bi-buildings"></i>
+      <span class="company-dot"></span>
+    </button>
+    <div class="modal fade" id="companyModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+          <div class="modal-header py-2">
+            <h6 class="modal-title"><i class="bi bi-buildings me-1"></i>Switch Company</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body p-0" style="max-height:60vh;overflow-y:auto">
+            <div class="list-group list-group-flush">
+              <?php foreach ($navCompanies as $c): ?>
+              <button type="button"
+                      class="list-group-item list-group-item-action d-flex align-items-center gap-2 company-choice<?= $navActiveCompany == $c['id'] ? ' active-company' : '' ?>"
+                      data-company="<?= (int)$c['id'] ?>">
+                <i class="bi bi-<?= $navActiveCompany == $c['id'] ? 'check-circle-fill text-success' : 'circle text-muted' ?>"></i>
+                <span><?= htmlspecialchars($c['Name']) ?></span>
+              </button>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <script>
+    // Both the inline <select> and the modal list go through the same switch call.
+    function hrmsSwitchCompany(id, onFail) {
+      fetch('<?= BASE_URL ?>/ajax/set_company.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded',
+                   'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content },
+        body: 'company=' + encodeURIComponent(id)
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.success) {
+          var u = new URL(location.href);
+          u.searchParams.delete('company');
+          location.href = u.toString();
+        } else {
+          onFail && onFail();
+          window.showToast ? showToast((d.errors || ['Failed'])[0], 'error') : alert((d.errors || ['Failed'])[0]);
+        }
+      }).catch(function () { onFail && onFail(); });
+    }
+    document.querySelectorAll('.company-choice').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var self = this;
+        document.querySelectorAll('.company-choice').forEach(function (b) { b.disabled = true; });
+        hrmsSwitchCompany(self.dataset.company, function () {
+          document.querySelectorAll('.company-choice').forEach(function (b) { b.disabled = false; });
+        });
+      });
+    });
     document.getElementById('globalCompanySelect').addEventListener('change', function () {
       var sel = this;
       sel.disabled = true;

@@ -897,6 +897,26 @@ $migrations = [
         ],
     ],
     [
+        'id'    => 'M034',
+        'desc'  => 'Effective-dated shift / week-off assignments — tblEmployeeShiftAssign (shift history instead of one current value)',
+        'check' => "SELECT `EffectiveFrom` FROM `tblEmployeeShiftAssign` LIMIT 1",
+        'stmts' => [
+            "CREATE TABLE IF NOT EXISTS `tblEmployeeShiftAssign` (
+                `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `CompanyId`     INT UNSIGNED NOT NULL,
+                `EmployeeId`    INT UNSIGNED NOT NULL,
+                `ShiftNo`       INT UNSIGNED NULL DEFAULT NULL COMMENT 'tblShift.id; NULL = no shift from this date',
+                `WeekdayNo`     TINYINT      NULL DEFAULT NULL COMMENT '0=Sun .. 6=Sat weekly off; NULL = no weekly off',
+                `EffectiveFrom` DATE         NOT NULL COMMENT 'Applies from this date until the next row for the employee',
+                `Reason`        VARCHAR(255) NOT NULL DEFAULT '',
+                `CreatedBy`     INT UNSIGNED NULL DEFAULT NULL,
+                `CreatedAt`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_emp_from` (`EmployeeId`, `EffectiveFrom`),
+                INDEX `idx_lookup` (`CompanyId`, `EmployeeId`, `EffectiveFrom`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        ],
+    ],
+    [
         'id'    => 'M033',
         'desc'  => 'Role management / access permissions — tblRole, tblRolePerm, tblUserRole (restricting layer for operator/compliance/user)',
         'check' => "SELECT 1 FROM `tblRole` LIMIT 1",

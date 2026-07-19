@@ -3,6 +3,7 @@ define('BASE_URL', '..');
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/hrms_settings.php';
+require_once __DIR__ . '/../includes/shift_source.php';
 requireLogin();
 header('Content-Type: application/json');
 
@@ -120,10 +121,13 @@ switch ($action) {
     case 'week_off_recurring': {
         $wd = $_POST['weekday'] ?? '';
         if ($wd === '' || !ctype_digit((string)$wd) || (int)$wd < 0 || (int)$wd > 6) fail('Pick a weekday.');
+        // Dated from the clicked date, so past weeks keep the off day they were run on.
+        shiftAssignSet($db, $company, $empId, $date, false, (int)$wd,
+                       trim($_POST['reason'] ?? '') ?: 'Weekly off changed from grid', (int)$user['id']);
         $db->prepare("UPDATE tblEmployee SET WeekdayNo=?, UpdatedAt=NOW() WHERE id=? AND CompanyId=?")
            ->execute([(int)$wd, $empId, $company]);
         $names = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-        ok("Weekly off for {$empRow['Name']} set to {$names[(int)$wd]}.");
+        ok("Weekly off for {$empRow['Name']} set to {$names[(int)$wd]} from $date onwards.");
     }
 
     // ── Week off: mark just this one date as WO (punch correction) ─────────────
@@ -168,15 +172,18 @@ switch ($action) {
             ok("Shift set to {$shName} for {$empRow['Name']} on $date.");
         }
 
-        // mode = onwards → standing shift
-        if ($shiftId === '') {
-            $db->prepare("UPDATE tblEmployee SET ShiftNo=NULL, UpdatedAt=NOW() WHERE id=? AND CompanyId=?")
-               ->execute([$empId, $company]);
-            ok("Shift cleared for {$empRow['Name']}.");
-        }
+        // mode = onwards → an effective-dated row starting on the clicked date, so
+        // earlier dates keep whatever shift they were actually worked on. Updating
+        // tblEmployee.ShiftNo instead would rewrite history, since the report reads
+        // that single value for every date.
+        $newShift = $shiftId === '' ? null : (int)$shiftId;
+        shiftAssignSet($db, $company, $empId, $date, $newShift, false, $reason, (int)$user['id']);
+        // Keep the standing value in step so pages that still read it agree going forward.
         $db->prepare("UPDATE tblEmployee SET ShiftNo=?, UpdatedAt=NOW() WHERE id=? AND CompanyId=?")
-           ->execute([(int)$shiftId, $empId, $company]);
-        ok("Shift set to {$shName} for {$empRow['Name']} (from now onwards).");
+           ->execute([$newShift, $empId, $company]);
+        ok($newShift === null
+            ? "Shift cleared for {$empRow['Name']} from $date onwards."
+            : "Shift set to {$shName} for {$empRow['Name']} from $date onwards.");
     }
 
     // ── Manual time / forced status (punch correction) ────────────────────────

@@ -2,6 +2,7 @@
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/shift_source.php';
 requireAdmin();
 requirePermission('shift_assign.view');
 
@@ -21,6 +22,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
     $ids      = $_POST['emp_ids']  ?? [];
     $shiftNos = $_POST['shift_no'] ?? [];
     $weekdays = $_POST['weekday']  ?? [];
+    // Blank = apply from the beginning of time (legacy behaviour: just overwrite the
+    // standing value). A date = record it as an effective-dated change instead, so
+    // everything before that date keeps the shift it was actually worked on.
+    $effFrom  = trim($_POST['effective_from'] ?? '');
+    if ($effFrom !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $effFrom)) $effFrom = '';
     $saved = 0;
     foreach ($ids as $i => $id) {
         $id = (int)$id;
@@ -32,6 +38,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fCompany) {
         }
         $shiftNo = ($shiftNos[$i] ?? '') !== '' ? (int)$shiftNos[$i] : null;
         $weekday = ($weekdays[$i] ?? '') !== '' ? (int)$weekdays[$i] : null;
+        if ($effFrom !== '') {
+            shiftAssignSet($db, (int)$fCompany, $id, $effFrom, $shiftNo, $weekday,
+                           'Set from Shift Assignment page', (int)$user['id']);
+        }
+        // Keep the standing value in step either way — it is the fallback for any
+        // date before the earliest dated row.
         $db->prepare("UPDATE tblEmployee SET ShiftNo=?, WeekdayNo=?, UpdatedAt=NOW() WHERE id=?")
            ->execute([$shiftNo, $weekday, $id]);
         $saved++;
@@ -157,6 +169,17 @@ require_once __DIR__ . '/../../includes/header.php';
     </div>
   </div>
   <div class="card-body p-0" style="overflow-x:auto">
+    <div class="px-3 py-2 border-bottom bg-light d-flex flex-wrap align-items-end gap-2">
+      <div>
+        <label class="form-label small mb-1 fw-semibold" for="effectiveFrom">Effective from</label>
+        <input type="date" form="assignForm" name="effective_from" id="effectiveFrom" class="form-control form-control-sm" style="width:170px">
+      </div>
+      <div class="small text-muted" style="max-width:640px">
+        Leave blank to just change the current shift / week off.<br>
+        Set a date to record a <strong>dated change</strong> — days before it keep the shift and week off
+        they were actually worked on, instead of the whole history being rewritten.
+      </div>
+    </div>
     <form id="assignForm" method="POST" action="assign.php?company=<?= $fCompany ?>&dept=<?= urlencode($fDept) ?>" data-ajax>
     <?php if (empty($employees)): ?>
     <div class="p-4 text-center text-muted">No active employees for this company.</div>

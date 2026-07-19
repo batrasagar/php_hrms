@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/weekoff.php';
 require_once __DIR__ . '/../includes/punch_source.php';
+require_once __DIR__ . '/../includes/shift_source.php';
 requireLogin();
 requirePermission('report_attendance.view');
 
@@ -115,7 +116,7 @@ if ($fDept)       { $where[] = 'e.Department = ?'; $params[] = $fDept; }
 if ($fContractor) { $where[] = 'e.Contractor = ?'; $params[] = $fContractor; }
 if (isCompliance()) $where[] = 'e.Compliance = 1';   // compliance role → only compliance employees
 $estmt = $db->prepare(
-    "SELECT e.id, e.EmployeeCode, e.EnrollId, e.Name, e.FatherName, e.Designation, e.Contractor, e.Department, e.ShiftNo, e.JoinDate, e.DOL FROM tblEmployee e
+    "SELECT e.id, e.EmployeeCode, e.EnrollId, e.Name, e.FatherName, e.Designation, e.Contractor, e.Department, e.ShiftNo, e.WeekdayNo, e.JoinDate, e.DOL FROM tblEmployee e
      WHERE " . implode(' AND ', $where) . " AND e.Status='active'
      ORDER BY e.Department, ISNULL(e.Sr), e.Sr, e.Name"
 );
@@ -302,14 +303,22 @@ $grand        = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0,'HS'=>0];
 $grandOtMins  = 0;
 $employeeRows = [];
 
+// Effective-dated shift / week-off rows for the whole company, resolved per date below.
+$assignMap = shiftAssignLoad($db, (int)$fCompany, $fTo);
+
 foreach ($employees as $e) {
     $presentDays = 0; $hpDays = 0; $absentDays = 0; $fullLv = 0; $halfLv = 0; $compOff = 0; $hsDays = 0;
+    $aRows = $assignMap[(int)$e['id']] ?? null;   // dated assignments for this employee
     $otTotalMins = 0;
     $days = [];
 
     foreach ($dates as $dt) {
         $dow    = (int)date('N', strtotime($dt));
         $isSun  = ($dow === 7);
+        // The weekly off is per employee and per date: the dated assignment wins,
+        // then tblEmployee.WeekdayNo, then Sunday. Previously Sunday was hardcoded
+        // for everyone, which was wrong for the ~186 staff on a Sat/Mon/Fri off.
+        $isWo   = isWeekOffDate($aRows, $dt, $e['WeekdayNo'] ?? null);
         $isHol  = isset($holidayDates[$dt]);
         $isFut  = ($dt > $today);
         $lvType = $leaveDates[$e['id']][$dt] ?? null;
@@ -356,7 +365,7 @@ foreach ($employees as $e) {
                 $inMins  = (int)substr($punch['in'], 0, 2) * 60 + (int)substr($punch['in'], 3);
                 $outMins = (int)substr($punch['out'],0, 2) * 60 + (int)substr($punch['out'],3);
                 $totMins = ($punch['count'] > 1) ? max(0, $outMins - $inMins) : 0;
-                $fShiftNo = ($corr && !empty($corr['ShiftNo'])) ? (int)$corr['ShiftNo'] : (int)($e['ShiftNo'] ?? 0);
+                $fShiftNo = shiftForDate($aRows, $dt, $corr['ShiftNo'] ?? null, $e['ShiftNo'] ?? null);
                 $totMins = max(0, $totMins - otLunchDeduct($shiftMap[$fShiftNo] ?? null, $inMins, $outMins));
                 $cell['in']  = $punch['in'];
                 $cell['out'] = $punch['count'] > 1 ? $punch['out'] : null;
@@ -367,8 +376,10 @@ foreach ($employees as $e) {
             $days[$dt] = $cell; continue;
         }
 
-        if ($isSun && !($showWoPunch && $punch)) {
-            $cell['type'] = 'SUN';
+        if ($isWo && !($showWoPunch && $punch)) {
+            // SUN when the off actually falls on a Sunday (keeps the familiar look),
+            // WO otherwise. Both count toward H+S and both are deductible offs.
+            $cell['type'] = $isSun ? 'SUN' : 'WO';
             $hsDays++;
         } elseif ($isHol && !($showHolPunch && $punch)) {
             $cell['type']    = 'HOL';
@@ -391,7 +402,7 @@ foreach ($employees as $e) {
             $halfLv++; $dayTotals[$dt]['HL']++;
         } elseif ($punch) {
             // Per-date shift override (correction.ShiftNo) wins over the employee's standing shift.
-            $dayShiftNo = ($corr && !empty($corr['ShiftNo'])) ? (int)$corr['ShiftNo'] : (int)($e['ShiftNo'] ?? 0);
+            $dayShiftNo = shiftForDate($aRows, $dt, $corr['ShiftNo'] ?? null, $e['ShiftNo'] ?? null);
             $shiftRec  = $shiftMap[$dayShiftNo] ?? null;
             $shiftHrsP = $shiftRec ? (float)$shiftRec['HrsP']   : 8.0;
             $shiftHrsH = $shiftRec ? (float)$shiftRec['HrsHlf'] : 4.0;
