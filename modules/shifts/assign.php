@@ -257,6 +257,11 @@ require_once __DIR__ . '/../../includes/header.php';
     </form>
   </div>
 </div>
+<?php
+// Emitted through $extraJs so footer.php prints it AFTER jQuery. A raw <script>
+// here runs before jQuery is loaded, throwing "$ is not defined" and killing every
+// handler in the block — which is why Select All silently did nothing.
+$extraJs = <<<'JS'
 <script>
 $(function(){
   // ── Live filter by employee code / name ────────────────────────────────────
@@ -313,4 +318,5 @@ $(function(){
   });
 });
 </script>
-<?php require_once __DIR__ . '/../../includes/footer.php'; ?>
+JS;
+require_once __DIR__ . '/../../includes/footer.php'; ?>
