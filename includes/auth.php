@@ -90,6 +90,27 @@ function complianceEmpFilter(string $alias = 'e'): string {
     return complianceScoped() ? " AND {$alias}.Compliance = 1" : '';
 }
 
+/**
+ * Distinct Department / Contractor values for a filter dropdown, restricted to the
+ * records the viewer can actually see: the active company, active employees, and
+ * the compliance scope.
+ *
+ * The dropdowns used to be built from every company the admin owned (and for a
+ * superadmin, from every company in the system) with no status filter, so they
+ * offered contractors that appear nowhere in the report below them — and for a
+ * compliance-scoped user, contractors belonging to employees they cannot see.
+ */
+function employeeFilterValues(PDO $db, int $companyId, string $column): array {
+    if (!in_array($column, ['Department', 'Contractor'], true)) return [];  // never interpolate raw input
+    if ($companyId <= 0) return [];
+    $where = ["e.CompanyId = ?", "e.Status = 'active'", "e.$column IS NOT NULL", "e.$column <> ''"];
+    if (complianceScoped()) $where[] = 'e.Compliance = 1';
+    $sql = "SELECT DISTINCT e.$column AS v FROM tblEmployee e WHERE " . implode(' AND ', $where) . " ORDER BY e.$column";
+    $st  = $db->prepare($sql);
+    $st->execute([$companyId]);
+    return array_values(array_filter(array_column($st->fetchAll(), 'v')));
+}
+
 /** Redirect a compliance user away from a page they may not use, to the first page they
  *  actually have permission for. Landing blindly on Employees loops with requirePermission()
  *  when the user's RBAC role excludes employees.view (→ back to index → back here → …). */

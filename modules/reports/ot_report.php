@@ -46,8 +46,8 @@ $totalHours = array_sum(array_column($records, 'OTHours'));
 
 $scopeJoin   = $user['role'] === 'superadmin' ? '' : ($user['role'] === 'user' ? 'WHERE e.CompanyId=' . (int)$fCompany : 'JOIN tblCompany c ON c.id=e.CompanyId AND c.AdminId=' . $user['scope_id']);
 $scopeJoin  .= complianceEmpFilter('e');
-$depts       = array_filter(array_column($db->query("SELECT DISTINCT Department FROM tblEmployee e $scopeJoin ORDER BY Department")->fetchAll(), 'Department'));
-$contractors = array_filter(array_column($db->query("SELECT DISTINCT Contractor FROM tblEmployee e $scopeJoin ORDER BY Contractor")->fetchAll(), 'Contractor'));
+$depts       = employeeFilterValues($db, (int)$fCompany, 'Department');
+$contractors = employeeFilterValues($db, (int)$fCompany, 'Contractor');
 ?>
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2">

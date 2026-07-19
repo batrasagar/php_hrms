@@ -130,16 +130,29 @@ function userPermissions(): ?array {
     if (!$uid || $role === 'superadmin' || $role === 'admin') return $perms = null;
     try {
         $db = getDb();
-        $s  = $db->prepare(
+
+        // A role only grants its permissions while its own company is the active one.
+        // Roles with CompanyId NULL are company-agnostic and always apply, which is
+        // every role created before M035.
+        $activeCo = 0;
+        try { $activeCo = (int)activeCompanyId($db, currentUser()); } catch (Throwable $e) { $activeCo = 0; }
+
+        $s = $db->prepare(
             "SELECT DISTINCT rp.Perm
              FROM tblUserRole ur
              JOIN tblRole r      ON r.id = ur.RoleId AND r.IsActive = 1
              JOIN tblRolePerm rp ON rp.RoleId = ur.RoleId
-             WHERE ur.UserId = ?"
+             WHERE ur.UserId = ?
+               AND (r.CompanyId IS NULL OR r.CompanyId = ?)"
         );
-        $s->execute([$uid]);
+        $s->execute([$uid, $activeCo]);
         $list = $s->fetchAll(PDO::FETCH_COLUMN);
-        // No role assigned at all → legacy behaviour (unrestricted within the base role)
+
+        // Deliberately NOT filtered by company: this asks "is this user governed by
+        // roles at all?". Only a user with no role anywhere gets the legacy
+        // unrestricted behaviour. A user whose roles simply do not match the active
+        // company must fall through to an empty allow-list (deny), never to null —
+        // otherwise switching company would hand them unrestricted access.
         $chk = $db->prepare("SELECT 1 FROM tblUserRole WHERE UserId = ? LIMIT 1");
         $chk->execute([$uid]);
         if (!$chk->fetch()) return $perms = null;

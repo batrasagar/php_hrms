@@ -69,7 +69,11 @@ $woMinPresent  = array_key_exists('wo_min_present_days', $settings) ? (float)$se
 $otBefore     = !empty($settings['ot_before_shift']);   // count early arrival
 $otAfter      = !empty($settings['ot_after_shift']);    // count late departure
 $otManualOnly = !empty($settings['ot_manual_only']);    // ignore punch-based OT
-$otClampOut   = !empty($settings['ot_clamp_out']) || isCompliance(); // clamp out-punch beyond OT limit (forced ON for compliance users)
+// Clamp out-punches beyond the OT limit for everyone EXCEPT admin/superadmin, who
+// must be able to see the real punch times — they are the ones auditing the data,
+// so showing them a clamped time would hide what actually happened.
+$otRawView    = in_array($user['role'], ['admin', 'superadmin'], true);
+$otClampOut   = !$otRawView && (!empty($settings['ot_clamp_out']) || isCompliance());
 $otMaxHours   = array_key_exists('ot_max_hours', $settings) ? (float)$settings['ot_max_hours'] : null;
 $otMaxMin     = ($otMaxHours !== null && $otMaxHours > 0) ? (int)round($otMaxHours * 60) : null;
 $otSlabs      = json_decode($settings['ot_slabs'] ?? '', true);
