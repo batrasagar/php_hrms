@@ -62,9 +62,15 @@ function settingValueLabel(string $key, ?string $val): string {
 }
 
 // ── Company scope ──────────────────────────────────────────────────────────────
-// Superadmin edits global defaults (CompanyId = 0); everyone else follows the
-// global topbar company switcher.
-$fCompany = $user['role'] === 'superadmin' ? 0 : activeCompanyId($db, $user);
+// Everyone follows the global topbar company switcher. A superadmin can also edit
+// the global defaults (CompanyId = 0) via ?scope=global — previously that was the
+// ONLY thing a superadmin could edit here, so they could never set a value for one
+// company, and any company-level row silently overrode what they saved.
+$isSuperSettings = $user['role'] === 'superadmin';
+$editGlobal      = $isSuperSettings && (($_GET['scope'] ?? '') === 'global');
+$fCompany        = $editGlobal ? 0 : (int)activeCompanyId($db, $user);
+if ($isSuperSettings && !$fCompany) { $editGlobal = true; $fCompany = 0; }   // no company picked
+
 $fCompanyName = '';
 if ($fCompany) {
     $cn = $db->prepare("SELECT Name FROM tblCompany WHERE id=?");
@@ -192,7 +198,32 @@ require_once __DIR__ . '/../../includes/header.php';
 <div class="alert alert-info">Select a company to configure its settings.</div>
 <?php else: ?>
 
-<form method="POST" data-ajax action="index.php<?= $fCompany ? '?company='.$fCompany : '' ?>">
+<?php if ($isSuperSettings): ?>
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
+    <span class="small fw-semibold me-1">Editing:</span>
+    <a href="index.php?scope=global"
+       class="btn btn-sm <?= $editGlobal ? 'btn-primary' : 'btn-outline-secondary' ?>">
+      <i class="bi bi-globe2 me-1"></i>Global defaults
+    </a>
+    <a href="index.php"
+       class="btn btn-sm <?= $editGlobal ? 'btn-outline-secondary' : 'btn-primary' ?>">
+      <i class="bi bi-building me-1"></i><?= $fCompanyName ? htmlspecialchars($fCompanyName) : 'Active company' ?>
+    </a>
+    <div class="small text-muted ms-2" style="max-width:640px">
+      <?php if ($editGlobal): ?>
+        Saving here sets the fallback for <strong>every</strong> company. A company that stores its own
+        value keeps it — see Per-Company Overrides below.
+      <?php else: ?>
+        Saving here applies to <strong><?= htmlspecialchars($fCompanyName ?: 'this company') ?></strong> only,
+        and overrides the global default. Switch companies from the topbar.
+      <?php endif; ?>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
+<form method="POST" data-ajax action="index.php<?= $editGlobal ? '?scope=global' : ($fCompany ? '?company='.$fCompany : '') ?>">
   <?= csrf_field() ?? '' ?>
   <input type="hidden" name="company_id" value="<?= $fCompany ?>">
 
@@ -200,7 +231,7 @@ require_once __DIR__ . '/../../includes/header.php';
     <div class="card-header bg-white fw-semibold d-flex align-items-center gap-2">
       <i class="bi bi-toggles text-primary"></i>
       Attendance Settings
-      <?php if ($user['role'] === 'superadmin'): ?>
+      <?php if ($editGlobal): ?>
       <span class="badge bg-secondary ms-1">Global Defaults</span>
       <?php elseif ($fCompany): ?>
       <span class="badge bg-primary ms-1"><?= htmlspecialchars($fCompanyName) ?></span>
@@ -356,7 +387,7 @@ require_once __DIR__ . '/../../includes/header.php';
     <div class="card-header bg-white fw-semibold d-flex align-items-center gap-2">
       <i class="bi bi-calendar2-week text-primary"></i>
       Week Off Settings
-      <?php if ($user['role'] === 'superadmin'): ?>
+      <?php if ($editGlobal): ?>
       <span class="badge bg-secondary ms-1">Global Defaults</span>
       <?php elseif ($fCompany): ?>
       <span class="badge bg-primary ms-1"><?= htmlspecialchars($fCompanyName) ?></span>
@@ -422,7 +453,7 @@ require_once __DIR__ . '/../../includes/header.php';
     <div class="card-header bg-white fw-semibold d-flex align-items-center gap-2">
       <i class="bi bi-alarm text-primary"></i>
       OT Settings
-      <?php if ($user['role'] === 'superadmin'): ?>
+      <?php if ($editGlobal): ?>
       <span class="badge bg-secondary ms-1">Global Defaults</span>
       <?php elseif ($fCompany): ?>
       <span class="badge bg-primary ms-1"><?= htmlspecialchars($fCompanyName) ?></span>
