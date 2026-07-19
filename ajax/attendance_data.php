@@ -154,6 +154,30 @@ $sftStmt  = $db->prepare("SELECT id, ShiftName, HrsP, HrsHlf, ArrivalTime, Depar
 $sftStmt->execute([$fCompany]);
 foreach ($sftStmt->fetchAll() as $sr) $shiftMap[(int)$sr['id']] = $sr;
 
+// ── Date range (max 31 days) ──────────────────────────────────────────────────
+$dates  = [];
+$ts     = strtotime($fFrom);
+$tsEnd  = strtotime($fTo);
+while ($ts <= $tsEnd) { $dates[] = date('Y-m-d', $ts); $ts = strtotime('+1 day', $ts); }
+$notice = '';
+if (count($dates) > 31) { $dates = array_slice($dates, 0, 31); $notice = 'Showing first 31 days only.'; }
+$rangeFrom = $dates ? $dates[0] : $fFrom;
+$rangeTo   = $dates ? end($dates) : $fTo;
+
+// The week-off rules count present days across a whole Mon–Sun week. Counting only
+// the days inside the report made the verdict depend on where the report started:
+// a Sunday could read "unpaid — only 2 present days" from 01-Jul yet be paid from
+// 25-Jun, because the days worked earlier that same week were invisible. Classify
+// over whole ISO weeks and report only the requested slice.
+$calcFrom  = date('Y-m-d', strtotime('monday this week', strtotime($rangeFrom)));
+$calcTo    = date('Y-m-d', strtotime('sunday this week', strtotime($rangeTo)));
+if ($calcFrom > $rangeFrom) $calcFrom = $rangeFrom;   // defensive: never narrow the range
+if ($calcTo   < $rangeTo)   $calcTo   = $rangeTo;
+$calcDates = [];
+$ct = strtotime($calcFrom); $ctEnd = strtotime($calcTo);
+while ($ct <= $ctEnd) { $calcDates[] = date('Y-m-d', $ct); $ct = strtotime('+1 day', $ct); }
+$inRange   = array_flip($dates);   // O(1) "is this date reported?"
+
 // ── Leaves, holidays, punches ─────────────────────────────────────────────────
 $leaveDates   = [];
 $leaveCodes   = [];
@@ -168,14 +192,14 @@ if (!empty($employees)) {
 
     foreach ($db->query(
         "SELECT EmployeeId, OTDate, OTHours FROM tblOvertime
-         WHERE EmployeeId IN ($ids) AND OTDate BETWEEN '$fFrom' AND '$fTo'"
+         WHERE EmployeeId IN ($ids) AND OTDate BETWEEN '$calcFrom' AND '$calcTo'"
     )->fetchAll() as $ot) {
         $otMap[$ot['EmployeeId']][$ot['OTDate']] = (float)$ot['OTHours'];
     }
 
     foreach ($db->query(
         "SELECT EmployeeId, LeaveDate, LeaveType, LeaveCode FROM tblLeave
-         WHERE EmployeeId IN ($ids) AND LeaveDate BETWEEN '$fFrom' AND '$fTo'"
+         WHERE EmployeeId IN ($ids) AND LeaveDate BETWEEN '$calcFrom' AND '$calcTo'"
     )->fetchAll() as $lv) {
         $leaveDates[$lv['EmployeeId']][$lv['LeaveDate']] = $lv['LeaveType'];
         $leaveCodes[$lv['EmployeeId']][$lv['LeaveDate']] = $lv['LeaveCode'];
@@ -183,13 +207,13 @@ if (!empty($employees)) {
 
     // Manual corrections (override punches / force a status)
     $corrStmt = $db->prepare("SELECT EmpCode, tDate, InTime, OutTime, AttStatus, ShiftNo FROM tblPunchLogCorrection WHERE CompanyId=? AND tDate BETWEEN ? AND ?");
-    $corrStmt->execute([$fCompany, $fFrom, $fTo]);
+    $corrStmt->execute([$fCompany, $calcFrom, $calcTo]);
     foreach ($corrStmt->fetchAll() as $cr) {
         $corrMap[$cr['EmpCode']][$cr['tDate']] = $cr;
     }
 
     $hStmt = $db->prepare("SELECT HolidayDate, Name FROM tblHoliday WHERE CompanyId=? AND HolidayDate BETWEEN ? AND ?");
-    $hStmt->execute([$fCompany, $fFrom, $fTo]);
+    $hStmt->execute([$fCompany, $calcFrom, $calcTo]);
     foreach ($hStmt->fetchAll() as $h) $holidayDates[$h['HolidayDate']] = $h['Name'];
 
     // Enrollment maps
@@ -227,8 +251,8 @@ if (!empty($employees)) {
             $fetchErrors[] = 'No devices linked to this company.';
         }
 
-        $fromDt = $fFrom . ' 00:00:00';
-        $toDt   = $fTo   . ' 23:59:59';
+        $fromDt = $calcFrom . ' 00:00:00';
+        $toDt   = $calcTo   . ' 23:59:59';
 
         foreach ($devSerials as $serial) {
             $url = rtrim($cred['Endpoint'], '/') . '/api/punchlog.php?SerialNumber=' . urlencode($serial);
@@ -282,7 +306,7 @@ if (!empty($employees)) {
     // Local shards (tblPunchLog_YYMM) — covers tenants whose punches were imported
     // from a legacy system and never came through ADMS, and backfills any punch the
     // sync cron already stored. Keyed on EmpCode, so no enrollment mapping needed.
-    $localPunches = punchMapAddLocal($db, (int)$fCompany, $fFrom, $fTo, $punchMap);
+    $localPunches = punchMapAddLocal($db, (int)$fCompany, $calcFrom, $calcTo, $punchMap);
     if ($localPunches > 0) {
         // Device warnings are noise once local records supplied the punches.
         $fetchErrors = array_values(array_filter(
@@ -291,14 +315,6 @@ if (!empty($employees)) {
         ));
     }
 }
-
-// ── Date range (max 31 days) ──────────────────────────────────────────────────
-$dates  = [];
-$ts     = strtotime($fFrom);
-$tsEnd  = strtotime($fTo);
-while ($ts <= $tsEnd) { $dates[] = date('Y-m-d', $ts); $ts = strtotime('+1 day', $ts); }
-$notice = '';
-if (count($dates) > 31) { $dates = array_slice($dates, 0, 31); $notice = 'Showing first 31 days only.'; }
 
 $today = date('Y-m-d');
 
@@ -323,7 +339,7 @@ foreach ($dates as $dt) {
 
 // ── Build employee rows & totals ──────────────────────────────────────────────
 $dayTotals    = [];
-foreach ($dates as $dt) $dayTotals[$dt] = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
+foreach ($calcDates as $dt) $dayTotals[$dt] = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0];
 $grand        = ['P'=>0,'HP'=>0,'A'=>0,'L'=>0,'HL'=>0,'CO'=>0,'HS'=>0];
 $grandOtMins  = 0;
 $employeeRows = [];
@@ -337,7 +353,9 @@ foreach ($employees as $e) {
     $otTotalMins = 0;
     $days = [];
 
-    foreach ($dates as $dt) {
+    // Classify the whole ISO-week window, not just the reported days — the week-off
+    // rules need the days either side of the range to count a full week.
+    foreach ($calcDates as $dt) {
         $dow    = (int)date('N', strtotime($dt));
         $isSun  = ($dow === 7);
         // The weekly off is per employee and per date: the dated assignment wins,
@@ -485,6 +503,7 @@ foreach ($employees as $e) {
             $cell['out']    = $punch['count'] > 1 ? $punch['out'] : null;
             $cell['tot']    = attendMinsToHm($totMins);
             $cell['ot']     = $showOt ? attendMinsToHm($otMins) : '';
+            $cell['otMins'] = $showOt ? $otMins : 0;
             $cell['shift']     = $dayShiftNo ? shiftShortLabel($shiftRec['ShiftName'] ?? null, $dayShiftNo) : '';
             $cell['shiftFull'] = $dayShiftNo ? trim((string)($shiftRec['ShiftName'] ?? ('Shift ' . $dayShiftNo))) : '';
             $sorted = $punch['punches']; sort($sorted);
@@ -500,11 +519,32 @@ foreach ($employees as $e) {
         $days[$dt] = $cell;
     }
 
-    // Week-off pay rules — unpaid offs drop out of H+S (and therefore out of Days).
+    // Week-off pay rules, evaluated over whole weeks so a mid-week report start
+    // cannot change the verdict.
     if ($woAdjAbsent || $woLowPresent) {
-        $hsDays -= woDeductWeekOffs($days, $dates, $woAdjAbsent, $woLowPresent, $woMinPresent);
-        if ($hsDays < 0) $hsDays = 0;
+        woDeductWeekOffs($days, $calcDates, $woAdjAbsent, $woLowPresent, $woMinPresent);
     }
+
+    // Counters above were accumulated across the calculation window; recompute them
+    // from the reported dates alone so out-of-week days never reach the totals.
+    $presentDays = $hpDays = $absentDays = $fullLv = $halfLv = $compOff = $hsDays = 0;
+    $otTotalMins = 0;
+    foreach ($dates as $dt) {
+        $t = $days[$dt]['type'] ?? '';
+        if     ($t === 'P')  $presentDays++;
+        elseif ($t === 'HP') $hpDays++;
+        elseif ($t === 'A')  $absentDays++;
+        elseif ($t === 'L')  $fullLv++;
+        elseif ($t === 'HL') $halfLv++;
+        elseif ($t === 'CO') $compOff++;
+        elseif ($t === 'SUN' || $t === 'HOL' || $t === 'WO') {
+            if (empty($days[$dt]['woCut'])) $hsDays++;    // an unpaid off is not an H+S day
+        }
+        $otTotalMins += (int)($days[$dt]['otMins'] ?? 0);
+    }
+
+    // Only the reported slice is sent to the client.
+    $days = array_intersect_key($days, $inRange);
 
     $grand['P']  += $presentDays;
     $grand['HP'] += $hpDays;
@@ -575,7 +615,7 @@ echo json_encode([
     'fContractor'  => $fContractor,
     'dates'        => $datesData,
     'employees'    => $employeeRows,
-    'dayTotals'    => $dayTotals,
+    'dayTotals'    => array_intersect_key($dayTotals, $inRange),   // reported dates only
     'grand'        => $grand,
     'grandOtMins'  => $grandOtMins,
     'grandOt'      => attendMinsToHm($grandOtMins),
