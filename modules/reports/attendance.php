@@ -352,7 +352,8 @@ document.addEventListener('DOMContentLoaded', function(){
       case 'P':
       case 'HP': {
         var cls = c.type === 'P' ? 'text-success' : 'text-primary';
-        var sft = c.shift ? '<span style="float:right;font-size:7px;color:#888;font-weight:normal">'+esc(c.shift)+'</span>' : '';
+        var sft = c.shift ? '<span style="float:right;font-size:7px;color:#888;font-weight:normal;max-width:60%;overflow:hidden;text-overflow:ellipsis"'
+                          + ' title="'+esc(c.shiftFull || c.shift)+'">'+esc(c.shift)+'</span>' : '';
         var tot = c.tot  ? '<div style="font-size:7px;color:#444">'+esc(c.tot)+(c.ot?'<br><b style="color:#e65100">+'+esc(c.ot)+'</b>':'')+'</div>' : '';
         return ['<b style="font-size:9px">'+c.type+'</b>'+sft
                +'<div style="font-size:10px;line-height:1.3;color:#333;clear:both">'+esc(c.in)+'</div>'

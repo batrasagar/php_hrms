@@ -340,7 +340,8 @@ $extraJs = <<<JS
       html += '<tr class="sw-emp-row" data-search="'+esc(srch)+'">'
             + '<td style="font-size:10px">'
             + '<strong>' + esc(emp.code||'') + '</strong> ' + esc(emp.name)
-            + (emp.shiftNo ? '<span class="ms-1 text-muted" style="font-size:9px">S'+esc(emp.shiftNo)+'</span>' : '')
+            + (emp.shiftNo ? '<span class="ms-1 text-muted" style="font-size:9px" title="'+esc(emp.shiftName || ('Shift '+emp.shiftNo))+'">'
+                             + esc(emp.shiftName || ('S'+emp.shiftNo)) + '</span>' : '')
             + (emp.fatherName ? '<div style="font-size:8px;color:#888;line-height:1.2">S/o '+esc(emp.fatherName)+'</div>' : '')
             + (emp.designation ? '<div style="font-size:8px;color:#888;line-height:1.2">'+esc(emp.designation)+'</div>' : '')
             + '</td>'

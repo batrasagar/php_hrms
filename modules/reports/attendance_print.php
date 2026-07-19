@@ -149,7 +149,8 @@ $printedAt  = date('d-m-Y H:i');
     if (c.type === 'A')   return ['dt c-a', '<span>A</span>'];
     if (c.type === 'P' || c.type === 'HP') {
       var cls     = c.type === 'HP' ? 'dt c-hp' : 'dt c-p';
-      var sft     = c.shift ? '<span style="float:right;color:#555">' + esc(c.shift) + '</span>' : '';
+      var sft     = c.shift ? '<span style="float:right;color:#555" title="' + esc(c.shiftFull || c.shift) + '">'
+                            + esc(c.shift) + '</span>' : '';
       var outDisp = c.out != null ? esc(c.out) : '&mdash;';
       var totStr  = c.tot || '';
       var otStr   = c.ot  || '';

@@ -92,6 +92,20 @@ function otClampMinutes(int $boundaryMin, string $seed): int {
     return max(0, min(1439, $boundaryMin - $off));
 }
 
+/**
+ * Compact shift label for a day cell. Names run to ~23 chars ("General (09:00–18:00)")
+ * which will not fit a 40px column, so the bracketed timing is dropped and the rest
+ * trimmed; the full name is sent separately for the tooltip. Falls back to S<id> when
+ * a shift has no name.
+ */
+function shiftShortLabel(?string $name, int $id): string {
+    $n = trim((string)$name);
+    if ($n === '') return $id ? 'S' . $id : '';
+    $short = trim(preg_replace('/\s*\(.*$/u', '', $n));
+    if ($short === '') $short = $n;
+    return mb_strlen($short) > 10 ? mb_substr($short, 0, 9) . '…' : $short;
+}
+
 /** Lunch minutes to subtract from worked time when the employee was present through
  *  the shift's lunch window. Returns 0 when the shift has no lunch or they weren't. */
 function otLunchDeduct(?array $shiftRec, int $inMins, int $outMins): int {
@@ -136,7 +150,7 @@ $employees = $estmt->fetchAll();
 
 // ── Shifts ────────────────────────────────────────────────────────────────────
 $shiftMap = [];
-$sftStmt  = $db->prepare("SELECT id, HrsP, HrsHlf, ArrivalTime, DepartureTime, HasLunch, LunchOutTime, LunchInTime FROM tblShift WHERE CompanyId=? AND IsActive=1");
+$sftStmt  = $db->prepare("SELECT id, ShiftName, HrsP, HrsHlf, ArrivalTime, DepartureTime, HasLunch, LunchOutTime, LunchInTime FROM tblShift WHERE CompanyId=? AND IsActive=1");
 $sftStmt->execute([$fCompany]);
 foreach ($sftStmt->fetchAll() as $sr) $shiftMap[(int)$sr['id']] = $sr;
 
@@ -471,7 +485,8 @@ foreach ($employees as $e) {
             $cell['out']    = $punch['count'] > 1 ? $punch['out'] : null;
             $cell['tot']    = attendMinsToHm($totMins);
             $cell['ot']     = $showOt ? attendMinsToHm($otMins) : '';
-            $cell['shift']  = $dayShiftNo ? 'S' . $dayShiftNo : '';
+            $cell['shift']     = $dayShiftNo ? shiftShortLabel($shiftRec['ShiftName'] ?? null, $dayShiftNo) : '';
+            $cell['shiftFull'] = $dayShiftNo ? trim((string)($shiftRec['ShiftName'] ?? ('Shift ' . $dayShiftNo))) : '';
             $sorted = $punch['punches']; sort($sorted);
             $cell['punches'] = $sorted;
         } elseif (!$isFut) {
@@ -509,6 +524,7 @@ foreach ($employees as $e) {
         'contractor' => $e['Contractor'] ?? '',
         'department' => $e['Department'] ?? '',
         'shiftNo'    => $e['ShiftNo'] ?? '',
+        'shiftName'  => isset($shiftMap[(int)($e['ShiftNo'] ?? 0)]) ? trim((string)$shiftMap[(int)$e['ShiftNo']]['ShiftName']) : '',
         'days'       => $days,
         'summary'    => ['P'=>$presentDays,'HP'=>$hpDays,'A'=>$absentDays,'L'=>$fullLv,'HL'=>$halfLv,'CO'=>$compOff,'HS'=>$hsDays,
                          'otMins'=>$otTotalMins,'ot'=>attendMinsToHm($otTotalMins)],
