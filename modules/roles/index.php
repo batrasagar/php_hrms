@@ -194,6 +194,13 @@ require_once __DIR__ . '/../../includes/header.php';
           <a href="#" class="small text-decoration-none grp-toggle">all</a>
         </div>
         <div class="card-body py-2">
+          <?php if ($group === 'Data Scope'): ?>
+          <div class="alert alert-warning py-2 px-2 small mb-2">
+            <i class="bi bi-funnel me-1"></i>
+            These <strong>restrict which employees</strong> a role can see, rather than which pages it can open.
+            Ticking one narrows every list, report and export for anyone holding this role.
+          </div>
+          <?php endif; ?>
           <table class="table table-sm mb-0 align-middle" style="font-size:12.5px">
             <thead><tr><th></th><th class="text-center" style="width:52px">View</th><th class="text-center" style="width:52px">Edit</th></tr></thead>
             <tbody>

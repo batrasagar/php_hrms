@@ -71,9 +71,23 @@ function roleLabel(?string $role): string {
     return $role === 'compliance' ? 'hrms' : (string)$role;
 }
 
-/** Extra WHERE fragment limiting employee queries to compliance employees (for the compliance role). */
+/**
+ * True when the current user may only see Compliance-flagged employees.
+ *
+ * Two independent sources, so the scoping is no longer welded to one role name:
+ *   - the built-in 'compliance' role, exactly as before
+ *   - the 'compliance_data.view' permission, when explicitly granted to the user's role
+ *
+ * hasExplicitPerm() rather than can() is essential here: can() is true for anyone
+ * unrestricted, which would scope superadmins and admins down to compliance staff.
+ */
+function complianceScoped(): bool {
+    return isCompliance() || hasExplicitPerm('compliance_data.view');
+}
+
+/** Extra WHERE fragment limiting employee queries to compliance employees. */
 function complianceEmpFilter(string $alias = 'e'): string {
-    return isCompliance() ? " AND {$alias}.Compliance = 1" : '';
+    return complianceScoped() ? " AND {$alias}.Compliance = 1" : '';
 }
 
 /** Redirect a compliance user away from a page they may not use, to the first page they

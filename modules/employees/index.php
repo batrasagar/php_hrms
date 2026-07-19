@@ -68,7 +68,7 @@ if ($fSearch) {
     $where[]  = '(e.Name LIKE ? OR e.EmployeeCode LIKE ? OR e.EnrollId LIKE ?)';
     $params[] = "%$fSearch%"; $params[] = "%$fSearch%"; $params[] = "%$fSearch%";
 }
-if (isCompliance()) { $where[] = 'e.Compliance = 1'; }   // compliance role sees only compliance employees
+if (complianceScoped()) { $where[] = 'e.Compliance = 1'; }   // compliance scope sees only compliance employees
 
 if ($mustSelectCompany) {
     $employees = [];
@@ -165,7 +165,7 @@ require_once __DIR__ . '/../../includes/header.php';
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <span class="fw-semibold d-flex flex-wrap align-items-center gap-1">
       Employees <span class="badge bg-primary"><?= $empTotal ?></span>
-      <?php if (!isCompliance()): ?>
+      <?php if (!complianceScoped()): ?>
       <span class="text-muted mx-1">—</span>
       <span class="badge bg-success">Compliance <?= $empComp ?></span>
       <span class="badge bg-secondary">Non-Compliance <?= $empNonComp ?></span>

@@ -92,6 +92,12 @@ function permCatalog(): array {
             'departments' => ['Departments', $ve],
             'contractors' => ['Contractors', $ve],
         ],
+        // Data-scope permissions restrict WHICH ROWS a role sees, rather than which
+        // pages it can open. They are only ever honoured when explicitly granted —
+        // see hasExplicitPerm() — because can() reports true for unrestricted users.
+        'Data Scope' => [
+            'compliance_data' => ['Restrict to Compliance employees', $v],
+        ],
         'Other' => [
             'companies' => ['Companies', $ve],
             'apikeys'   => ['API Keys', $ve],
@@ -151,6 +157,20 @@ function can(string $perm): bool {
 function canAny(array $perms): bool {
     foreach ($perms as $p) if (can($p)) return true;
     return false;
+}
+
+/**
+ * True only when the permission is EXPLICITLY listed on the user's assigned role.
+ *
+ * Different from can(), which answers "is this allowed?" and so returns true for
+ * unrestricted users (superadmin, admin, or anyone with no role). That is right for
+ * page gating but wrong for a data-scope permission: with can(), granting
+ * "restrict to Compliance employees" would silently restrict every superadmin too.
+ * A restriction has to be opted into, never inherited from being unrestricted.
+ */
+function hasExplicitPerm(string $perm): bool {
+    $p = userPermissions();
+    return is_array($p) && in_array($perm, $p, true);
 }
 
 /** True when the user actually has a permission role assigned (i.e. is restricted by one). */

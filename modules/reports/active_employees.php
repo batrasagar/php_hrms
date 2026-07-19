@@ -24,7 +24,7 @@ if ($fCompany)    { $where[] = 'e.CompanyId = ?';  $params[] = $fCompany; }
 if ($fDept)       { $where[] = 'e.Department = ?'; $params[] = $fDept; }
 if ($fContractor) { $where[] = 'e.Contractor = ?'; $params[] = $fContractor; }
 if ($fStatus)     { $where[] = 'e.Status = ?';     $params[] = $fStatus; }
-if (isCompliance()) $where[] = 'e.Compliance = 1';   // compliance role → only compliance employees
+if (complianceScoped()) $where[] = 'e.Compliance = 1';   // compliance scope → only compliance employees
 $wsql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 $stmt = $db->prepare(
