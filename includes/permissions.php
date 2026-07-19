@@ -153,6 +153,33 @@ function canAny(array $perms): bool {
     return false;
 }
 
+/** True when the user actually has a permission role assigned (i.e. is restricted by one). */
+function hasAssignedRole(): bool {
+    return userPermissions() !== null;
+}
+
+/**
+ * Pages a compliance (auditor) account may never open — each calls blockCompliance()
+ * and would bounce straight back, so their sidebar links must stay hidden even when
+ * the assigned role grants the permission.
+ */
+function complianceBlockedPerms(): array {
+    return ['punchlog.view', 'punch_correction.view', 'punch_sync.view',
+            'card_templates.view', 'tv_dashboard.view'];
+}
+
+/** can(), plus the compliance hard-blocks. Use for sidebar link visibility. */
+function canMenu(string $perm): bool {
+    if (isCompliance() && in_array($perm, complianceBlockedPerms(), true)) return false;
+    return can($perm);
+}
+
+/** canAny() counterpart honouring the compliance hard-blocks. */
+function canAnyMenu(array $perms): bool {
+    foreach ($perms as $p) if (canMenu($p)) return true;
+    return false;
+}
+
 /** Every module.view of a catalog group — for hiding whole sidebar sections. */
 function canAnyInGroup(string $group): bool {
     $cat = permCatalog();

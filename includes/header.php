@@ -667,7 +667,16 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       </li>
 <?php endif; ?>
 
-<?php if (in_array($user['role'], ['superadmin','admin','operator'])): ?>
+<?php
+// A compliance account with a permission role assigned gets the same permission-driven
+// menu as everyone else — otherwise its links were a hardcoded three-item list and the
+// modules its role granted had no entry to render. Compliance WITHOUT a role still falls
+// through to the minimal branch below: can() is unrestricted in that case, so the full
+// menu would expose every module instead of the auditor subset.
+$fullMenu = in_array($user['role'], ['superadmin','admin','operator'], true)
+         || ($user['role'] === 'compliance' && hasAssignedRole());
+?>
+<?php if ($fullMenu): ?>
 <?php
   $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','emp_left','print','card_templates']) ? 'show' : '';
   $shiftOpen   = in_array($ap, ['shifts','shift_defaults','shift_assign','shift_cyclic','compoff']) ? 'show' : '';
@@ -696,10 +705,10 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <?php endif; ?>
 
       <!-- Employees -->
-      <?php if (canAny(['employees.view','emp_import.view','emp_bulk.view','emp_left.view','print.view','card_templates.view','workers.view'])): ?>
+      <?php if (canAnyMenu(['employees.view','emp_import.view','emp_bulk.view','emp_left.view','print.view','card_templates.view','workers.view'])): ?>
       <div class="sb-section-label">Employees</div>
       <?php endif; ?>
-      <?php if (canAny(['employees.view','emp_import.view','emp_bulk.view','emp_left.view','print.view','card_templates.view'])): ?>
+      <?php if (canAnyMenu(['employees.view','emp_import.view','emp_bulk.view','emp_left.view','print.view','card_templates.view'])): ?>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navEmp"
            aria-expanded="<?= $empOpen?'true':'false' ?>" data-tip="Employees">
@@ -734,7 +743,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
               <i class="bi bi-printer"></i> Print / iCard
             </a>
             <?php endif; ?>
-            <?php if (can('card_templates.view')): ?>
+            <?php if (canMenu('card_templates.view')): ?>
             <a class="sb-sub-item <?= $ap==='card_templates'?'active':'' ?>" href="<?= BASE_URL ?>/modules/print/card_templates.php">
               <i class="bi bi-credit-card-2-front"></i> Card Designer
             </a>
@@ -754,7 +763,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
       <?php endif; ?>
 
       <!-- Tools -->
-      <?php if (canAny(['punch_sync.view','punchlog.view','punch_correction.view'])): ?>
+      <?php if (canAnyMenu(['punch_sync.view','punchlog.view','punch_correction.view'])): ?>
       <div class="sb-section-label">Tools</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navPunch"
@@ -765,17 +774,17 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
         <div class="collapse <?= $punchOpen ?>" id="navPunch">
           <div class="sb-sub">
-            <?php if (can('punch_sync.view')): ?>
+            <?php if (canMenu('punch_sync.view')): ?>
             <a class="sb-sub-item <?= $ap==='punch_sync'?'active':'' ?>" href="<?= BASE_URL ?>/modules/punchlog/sync.php">
               <i class="bi bi-arrow-repeat"></i> Sync &amp; Process
             </a>
             <?php endif; ?>
-            <?php if (can('punchlog.view')): ?>
+            <?php if (canMenu('punchlog.view')): ?>
             <a class="sb-sub-item <?= $ap==='punchlog'?'active':'' ?>" href="<?= BASE_URL ?>/modules/punchlog/view.php">
               <i class="bi bi-list-columns"></i> View Log
             </a>
             <?php endif; ?>
-            <?php if (can('punch_correction.view')): ?>
+            <?php if (canMenu('punch_correction.view')): ?>
             <a class="sb-sub-item <?= $ap==='punch_correction'?'active':'' ?>" href="<?= BASE_URL ?>/modules/punchlog/correction.php">
               <i class="bi bi-pencil-square"></i> Correction
             </a>
@@ -946,7 +955,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
               <i class="bi bi-box-arrow-in-right"></i> Joining / Exit
             </a>
             <?php endif; ?>
-            <?php if (can('tv_dashboard.view')): ?>
+            <?php if (canMenu('tv_dashboard.view')): ?>
             <a class="sb-sub-item" href="<?= BASE_URL ?>/modules/reports/tv_strength.php" target="_blank">
               <i class="bi bi-tv"></i> TV Dashboard
             </a>
@@ -1269,7 +1278,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
               <i class="bi bi-box-arrow-in-right"></i> Joining / Exit
             </a>
             <?php endif; ?>
-            <?php if (can('tv_dashboard.view')): ?>
+            <?php if (canMenu('tv_dashboard.view')): ?>
             <a class="sb-sub-item" href="<?= BASE_URL ?>/modules/reports/tv_strength.php" target="_blank">
               <i class="bi bi-tv"></i> TV Dashboard
             </a>
@@ -1288,7 +1297,7 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
         </a>
       </li>
       <?php endif; ?>
-      <?php if (can('punchlog.view')): ?>
+      <?php if (canMenu('punchlog.view')): ?>
       <div class="sb-section-label">Tools</div>
       <li>
         <a class="sb-item <?= $ap==='punchlog'?'active':'' ?>"
