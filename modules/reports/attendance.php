@@ -71,7 +71,8 @@ require_once __DIR__ . '/../../includes/header.php';
       </div>
       <div class="col-12 col-sm-auto d-flex gap-1 flex-wrap">
         <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search"></i> Load</button>
-        <button id="btnExcel" type="button" class="btn btn-outline-success btn-sm d-none"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+        <button id="btnPivot" type="button" class="btn btn-outline-success btn-sm d-none"><i class="bi bi-file-earmark-excel"></i> Excel (Pivot)</button>
+        <button id="btnExcel" type="button" class="btn btn-outline-success btn-sm d-none"><i class="bi bi-file-earmark-excel"></i> Excel (Flat)</button>
         <a id="btnPrint" href="#" target="_blank" class="btn btn-outline-secondary btn-sm d-none"><i class="bi bi-printer-fill"></i> Print</a>
         <a id="btnGrid"  href="#" target="_blank" class="btn btn-outline-secondary btn-sm d-none"><i class="bi bi-grid-3x3"></i> Status Grid</a>
       </div>
@@ -543,11 +544,11 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 
   function updatePrintBtns(show) {
-    if (!show) { $('#btnPrint,#btnGrid,#btnExcel').addClass('d-none'); $('#attSearchBar').addClass('d-none'); return; }
+    if (!show) { $('#btnPrint,#btnGrid,#btnExcel,#btnPivot').addClass('d-none'); $('#attSearchBar').addClass('d-none'); return; }
     var qs = $('#attForm').serialize();
     $('#btnPrint').attr('href', 'attendance_print.php?'+qs).removeClass('d-none');
     $('#btnGrid').attr('href',  'attendance_print_simple.php?'+qs).removeClass('d-none');
-    $('#btnExcel').removeClass('d-none');
+    $('#btnExcel,#btnPivot').removeClass('d-none');
     $('#attSearchBar').removeClass('d-none');
   }
 
@@ -586,6 +587,11 @@ document.addEventListener('DOMContentLoaded', function(){
       if (!lastData) { showToast('Load the report first.', 'warning'); return; }
       excelFromRows(attFlatRows(lastData), 'attendance_' + (lastData.fFrom||'') + '_' + (lastData.fTo||''),
         'Attendance — ' + (lastData.companyName || '') + ' — ' + lastData.fFrom + ' to ' + lastData.fTo);
+    });
+    $('#btnPivot').on('click', function() {
+      if (!lastData) { showToast('Load the report first.', 'warning'); return; }
+      excelFromRows(attPivotRows(lastData), 'attendance_pivot_' + (lastData.fFrom||'') + '_' + (lastData.fTo||''),
+        'Attendance — ' + (lastData.companyName || '') + ' — ' + lastData.fFrom + ' to ' + lastData.fTo, 2);
     });
     if (AUTOLOAD) load();
   });

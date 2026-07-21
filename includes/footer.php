@@ -283,6 +283,63 @@ $(document).on('submit', 'form[data-filter]', function(e) {
     });
     return rows;
   };
+
+  /* Turn the same payload into a PIVOT / crosstab: one row per employee, one
+     column per date (matching the on-screen attendance grid), plus summary
+     columns. Two header rows — date number, then weekday. Feed to excelFromRows
+     with headerRows = 2. */
+  window.attPivotRows = function (data) {
+    var dates = data.dates || [], emps = data.employees || [];
+    function otHm(m) { m = m || 0; if (m <= 0) return ''; var h = Math.floor(m / 60), mn = m % 60; return (h ? h + 'h' : '') + (mn ? mn + 'm' : (h ? '' : '0m')); }
+    function cellText(c) {
+      if (!c || !c.type) return '';
+      switch (c.type) {
+        case 'P': case 'HP':
+          var t = (c.punches && c.punches.length)
+            ? c.punches[0] + (c.punches.length > 1 ? ' - ' + c.punches[c.punches.length - 1] : '')
+            : (c.in || '') + (c.out ? ' - ' + c.out : '');
+          if (c.tot) t += (t ? ' (' : '(') + c.tot + (c.ot ? ' +' + c.ot : '') + ')';
+          return t || c.type;
+        case 'A':   return 'A';
+        case 'L':   return 'L';
+        case 'HL':  return 'HL' + (c.lvSub ? ' ' + c.lvSub : '');
+        case 'CO':  return 'CO';
+        case 'WO':  return c.woCut ? 'WO*' : 'WO';
+        case 'HOL': return 'H';
+        case 'SUN': return c.woCut ? 'S*' : 'S';
+        default:    return '';
+      }
+    }
+    var SUM = ['P', 'HP', 'A', 'L', 'CO', 'HL', 'H+S', 'Days', 'OT'];
+    var head1 = ['Emp Code', 'Name', 'Department'];
+    var head2 = ['', '', ''];
+    dates.forEach(function (d) { head1.push(parseInt(d.dayNum, 10)); head2.push(d.dayName || ''); });
+    SUM.forEach(function (h) { head1.push(h); head2.push(''); });
+    var rows = [head1, head2];
+    emps.forEach(function (emp) {
+      var r = [emp.code || '', emp.name || '', emp.department || ''];
+      var cP = 0, cHP = 0, cA = 0, cL = 0, cCO = 0, cHL = 0, cHS = 0, ot = 0;
+      dates.forEach(function (d) {
+        var c = (emp.days && emp.days[d.date]) || { type: '' };
+        switch (c.type) {
+          case 'P':  cP++;  break;
+          case 'HP': cHP++; break;
+          case 'A':  cA++;  break;
+          case 'L':  cL++;  break;
+          case 'CO': cCO++; break;
+          case 'HL': cHL++; break;
+          case 'SUN': case 'HOL': case 'WO': if (!c.woCut) cHS++; break;
+        }
+        ot += (c.otMins || 0);
+        r.push(cellText(c));
+      });
+      var days = cP + cHP * 0.5 + cL + cHL * 0.5 + cCO + cHS;
+      r.push(cP || '', cHP || '', cA || '', cL || '', cCO || '', cHL || '', cHS || '',
+             (Number.isInteger(days) ? days : days.toFixed(1)), otHm(ot));
+      rows.push(r);
+    });
+    return rows;
+  };
 })();
 </script>
 <?php if (!empty($extraJs)): ?>
