@@ -168,11 +168,13 @@
     });
     (root || document).querySelectorAll('div.cr-qr').forEach(function (el) {
       if (el.dataset.done) return;
-      el.dataset.done = '1';
-      var px = Math.max(el.offsetWidth, el.offsetHeight, 64);
-      new QRCode(el, { text: el.getAttribute('data-text'), width: px, height: px, correctLevel: QRCode.CorrectLevel.M });
-      var img = el.querySelector('img, canvas');
-      if (img) { img.style.width = '100%'; img.style.height = '100%'; }
+      try {
+        el.dataset.done = '1';
+        var px = Math.max(el.offsetWidth, el.offsetHeight, 64);
+        new QRCode(el, { text: el.getAttribute('data-text'), width: px, height: px, correctLevel: QRCode.CorrectLevel.M });
+        var img = el.querySelector('img, canvas');
+        if (img) { img.style.width = '100%'; img.style.height = '100%'; }
+      } catch (e) { /* qrcodejs unavailable */ }
     });
   }
 

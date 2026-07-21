@@ -250,7 +250,7 @@ $sampleJson = json_encode($sampleEntry, JSON_UNESCAPED_UNICODE);
 $extraJs = '
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs/qrcode.min.js"></script>
-<script src="card_render.js?v=1"></script>
+<script src="card_render.js?v=2"></script>
 <script>
 (function(){
 "use strict";
@@ -319,9 +319,10 @@ function render(){
   tpl.height_mm = +tH.value || 54;
   canvas.innerHTML = CardRender.cardHtml(tpl, side, SAMPLE, {unit:"px", zoom:zoom, designer:true},
     function(i){ return \'data-idx="\'+i+\'"\'; });
-  CardRender.renderCodes(canvas);
   zLbl.textContent = zoom + "×";
   renderLayers(); positionSelBox(); syncProps();
+  // codes last — if a CDN (JsBarcode/QR) is blocked, the panel + buttons still render
+  try { CardRender.renderCodes(canvas); } catch (e) { /* barcode/QR lib unavailable */ }
 }
 
 function renderLayers(){
