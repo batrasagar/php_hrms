@@ -99,14 +99,16 @@ require_once __DIR__ . '/../../includes/header.php';
 .cdz-handle  { position:absolute; right:-6px; bottom:-6px; width:12px; height:12px; background:#0071e3;
                border:2px solid #fff; border-radius:3px; cursor:se-resize; pointer-events:auto; }
 .cdz-layers  { max-height:300px; overflow-y:auto; }
-.cdz-layer   { display:flex; align-items:center; gap:6px; padding:4px 8px; border-radius:6px;
+.cdz-layer   { display:flex; align-items:center; gap:5px; padding:4px 6px; border-radius:6px;
                font-size:12px; cursor:pointer; }
 .cdz-layer:hover   { background:#f1f3f5; }
 .cdz-layer.active  { background:var(--blue-lt); color:var(--blue); font-weight:600; }
-.cdz-layer .btns   { margin-left:auto; display:none; gap:2px; }
-.cdz-layer:hover .btns, .cdz-layer.active .btns { display:flex; }
-.cdz-layer .btns button { border:none; background:none; padding:0 3px; font-size:11px; color:#888; cursor:pointer; }
-.cdz-layer .btns button:hover { color:#000; }
+.cdz-layer .nm     { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cdz-layer .btns   { margin-left:auto; display:flex; gap:1px; flex-shrink:0; }
+.cdz-layer .btns button { border:none; background:none; padding:0 2px; font-size:12px; line-height:1;
+               color:#adb5bd; cursor:pointer; }
+.cdz-layer:hover .btns button, .cdz-layer.active .btns button { color:#888; }
+.cdz-layer .btns button:hover { color:#0071e3; }
 .cdz-props .form-control-sm, .cdz-props .form-select-sm { font-size:12px; }
 .cdz-props label { font-size:10.5px; color:#6c757d; margin-bottom:1px; display:block; }
 .cdz-props .col-p { width:74px; }
@@ -326,7 +328,7 @@ function renderLayers(){
   var h = "";
   els().forEach(function(e,i){
     h += \'<div class="cdz-layer\'+(i===sel?" active":"")+\'" data-l="\'+i+\'">\'
-       + \'<i class="bi bi-grip-vertical text-muted"></i><span>\'+elName(e)+\'</span>\'
+       + \'<i class="bi bi-grip-vertical text-muted"></i><span class="nm">\'+elName(e)+\'</span>\'
        + \'<span class="btns">\'
        + \'<button data-a="top" title="Bring to front">⤒</button>\'
        + \'<button data-a="up" title="Raise one">▲</button><button data-a="dn" title="Lower one">▼</button>\'
