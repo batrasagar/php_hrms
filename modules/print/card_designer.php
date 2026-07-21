@@ -127,14 +127,6 @@ require_once __DIR__ . '/../../includes/header.php';
     <div><label class="form-label small mb-1">H (mm)</label>
       <input type="number" id="tH" class="form-control form-control-sm" style="width:80px" step="0.5" min="20" max="300" value="<?= $tplRow ? (float)$tplRow['HeightMm'] : 54 ?>">
     </div>
-    <div class="btn-group btn-group-sm" role="group">
-      <button type="button" class="btn btn-outline-primary active" id="tabFront">Front</button>
-      <button type="button" class="btn btn-outline-primary" id="tabBack">Back</button>
-    </div>
-    <div class="form-check align-self-center mt-3">
-      <input type="checkbox" class="form-check-input" id="hasBack">
-      <label class="form-check-label small" for="hasBack">Back side</label>
-    </div>
     <div class="btn-group btn-group-sm ms-auto" role="group">
       <button type="button" class="btn btn-outline-secondary" id="zOut"><i class="bi bi-zoom-out"></i></button>
       <button type="button" class="btn btn-outline-secondary" disabled id="zLbl">8×</button>
@@ -298,9 +290,6 @@ var side = "front", sel = -1, zoom = 8;
 
 var canvas = document.getElementById("canvas"), selBox = document.getElementById("selBox"),
     layers = document.getElementById("layers"), props = document.getElementById("propsBar");
-
-hasBack.checked = !!tpl.layout.back;
-tabBack.disabled = !tpl.layout.back;
 
 function els(){ return (tpl.layout[side] || {elements:[]}).elements; }
 function selEl(){ return sel >= 0 ? els()[sel] : null; }
@@ -504,23 +493,6 @@ addImage.addEventListener("change", function(){
   var r = new FileReader();
   r.onload = function(){ addEl({ type:"image", src:r.result, x:5, y:5, w:20, h:12, radius:0, rotation:0 }); };
   r.readAsDataURL(f);
-});
-
-// ── Sides ─────────────────────────────────────────────────────────────────────
-function setSide(s){
-  side = s; sel = -1;
-  tabFront.classList.toggle("active", s==="front");
-  tabBack.classList.toggle("active", s==="back");
-  render();
-}
-tabFront.addEventListener("click", function(){ setSide("front"); });
-tabBack.addEventListener("click", function(){ if (tpl.layout.back) setSide("back"); });
-hasBack.addEventListener("change", function(){
-  if (this.checked){ tpl.layout.back = tpl.layout.back || { elements: [] }; tabBack.disabled = false; setSide("back"); }
-  else {
-    if (tpl.layout.back && tpl.layout.back.elements.length && !confirm("Remove the back side and its elements?")) { this.checked = true; return; }
-    tpl.layout.back = null; tabBack.disabled = true; setSide("front");
-  }
 });
 
 // ── Zoom / size ───────────────────────────────────────────────────────────────
