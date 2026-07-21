@@ -28,6 +28,7 @@ function settingCatalog(): array {
         'show_holiday_punches'  => ['Show punches on holidays',        'bool'],
         'show_leave_punches'    => ['Show punches on leave days',      'bool'],
         'show_weekoff_punches'  => ['Show punches on week offs',       'bool'],
+        'show_absent_punches'   => ['Show punches on absent days',     'bool'],
         'show_ot_report'        => ['Show OT column in reports',       'bool'],
         'allow_negative_leave'  => ['Allow negative leave balance',    'bool'],
         'show_before_doj'       => ['Show punches before DOJ',         'bool'],
@@ -114,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     }
-    $keys = ['show_holiday_punches','show_leave_punches','show_weekoff_punches','show_before_doj','show_after_dol','allow_negative_leave','show_ot_report',
+    $keys = ['show_holiday_punches','show_leave_punches','show_weekoff_punches','show_absent_punches','show_before_doj','show_after_dol','allow_negative_leave','show_ot_report',
              'ot_before_shift','ot_after_shift','ot_manual_only','ot_clamp_out',
              'wo_deduct_adj_absent','wo_deduct_low_present'];
     $ins  = $db->prepare("INSERT INTO tblSettings (CompanyId,SettingKey,SettingValue) VALUES (?,?,?) ON DUPLICATE KEY UPDATE SettingValue=VALUES(SettingValue)");
@@ -298,6 +299,24 @@ require_once __DIR__ . '/../../includes/header.php';
               </label>
               <div class="text-muted small mt-1">
                 When ON — if an employee swipes on a Sunday, show the actual punch times instead of the S badge.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="d-flex align-items-start gap-3 p-3 border rounded">
+            <div class="form-check form-switch mb-0 pt-1">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="show_absent_punches" name="show_absent_punches"
+                     <?= checked($settings, 'show_absent_punches') ?>>
+            </div>
+            <div>
+              <label class="form-check-label fw-semibold" for="show_absent_punches">
+                Show Punches on Absent Days
+              </label>
+              <div class="text-muted small mt-1">
+                When ON — if an employee swipes on a day marked as absent (A), show the actual punch times instead of the A badge.
               </div>
             </div>
           </div>

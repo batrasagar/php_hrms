@@ -56,6 +56,7 @@ try {
 $showHolPunch = !empty($settings['show_holiday_punches']);
 $showLvPunch  = !empty($settings['show_leave_punches']);
 $showWoPunch  = !empty($settings['show_weekoff_punches']);
+$showAbsPunch = !empty($settings['show_absent_punches']);
 $showBefDoj   = !empty($settings['show_before_doj']);
 $showAftDol   = !empty($settings['show_after_dol']);
 $showOt       = ($settings['show_ot_report'] ?? '1') !== '0';  // default: show
@@ -402,9 +403,10 @@ foreach ($employees as $e) {
                 case 'WO':  $hsDays++; break;
             }
             // Keep punch times visible for present/half days AND for forced-absent
-            // days (mark-absent-but-show-punches). 'A' is flagged so the grid renders
-            // the punches under the A badge.
-            if (($ft === 'P' || $ft === 'HP' || $ft === 'A') && $punch) {
+            // days (mark-absent-but-show-punches), the latter only when the
+            // "Show punches on absent days" setting is on. 'A' is flagged so the
+            // grid renders the punches under the A badge.
+            if (($ft === 'P' || $ft === 'HP' || ($ft === 'A' && $showAbsPunch)) && $punch) {
                 $inMins  = (int)substr($punch['in'], 0, 2) * 60 + (int)substr($punch['in'], 3);
                 $outMins = (int)substr($punch['out'],0, 2) * 60 + (int)substr($punch['out'],3);
                 $totMins = ($punch['count'] > 1) ? max(0, $outMins - $inMins) : 0;
