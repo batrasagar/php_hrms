@@ -73,6 +73,27 @@ function beSet(PDO $db, int $cid, string $key, string $val): void {
     $db->prepare("INSERT INTO tblSettings (CompanyId, SettingKey, SettingValue) VALUES (?,?,?)")->execute([$cid, $key, $val]);
 }
 
+/**
+ * Which of a select's options should show as selected for a stored value,
+ * tolerating legacy encodings so the cell isn't blanked (and, on save, silently
+ * wiped). Gender in particular is stored as 'Male'/'FEMALE'/'M'/'F' across records
+ * — match case-insensitively, then by first letter. Returns '' when nothing matches.
+ */
+function beSelectValue(string $key, ?string $val, array $options): string {
+    $val = trim((string)$val);
+    if ($val === '') return '';
+    if (in_array($val, $options, true)) return $val;                       // exact
+    foreach ($options as $o) {                                             // case-insensitive
+        if ($o !== '' && strcasecmp($o, $val) === 0) return $o;
+    }
+    if ($key === 'Gender') {                                              // legacy M/F abbreviations
+        $c = strtolower($val[0]);
+        if ($c === 'm' && in_array('Male',   $options, true)) return 'Male';
+        if ($c === 'f' && in_array('Female', $options, true)) return 'Female';
+    }
+    return '';
+}
+
 // ── Save field configuration ──────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_fields') {
     requirePermission('emp_bulk.edit');
@@ -285,11 +306,12 @@ require_once __DIR__ . '/../../includes/header.php';
           <td class="ro small"><?= ($val === '' || $val === null) ? '<span class="text-muted">—</span>' : htmlspecialchars((string)$val) ?></td>
         <?php else:
             $nm = 'f_' . $key . '[]';
-            if ($m['type'] === 'select'): ?>
+            if ($m['type'] === 'select'):
+              $selVal = beSelectValue($key, (string)$val, $m['options']); ?>
           <td>
             <select name="<?= $nm ?>" class="form-select form-select-sm border-0 bg-transparent p-0">
               <?php foreach ($m['options'] as $opt): ?>
-              <option value="<?= htmlspecialchars($opt) ?>" <?= ((string)$val === (string)$opt) ? 'selected' : '' ?>><?= $opt === '' ? '—' : htmlspecialchars(ucfirst($opt)) ?></option>
+              <option value="<?= htmlspecialchars($opt) ?>" <?= ($selVal === (string)$opt) ? 'selected' : '' ?>><?= $opt === '' ? '—' : htmlspecialchars(ucfirst($opt)) ?></option>
               <?php endforeach; ?>
             </select>
           </td>
