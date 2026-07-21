@@ -216,7 +216,11 @@ $(document).on('submit', 'form[data-filter]', function(e) {
     rows.forEach(function (r, i) {
       var tag = i < headerRows ? 'th' : 'td';
       s += '<tr>';
-      for (var c = 0; c < cols; c++) s += '<' + tag + '>' + esc(r[c] == null ? '' : r[c]) + '</' + tag + '>';
+      for (var c = 0; c < cols; c++) {
+        // \n inside a value → a line break WITHIN the same Excel cell.
+        var cell = esc(r[c] == null ? '' : r[c]).replace(/\n/g, '<br style="mso-data-placement:same-cell">');
+        s += '<' + tag + '>' + cell + '</' + tag + '>';
+      }
       s += '</tr>';
     });
     s += '</table>';
@@ -295,11 +299,15 @@ $(document).on('submit', 'form[data-filter]', function(e) {
       if (!c || !c.type) return '';
       switch (c.type) {
         case 'P': case 'HP':
-          var t = (c.punches && c.punches.length)
-            ? c.punches[0] + (c.punches.length > 1 ? ' - ' + c.punches[c.punches.length - 1] : '')
-            : (c.in || '') + (c.out ? ' - ' + c.out : '');
-          if (c.tot) t += (t ? ' (' : '(') + c.tot + (c.ot ? ' +' + c.ot : '') + ')';
-          return t || c.type;
+          // In, Out and total each on their own line inside the one cell.
+          var inT, outT;
+          if (c.punches && c.punches.length) { inT = c.punches[0]; outT = c.punches.length > 1 ? c.punches[c.punches.length - 1] : ''; }
+          else { inT = c.in || ''; outT = c.out || ''; }
+          var parts = [];
+          if (inT)  parts.push(inT);
+          if (outT) parts.push(outT);
+          if (c.tot) parts.push('(' + c.tot + (c.ot ? ' +' + c.ot : '') + ')');
+          return parts.length ? parts.join('\n') : c.type;
         case 'A':   return 'A';
         case 'L':   return 'L';
         case 'HL':  return 'HL' + (c.lvSub ? ' ' + c.lvSub : '');
