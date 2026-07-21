@@ -328,7 +328,9 @@ function renderLayers(){
     h += \'<div class="cdz-layer\'+(i===sel?" active":"")+\'" data-l="\'+i+\'">\'
        + \'<i class="bi bi-grip-vertical text-muted"></i><span>\'+elName(e)+\'</span>\'
        + \'<span class="btns">\'
-       + \'<button data-a="up" title="Raise">▲</button><button data-a="dn" title="Lower">▼</button>\'
+       + \'<button data-a="top" title="Bring to front">⤒</button>\'
+       + \'<button data-a="up" title="Raise one">▲</button><button data-a="dn" title="Lower one">▼</button>\'
+       + \'<button data-a="bot" title="Send to back">⤓</button>\'
        + \'<button data-a="dup" title="Duplicate">⧉</button><button data-a="del" title="Delete">✕</button>\'
        + \'</span></div>\';
   });
@@ -470,6 +472,8 @@ layers.addEventListener("click", function(ev){
   else if (a === "dup") { var c = JSON.parse(JSON.stringify(arr[i])); c.x = (+c.x||0)+3; c.y = (+c.y||0)+3; arr.splice(i+1,0,c); sel = i+1; }
   else if (a === "up" && i < arr.length-1) { arr.splice(i,2,arr[i+1],arr[i]); sel = i+1; }   // later = on top
   else if (a === "dn" && i > 0)            { arr.splice(i-1,2,arr[i],arr[i-1]); sel = i-1; }
+  else if (a === "top" && i < arr.length-1){ arr.push(arr.splice(i,1)[0]); sel = arr.length-1; }  // end = frontmost
+  else if (a === "bot" && i > 0)           { arr.unshift(arr.splice(i,1)[0]); sel = 0; }          // start = backmost
   else sel = i;
   render();
 });
