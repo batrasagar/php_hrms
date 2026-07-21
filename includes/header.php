@@ -700,7 +700,7 @@ $fullMenu = in_array($user['role'], ['superadmin','admin','operator'], true)
 ?>
 <?php if ($fullMenu): ?>
 <?php
-  $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','emp_left','print','card_templates']) ? 'show' : '';
+  $empOpen     = in_array($ap, ['employees','emp_import','emp_bulk','emp_bulk_update','emp_left','print','card_templates']) ? 'show' : '';
   $shiftOpen   = in_array($ap, ['shifts','shift_defaults','shift_assign','shift_cyclic','compoff']) ? 'show' : '';
   $masterOpen  = in_array($ap, ['holidays','departments','contractors']) ? 'show' : '';
   $attnOpen    = in_array($ap, ['overtime','ot_approvals','mark_ot_abs','attn_import','leaves','leave_range','leave_types','leave_policy','leave_assign','leave_register']) ? 'show' : '';
@@ -753,6 +753,9 @@ $fullMenu = in_array($user['role'], ['superadmin','admin','operator'], true)
             <?php if (can('emp_bulk.view')): ?>
             <a class="sb-sub-item <?= $ap==='emp_bulk'?'active':'' ?>" href="<?= BASE_URL ?>/modules/employees/bulk_edit.php">
               <i class="bi bi-table"></i> Bulk Edit
+            </a>
+            <a class="sb-sub-item <?= $ap==='emp_bulk_update'?'active':'' ?>" href="<?= BASE_URL ?>/modules/employees/bulk_update.php">
+              <i class="bi bi-file-earmark-excel"></i> Excel Update
             </a>
             <?php endif; ?>
             <?php if (can('emp_left.view')): ?>

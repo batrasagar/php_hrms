@@ -24,41 +24,9 @@ $FQS = http_build_query(array_filter(
 ));
 
 // ── Field catalog: the columns that may be shown / edited in the grid ──────────
-// key = tblEmployee column; type drives the input + value coercion on save.
-$CAT = [
-    'Sr'            => ['label'=>'Sr',             'type'=>'int',    'w'=>55],
-    'EmployeeCode'  => ['label'=>'Code',           'type'=>'text',   'w'=>90],
-    'EnrollId'      => ['label'=>'Enroll ID',      'type'=>'text',   'w'=>85],
-    'Name'          => ['label'=>'Name',           'type'=>'text',   'w'=>150, 'req'=>true],
-    'FatherName'    => ['label'=>'Father Name',    'type'=>'text',   'w'=>150],
-    'Gender'        => ['label'=>'Gender',         'type'=>'select', 'options'=>['','Male','Female','Other'], 'w'=>90],
-    'DOB'           => ['label'=>'DOB',            'type'=>'date',   'w'=>120],
-    'MaritalStatus' => ['label'=>'Marital Status', 'type'=>'text',   'w'=>110],
-    'BloodGroup'    => ['label'=>'Blood Group',    'type'=>'text',   'w'=>90],
-    'Qualification' => ['label'=>'Qualification',  'type'=>'text',   'w'=>130],
-    'Phone'         => ['label'=>'Mobile',         'type'=>'text',   'w'=>110],
-    'Email'         => ['label'=>'Email',          'type'=>'text',   'w'=>150],
-    'PermanentAdd'  => ['label'=>'Permanent Addr', 'type'=>'text',   'w'=>170],
-    'PresentAdd'    => ['label'=>'Present Addr',   'type'=>'text',   'w'=>170],
-    'Department'    => ['label'=>'Department',     'type'=>'text',   'w'=>120, 'list'=>'deptList'],
-    'Contractor'    => ['label'=>'Contractor',     'type'=>'text',   'w'=>120],
-    'Designation'   => ['label'=>'Designation',    'type'=>'text',   'w'=>130],
-    'Grade'         => ['label'=>'Grade',          'type'=>'text',   'w'=>90],
-    'EmployeeType'  => ['label'=>'Employee Type',  'type'=>'text',   'w'=>120],
-    'JoinDate'      => ['label'=>'Join Date',      'type'=>'date',   'w'=>120],
-    'DOL'           => ['label'=>'Date of Leaving','type'=>'date',   'w'=>120],
-    'Status'        => ['label'=>'Status',         'type'=>'select', 'options'=>['active','inactive','terminated'], 'w'=>100],
-    'BasicSalary'   => ['label'=>'Basic Salary',   'type'=>'decimal','w'=>110],
-    'GrossSalary'   => ['label'=>'Gross Salary',   'type'=>'decimal','w'=>110],
-    'AdhaarID'      => ['label'=>'Aadhaar',        'type'=>'text',   'w'=>130],
-    'PanNo'         => ['label'=>'PAN',            'type'=>'text',   'w'=>110],
-    'UAN'           => ['label'=>'UAN',            'type'=>'text',   'w'=>120],
-    'PfNo'          => ['label'=>'PF No',          'type'=>'text',   'w'=>110],
-    'EsiNo'         => ['label'=>'ESI No',         'type'=>'text',   'w'=>110],
-    'BankName'      => ['label'=>'Bank Name',      'type'=>'text',   'w'=>130],
-    'BankAcNo'      => ['label'=>'Bank A/C',       'type'=>'text',   'w'=>120],
-    'IFSCCode'      => ['label'=>'IFSC',           'type'=>'text',   'w'=>110],
-];
+// Shared with the Excel/CSV bulk-update tool (bulk_update.php) via _fields.php.
+require_once __DIR__ . '/_fields.php';
+$CAT = employeeFieldCatalog();
 $DEFAULT_SHOW = ['Sr','EmployeeCode','EnrollId','Name','Department','Contractor','Designation','JoinDate','Status'];
 
 // ── Field-config storage (compact CSV in tblSettings, per active company) ──────
@@ -248,6 +216,7 @@ require_once __DIR__ . '/../../includes/header.php';
   <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
     <span class="fw-semibold">Bulk Edit <small class="text-muted">(<i class="bi bi-pencil-fill text-success"></i> = editable column; others are view-only)</small></span>
     <div class="d-flex gap-2">
+      <a href="bulk_update.php" class="btn btn-outline-success btn-sm"><i class="bi bi-file-earmark-excel me-1"></i>Excel / CSV Update</a>
       <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#fieldsModal">
         <i class="bi bi-sliders me-1"></i>Configure Fields
       </button>
