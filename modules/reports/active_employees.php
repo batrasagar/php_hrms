@@ -73,7 +73,10 @@ $contractors = employeeFilterValues($db, (int)$fCompany, 'Contractor');
       <div class="col-6 col-sm-auto d-flex gap-1 align-items-end">
         <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Filter</button>
         <a href="active_employees.php" class="btn btn-outline-secondary btn-sm">Reset</a>
-        <button type="button" class="btn btn-outline-success btn-sm" onclick="window.print()"><i class="bi bi-printer"></i></button>
+        <button type="button" class="btn btn-outline-success btn-sm"
+                onclick="excelFromDataTable('#tblActive','active_employees','Active Employees',[0])">
+          <i class="bi bi-file-earmark-excel"></i> Excel</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i></button>
       </div>
     </form>
   </div>

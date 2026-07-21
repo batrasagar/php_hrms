@@ -87,7 +87,8 @@ $autoload = $fCompany ? 1 : 0;
       </div>
       <div class="col-auto d-flex gap-1">
         <button id="btnSwipeLoad" type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search"></i> Load</button>
-        <button id="btnSwipeExcel" type="button" class="btn btn-outline-success btn-sm <?= $fCompany ? '' : 'd-none' ?>"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+        <button id="btnSwipeExcel" type="button" class="btn btn-outline-success btn-sm <?= $fCompany ? '' : 'd-none' ?>"><i class="bi bi-file-earmark-excel"></i> Excel (Grid)</button>
+        <button id="btnSwipeFlat" type="button" class="btn btn-outline-success btn-sm <?= $fCompany ? '' : 'd-none' ?>"><i class="bi bi-file-earmark-excel"></i> Excel (Flat)</button>
         <a id="btnSwipePdf" href="swipe_report_print.php?<?= htmlspecialchars(http_build_query(array_filter(['company'=>$fCompany,'month'=>$fMonth,'dept'=>$fDept,'contractor'=>$fContractor,'autoprint'=>1]))) ?>"
            target="_blank" class="btn btn-outline-danger btn-sm <?= $fCompany ? '' : 'd-none' ?>"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
         <a id="btnSwipePrint" href="swipe_report_print.php?<?= htmlspecialchars(http_build_query(array_filter(['company'=>$fCompany,'month'=>$fMonth,'dept'=>$fDept,'contractor'=>$fContractor]))) ?>"
@@ -420,7 +421,7 @@ $extraJs = <<<JS
                     + (ct   ? '&contractor=' + encodeURIComponent(ct)   : '');
     \$('#btnSwipePrint').attr('href', 'swipe_report_print.php?' + printParams).removeClass('d-none');
     \$('#btnSwipePdf').attr('href', 'swipe_report_print.php?' + printParams + '&autoprint=1').removeClass('d-none');
-    \$('#btnSwipeExcel').removeClass('d-none');
+    \$('#btnSwipeExcel, #btnSwipeFlat').removeClass('d-none');
 
     var \$btn = \$('#btnSwipeLoad');
     \$btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Loading…');
@@ -447,6 +448,11 @@ $extraJs = <<<JS
   \$(function() {
     \$('#swipeForm').on('submit', function(e) { e.preventDefault(); load(); });
     \$('#btnSwipeExcel').on('click', downloadExcel);
+    \$('#btnSwipeFlat').on('click', function() {
+      if (!lastData) { showToast('Load the report first.', 'warning'); return; }
+      excelFromRows(attFlatRows(lastData), 'swipe_report_' + (lastData.fFrom || '').slice(0, 7),
+        'Swipe Report — ' + (lastData.companyName || '') + ' — ' + lastData.fFrom + ' to ' + lastData.fTo);
+    });
     \$('#swSearch').on('input', applySwSearch);
     if (AUTOLOAD) load();
   });

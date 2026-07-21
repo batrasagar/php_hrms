@@ -94,7 +94,10 @@ $statusBadge = ['active' => 'bg-success', 'pending' => 'bg-warning text-dark', '
       </div>
       <div class="col-12 col-sm-auto d-flex gap-1">
         <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Filter</button>
-        <button type="button" class="btn btn-outline-success btn-sm" onclick="window.print()"><i class="bi bi-printer"></i></button>
+        <button type="button" class="btn btn-outline-success btn-sm"
+                onclick="excelFromDataTable('#tblJoinLeft','<?= $fType ?>_report_<?= $fFrom ?>_<?= $fTo ?>','<?= $fType==='left'?'Employees Left':'Employees Joined' ?> — <?= htmlspecialchars($fFrom) ?> to <?= htmlspecialchars($fTo) ?>')">
+          <i class="bi bi-file-earmark-excel"></i> Excel</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i></button>
       </div>
     </form>
   </div>

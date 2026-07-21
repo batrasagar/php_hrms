@@ -194,6 +194,96 @@ $(document).on('submit', 'form[data-filter]', function(e) {
   document.addEventListener('DOMContentLoaded', function () { initDatepickers(); });
   window.initDatepickers = initDatepickers;
 })();
+
+/* ── Excel export (flat table → .xls via HTML, no library needed) ───── */
+(function () {
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  /* rows: array of arrays. The first `headerRows` (default 1) render as <th>.
+     Produces a .xls the browser hands to Excel — mirrors the swipe report's
+     long-standing export, generalised for reuse. */
+  window.excelFromRows = function (rows, filename, title, headerRows) {
+    headerRows = headerRows == null ? 1 : headerRows;
+    if (!rows || rows.length <= headerRows) {
+      if (window.showToast) showToast('Nothing to export — load the report first.', 'warning');
+      return;
+    }
+    var cols = rows.reduce(function (m, r) { return Math.max(m, r.length); }, 1);
+    var s = '<table border="1">';
+    if (title) s += '<tr><td colspan="' + cols + '"><b>' + esc(title) + '</b></td></tr>';
+    rows.forEach(function (r, i) {
+      var tag = i < headerRows ? 'th' : 'td';
+      s += '<tr>';
+      for (var c = 0; c < cols; c++) s += '<' + tag + '>' + esc(r[c] == null ? '' : r[c]) + '</' + tag + '>';
+      s += '</tr>';
+    });
+    s += '</table>';
+    var html = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>' + s + '</body></html>';
+    var blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel' });
+    var name = (filename || 'export').replace(/[^\w.-]+/g, '_');
+    if (!/\.xls$/i.test(name)) name += '.xls';
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  };
+
+  /* Flatten a rendered table to a .xls. DataTables-aware: includes EVERY row
+     across all pages, honouring the active search/sort. skipCols drops columns
+     by their header index (e.g. a serial or action column). */
+  window.excelFromDataTable = function (selector, filename, title, skipCols) {
+    skipCols = skipCols || [];
+    var $ = window.jQuery; if (!$) return;
+    var $t = $(selector); if (!$t.length) return;
+    var keep  = function (i) { return skipCols.indexOf(i) === -1; };
+    var strip = function (h) { return $('<div>').html(h).text().replace(/\s+/g, ' ').trim(); };
+    var header = [];
+    $t.find('thead tr').first().find('th').each(function (i) { if (keep(i)) header.push($(this).text().trim()); });
+    var rows = [header];
+    if ($.fn.DataTable && $.fn.DataTable.isDataTable(selector)) {
+      $t.DataTable().rows({ search: 'applied', order: 'applied' }).every(function () {
+        var d = this.data(), row = [];
+        for (var i = 0; i < d.length; i++) if (keep(i)) row.push(strip(d[i]));
+        rows.push(row);
+      });
+    } else {
+      $t.find('tbody tr').each(function () {
+        var row = [];
+        $(this).find('td').each(function (i) { if (keep(i)) row.push(strip($(this).html())); });
+        rows.push(row);
+      });
+    }
+    window.excelFromRows(rows, filename, title, 1);
+  };
+
+  /* Turn an ajax/attendance_data.php JSON payload into a flat, one-row-per-
+     employee-per-day table. Shared by the attendance, monthly and swipe reports
+     so their "Excel" buttons all yield the same tidy, pivot-friendly sheet. */
+  window.attFlatRows = function (data) {
+    var STATUS = { P: 'Present', HP: 'Half Present', A: 'Absent', L: 'Leave', HL: 'Half Leave',
+                   CO: 'Comp Off', WO: 'Week Off', HOL: 'Holiday', SUN: 'Week Off (Sun)' };
+    var rows = [['Emp Code', 'Name', 'Father', 'Designation', 'Department', 'Contractor', 'Shift',
+                 'Date', 'Day', 'Status', 'In', 'Out', 'Hours', 'OT']];
+    (data.employees || []).forEach(function (emp) {
+      (data.dates || []).forEach(function (d) {
+        var c = (emp.days && emp.days[d.date]) || { type: '' };
+        if (!c.type || c.type === 'FUT') return;            // skip blank & future days
+        var pin  = c.in  || (c.punches && c.punches.length ? c.punches[0] : '') || '';
+        var pout = c.out || (c.punches && c.punches.length > 1 ? c.punches[c.punches.length - 1] : '') || '';
+        rows.push([
+          emp.code || '', emp.name || '', emp.fatherName || '', emp.designation || '',
+          emp.department || '', emp.contractor || '', emp.shiftName || '',
+          d.date, d.dayName || '', STATUS[c.type] || c.type,
+          pin, pout, c.tot || '', c.ot || ''
+        ]);
+      });
+    });
+    return rows;
+  };
+})();
 </script>
 <?php if (!empty($extraJs)): ?>
 <?= $extraJs ?>

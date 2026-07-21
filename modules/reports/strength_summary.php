@@ -76,7 +76,8 @@ $pct = fn($n) => $gTotal > 0 ? round($n / $gTotal * 100) : 0;
       <form method="GET" class="d-flex gap-2 align-items-end flex-grow-1">
         <input type="hidden" name="company" value="<?= (int)$fCompany ?>">
       </form>
-      <button onclick="window.print()" class="btn btn-outline-success btn-sm align-self-end"><i class="bi bi-printer"></i> Print</button>
+      <button onclick="ssExcel()" class="btn btn-outline-success btn-sm align-self-end"><i class="bi bi-file-earmark-excel"></i> Excel</button>
+      <button onclick="window.print()" class="btn btn-outline-secondary btn-sm align-self-end"><i class="bi bi-printer"></i> Print</button>
     </div>
   </div>
 </div>
@@ -108,7 +109,7 @@ $pct = fn($n) => $gTotal > 0 ? round($n / $gTotal * 100) : 0;
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-semibold">By Company</div>
       <div class="card-body p-0">
-        <table class="table table-sm table-hover mb-0">
+        <table class="table table-sm table-hover mb-0" id="ssCompany">
           <thead class="table-light"><tr><th>Company</th><th class="text-center">Active</th><th class="text-center">Inactive</th><th class="text-center">Term.</th><th class="text-center">Total</th></tr></thead>
           <tbody>
           <?php foreach ($byCompany as $r): ?>
@@ -162,7 +163,7 @@ $pct = fn($n) => $gTotal > 0 ? round($n / $gTotal * 100) : 0;
     <div class="card border-0 shadow-sm mb-3">
       <div class="card-header bg-white fw-semibold">By Department</div>
       <div class="card-body p-0">
-        <table class="table table-sm table-hover mb-0">
+        <table class="table table-sm table-hover mb-0" id="ssDept">
           <thead class="table-light"><tr><th>Department</th><th class="text-center">Active</th><th class="text-center">Inactive</th><th class="text-center">Total</th></tr></thead>
           <tbody>
           <?php foreach ($byDept as $r): ?>
@@ -180,7 +181,7 @@ $pct = fn($n) => $gTotal > 0 ? round($n / $gTotal * 100) : 0;
     <div class="card border-0 shadow-sm">
       <div class="card-header bg-white fw-semibold">By Contractor</div>
       <div class="card-body p-0">
-        <table class="table table-sm table-hover mb-0">
+        <table class="table table-sm table-hover mb-0" id="ssContractor">
           <thead class="table-light"><tr><th>Contractor</th><th class="text-center">Active</th><th class="text-center">Total</th></tr></thead>
           <tbody>
           <?php foreach ($byContractor as $r): ?>
@@ -196,4 +197,28 @@ $pct = fn($n) => $gTotal > 0 ? round($n / $gTotal * 100) : 0;
     </div>
   </div>
 </div>
+<script>
+/* Export the three breakdown tables as one flat sheet (section per table). */
+function ssExcel() {
+  var rows = [];
+  function addTable(sel, title) {
+    var t = document.querySelector(sel); if (!t) return;
+    rows.push([title]);
+    var heads = [];
+    t.querySelectorAll('thead th').forEach(function (th) { heads.push(th.textContent.trim()); });
+    rows.push(heads);
+    t.querySelectorAll('tbody tr').forEach(function (tr) {
+      var r = [];
+      tr.querySelectorAll('td').forEach(function (td) { r.push(td.textContent.trim()); });
+      rows.push(r);
+    });
+    rows.push([]);   // spacer row between sections
+  }
+  addTable('#ssCompany', 'By Company');
+  addTable('#ssDept', 'By Department');
+  addTable('#ssContractor', 'By Contractor');
+  if (rows.length <= 1) { showToast('Nothing to export.', 'warning'); return; }
+  excelFromRows(rows, 'strength_summary', 'Strength Summary', 0);
+}
+</script>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>

@@ -83,7 +83,10 @@ $typeBadges  = ['full_day' => 'bg-danger', 'half_am' => 'bg-warning text-dark', 
       </div>
       <div class="col-12 col-sm-auto d-flex gap-1">
         <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> Filter</button>
-        <button type="button" class="btn btn-outline-success btn-sm" onclick="window.print()"><i class="bi bi-printer"></i></button>
+        <button type="button" class="btn btn-outline-success btn-sm"
+                onclick="excelFromDataTable('#tblLeaves','leave_report_<?= $fFrom ?>_<?= $fTo ?>','Leave Report — <?= htmlspecialchars($fFrom) ?> to <?= htmlspecialchars($fTo) ?>')">
+          <i class="bi bi-file-earmark-excel"></i> Excel</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i></button>
       </div>
     </form>
   </div>

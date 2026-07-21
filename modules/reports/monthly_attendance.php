@@ -95,8 +95,9 @@ $autoload = $fCompany ? 1 : 0;
       </div>
       <div class="col-auto d-flex gap-1">
         <button id="btnMALoad" type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search"></i> Load</button>
+        <button id="btnMAExcel" type="button" class="btn btn-outline-success btn-sm d-none"><i class="bi bi-file-earmark-excel"></i> Excel</button>
         <a id="btnMAPrint" href="monthly_attendance_print.php?<?= htmlspecialchars(http_build_query(array_filter(['company'=>$fCompany,'month'=>$fMonth,'dept'=>$fDept,'contractor'=>$fContractor]))) ?>"
-           target="_blank" class="btn btn-outline-success btn-sm <?= $fCompany ? '' : 'd-none' ?>"><i class="bi bi-printer"></i> Print</a>
+           target="_blank" class="btn btn-outline-secondary btn-sm <?= $fCompany ? '' : 'd-none' ?>"><i class="bi bi-printer"></i> Print</a>
       </div>
     </form>
   </div>
@@ -121,6 +122,7 @@ $extraJs = <<<JS
   var AUTOLOAD = $autoload;
 
   var DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  var lastData = null;
 
   function badgeHtml(type) {
     if (type === 'SUN') return '<span class="att-badge ab-s">S</span>';
@@ -138,6 +140,9 @@ $extraJs = <<<JS
   function render(data) {
     var dates = data.dates;
     var emps  = data.employees;
+
+    lastData = data;
+    \$('#btnMAExcel').toggleClass('d-none', !(emps && emps.length));
 
     if (data.errors && data.errors.length) {
       data.errors.forEach(function(e) { showToast(e, 'warning'); });
@@ -305,6 +310,12 @@ $extraJs = <<<JS
 
   \$(function () {
     \$('#mAttForm').on('submit', function (e) { e.preventDefault(); load(); });
+    \$('#btnMAExcel').on('click', function () {
+      if (!lastData) { showToast('Load the report first.', 'warning'); return; }
+      var fn = 'monthly_attendance_' + (lastData.fFrom || '').slice(0, 7);
+      excelFromRows(attFlatRows(lastData), fn,
+        'Monthly Attendance — ' + (lastData.companyName || '') + ' — ' + lastData.fFrom + ' to ' + lastData.fTo);
+    });
     if (AUTOLOAD) load();
   });
 })();
