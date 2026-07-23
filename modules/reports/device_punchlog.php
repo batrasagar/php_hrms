@@ -307,8 +307,10 @@ $syncUrl      = '?' . http_build_query($expArgs + ['sync' => '1']);
 <style>
   .drill-row .drill-caret { transition: transform .15s ease; }
   .drill-row[aria-expanded="true"] .drill-caret { transform: rotate(90deg); }
-  /* Collapse-carrier cells: kill the stray line box so a closed row takes no height */
-  .drill-cell { line-height: 0; border: 0; }
+  /* Collapse-carrier cells: strip the global .table-sm cell padding (10px 14px
+     !important) + line box so a *closed* drilldown row takes no vertical space.
+     Selector must out-specify `.table-sm > :not(caption) > * > *`. */
+  .table-sm > :not(caption) > * > .drill-cell { padding: 0 !important; line-height: 0; border: 0; }
   .drill-cell .collapse, .drill-cell .collapsing { line-height: normal; }
 </style>
 
