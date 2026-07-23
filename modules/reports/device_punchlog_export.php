@@ -41,21 +41,39 @@ foreach (punchShardsForRange($fFrom, $fTo) as $tbl) {
 }
 
 $typeLabel = [0 => 'Unknown', 1 => 'In', 2 => 'Out'];
+$header    = ['Device', 'Emp Code', 'Name', 'Enroll ID', 'Punch Time', 'Type'];
+$isXls     = (($_GET['format'] ?? '') === 'xls');
+$fname     = 'device_punchlog_' . $fFrom . '_' . $fTo . ($isXls ? '.xls' : '.csv');
 
-header('Content-Type: text/csv');
-header('Content-Disposition: attachment; filename="device_punchlog_' . $fFrom . '_' . $fTo . '.csv"');
-
-$out = fopen('php://output', 'w');
-fputcsv($out, ['Device', 'Emp Code', 'Name', 'Enroll ID', 'Punch Time', 'Type']);
-foreach ($rows as $r) {
+$line = function (array $r) use ($codeToName, $typeLabel): array {
     $code = (string)($r['EmpCode'] ?? '');
-    fputcsv($out, [
+    return [
         $r['DeviceSerial'],
         $code,
         $code !== '' ? ($codeToName[$code] ?? '') : '',
         $r['EnrollId'],
         $r['PunchTime'],
         $typeLabel[(int)($r['PunchType'] ?? 0)] ?? 'Unknown',
-    ]);
+    ];
+};
+
+if ($isXls) {
+    // HTML-table .xls — same trick as the client-side excelFromRows helper.
+    header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $fname . '"');
+    $esc = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    echo "\xEF\xBB\xBF<html xmlns:x=\"urn:schemas-microsoft-com:office:excel\"><head><meta charset=\"UTF-8\"></head><body>";
+    echo '<table border="1"><tr><th>' . implode('</th><th>', array_map($esc, $header)) . '</th></tr>';
+    foreach ($rows as $r) {
+        echo '<tr><td>' . implode('</td><td>', array_map($esc, $line($r))) . '</td></tr>';
+    }
+    echo '</table></body></html>';
+    exit;
 }
+
+header('Content-Type: text/csv; charset=UTF-8');
+header('Content-Disposition: attachment; filename="' . $fname . '"');
+$out = fopen('php://output', 'w');
+fputcsv($out, $header);
+foreach ($rows as $r) fputcsv($out, $line($r));
 fclose($out);

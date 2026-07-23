@@ -6,6 +6,7 @@ requireLogin();
 blockCompliance(); // raw device punches are not compliance-scoped
 requirePermission('report_punchlog.view');
 require_once __DIR__ . '/../../includes/punch_source.php';
+require_once __DIR__ . '/../../services/AdmsSyncService.php';
 $pageTitle  = 'Device Punch Log';
 $activePage = 'report_punchlog';
 require_once __DIR__ . '/../../includes/header.php';
@@ -35,6 +36,14 @@ if ($companyName !== '') {
     $devices = $ds->fetchAll(PDO::FETCH_COLUMN);
 }
 if ($fSN && $devices && !in_array($fSN, $devices, true)) $fSN = ''; // ignore a serial from another company
+
+// ── Optional live sync from the ADMS API before we read the shards ───────────
+// Tops up punches made since the last sync cron (all company devices, or the
+// selected one) so the report isn't stale. Writes into the same shards we read.
+$syncResult = null;
+if (!empty($_GET['sync']) && $_GET['sync'] === '1' && $fCompany && can('punch_sync.view')) {
+    $syncResult = (new AdmsSyncService($db))->sync($fCompany, $fFrom, $fTo, $fSN);
+}
 
 // Employee-code → name for this company, fetched once rather than per punch row.
 $codeToName = [];
@@ -102,8 +111,10 @@ if ($fCompany) {
 }
 
 $totalPunches = array_sum(array_column($devSummary, 'count'));
-$exportUrl    = 'device_punchlog_export.php?' . http_build_query(
-    ['company' => $fCompany, 'sn' => $fSN, 'from' => $fFrom, 'to' => $fTo]);
+$expArgs      = ['company' => $fCompany, 'sn' => $fSN, 'from' => $fFrom, 'to' => $fTo];
+$csvUrl       = 'device_punchlog_export.php?' . http_build_query($expArgs);
+$xlsUrl       = 'device_punchlog_export.php?' . http_build_query($expArgs + ['format' => 'xls']);
+$syncUrl      = '?' . http_build_query($expArgs + ['sync' => '1']);
 ?>
 
 <!-- Filter Form -->
@@ -150,12 +161,35 @@ $exportUrl    = 'device_punchlog_export.php?' . http_build_query(
       <span class="badge bg-secondary ms-2"><?= count($devSummary) ?> device<?= count($devSummary)===1?'':'s' ?></span>
       <span class="badge bg-primary-subtle text-primary"><?= (int)$totalPunches ?> punches</span>
     </span>
-    <?php if ($devSummary): ?>
-    <a href="<?= htmlspecialchars($exportUrl) ?>" class="btn btn-sm btn-outline-success">
-      <i class="bi bi-download"></i> Export CSV
-    </a>
-    <?php endif; ?>
+    <div class="d-flex gap-2">
+      <?php if (can('punch_sync.view')): ?>
+      <a href="<?= htmlspecialchars($syncUrl) ?>" class="btn btn-sm btn-outline-primary">
+        <i class="bi bi-arrow-repeat"></i> Sync from API
+      </a>
+      <?php endif; ?>
+      <?php if ($devSummary): ?>
+      <a href="<?= htmlspecialchars($xlsUrl) ?>" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-file-earmark-excel"></i> Excel
+      </a>
+      <a href="<?= htmlspecialchars($csvUrl) ?>" class="btn btn-sm btn-outline-success">
+        <i class="bi bi-download"></i> CSV
+      </a>
+      <?php endif; ?>
+    </div>
   </div>
+
+  <?php if ($syncResult !== null): ?>
+  <div class="alert alert-<?= empty($syncResult['errors']) ? 'success' : 'warning' ?> d-flex align-items-start gap-2 rounded-0 mb-0 border-0 border-bottom">
+    <i class="bi bi-<?= empty($syncResult['errors']) ? 'check-circle' : 'exclamation-triangle' ?> mt-1"></i>
+    <span>
+      Sync complete — <strong><?= (int)$syncResult['inserted'] ?></strong> new punch(es) added from
+      <?= (int)$syncResult['devices'] ?> device(s).
+      <?php if (!empty($syncResult['skipped'])): ?><?= (int)$syncResult['skipped'] ?> skipped (out of range / unmapped).<?php endif; ?>
+      <?php foreach ($syncResult['errors'] as $e): ?><br><small class="text-danger"><?= htmlspecialchars($e) ?></small><?php endforeach; ?>
+    </span>
+  </div>
+  <?php endif; ?>
+
   <div class="card-body p-0">
     <?php if (empty($devSummary)): ?>
     <div class="p-4 text-center text-muted">
