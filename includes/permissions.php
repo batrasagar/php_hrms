@@ -60,6 +60,7 @@ function permCatalog(): array {
             'report_attendance' => ['Attendance Report', $ve],   // edit = grid cell editing
             'report_monthly'    => ['Monthly Report', $v],
             'report_swipe'      => ['Swipe Report', $v],
+            'report_punchlog'   => ['Device Punch Log', $v],
             'report_strength'   => ['Strength Summary', $v],
             'report_ot'         => ['OT Report', $v],
             'report_leave'      => ['Leave Report', $v],

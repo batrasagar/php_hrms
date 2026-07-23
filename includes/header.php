@@ -704,7 +704,7 @@ $fullMenu = in_array($user['role'], ['superadmin','admin','operator'], true)
   $shiftOpen   = in_array($ap, ['shifts','shift_defaults','shift_assign','shift_cyclic','compoff']) ? 'show' : '';
   $masterOpen  = in_array($ap, ['holidays','departments','contractors']) ? 'show' : '';
   $attnOpen    = in_array($ap, ['overtime','ot_approvals','mark_ot_abs','attn_import','leaves','leave_range','leave_types','leave_policy','leave_assign','leave_register']) ? 'show' : '';
-  $rptOpen     = in_array($ap, ['report_active','report_attendance','report_monthly','report_swipe','report_strength','report_ot','report_leave','report_joinleft']) ? 'show' : '';
+  $rptOpen     = in_array($ap, ['report_active','report_attendance','report_monthly','report_swipe','report_punchlog','report_strength','report_ot','report_leave','report_joinleft']) ? 'show' : '';
   $settingsUrl = BASE_URL . '/modules/settings/index.php';
   $punchOpen   = in_array($ap, ['punchlog','punch_correction','punch_sync']) ? 'show' : '';
   $devOpen     = in_array($ap, ['devices','device_enrollment']) ? 'show' : '';
@@ -929,7 +929,7 @@ $fullMenu = in_array($user['role'], ['superadmin','admin','operator'], true)
       <?php endif; ?>
 
       <!-- Reports -->
-      <?php if (canAny(['report_active.view','report_attendance.view','report_monthly.view','report_swipe.view','report_strength.view','report_ot.view','report_leave.view','report_joinleft.view','tv_dashboard.view'])): ?>
+      <?php if (canAny(['report_active.view','report_attendance.view','report_monthly.view','report_swipe.view','report_punchlog.view','report_strength.view','report_ot.view','report_leave.view','report_joinleft.view','tv_dashboard.view'])): ?>
       <div class="sb-section-label">Reports</div>
       <li>
         <a class="sb-item" data-bs-toggle="collapse" href="#navReports"
@@ -958,6 +958,11 @@ $fullMenu = in_array($user['role'], ['superadmin','admin','operator'], true)
             <?php if (can('report_swipe.view')): ?>
             <a class="sb-sub-item <?= $ap==='report_swipe'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/swipe_report.php">
               <i class="bi bi-fingerprint"></i> Swipe Report
+            </a>
+            <?php endif; ?>
+            <?php if (can('report_punchlog.view')): ?>
+            <a class="sb-sub-item <?= $ap==='report_punchlog'?'active':'' ?>" href="<?= BASE_URL ?>/modules/reports/device_punchlog.php">
+              <i class="bi bi-hdd-network"></i> Device Punch Log
             </a>
             <?php endif; ?>
             <?php if (can('report_strength.view')): ?>
