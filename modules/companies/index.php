@@ -2,6 +2,7 @@
 define('BASE_URL', '../..');
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/punch_source.php';
 requireAdmin();
 requirePermission('companies.view');
 
@@ -50,6 +51,46 @@ if ($user['role'] === 'superadmin') {
     $companies = $stmt->fetchAll();
 }
 
+// ── Per-company vitals for the row subtitle: active headcount, punches today, last login ──
+$today      = date('Y-m-d');
+$empActive  = [];   // companyId => active employee count
+$punchToday = [];   // companyId => punches recorded today
+$lastByComp = [];   // companyId => MAX login of its scoped users
+$lastByUser = [];   // userId    => MAX login (covers the owner admin, who has no CompanyId)
+
+foreach ($db->query("SELECT CompanyId, COUNT(*) c FROM tblEmployee WHERE Status='active' GROUP BY CompanyId") as $r) {
+    $empActive[(int)$r['CompanyId']] = (int)$r['c'];
+}
+foreach (punchShardsForRange($today, $today) as $tbl) {
+    try {
+        $st = $db->prepare("SELECT CompanyId, COUNT(*) c FROM `$tbl` WHERE PunchTime BETWEEN ? AND ? GROUP BY CompanyId");
+        $st->execute([$today . ' 00:00:00', $today . ' 23:59:59']);
+        foreach ($st->fetchAll() as $r) {
+            $cid = (int)$r['CompanyId'];
+            $punchToday[$cid] = ($punchToday[$cid] ?? 0) + (int)$r['c'];
+        }
+    } catch (PDOException $e) { /* no shard for this month yet */ }
+}
+try {
+    foreach ($db->query("SELECT u.CompanyId cid, MAX(l.LoggedAt) m FROM tblLoginLog l
+                         JOIN tblUser u ON u.id = l.UserId
+                         WHERE l.Status='success' AND u.CompanyId IS NOT NULL
+                         GROUP BY u.CompanyId") as $r) {
+        $lastByComp[(int)$r['cid']] = $r['m'];
+    }
+    foreach ($db->query("SELECT UserId uid, MAX(LoggedAt) m FROM tblLoginLog
+                         WHERE Status='success' AND UserId IS NOT NULL GROUP BY UserId") as $r) {
+        $lastByUser[(int)$r['uid']] = $r['m'];
+    }
+} catch (PDOException $e) { /* tblLoginLog not migrated yet */ }
+
+// Newest login among the company's scoped users and its owner admin.
+$lastLoginFor = function (array $c) use ($lastByComp, $lastByUser): ?string {
+    $a = $lastByComp[(int)$c['id']]      ?? null;
+    $b = $lastByUser[(int)$c['AdminId']] ?? null;
+    return ($a && $b) ? max($a, $b) : ($a ?: $b);
+};
+
 $limit      = $user['company_limit'];
 $ownCount   = $user['role'] === 'superadmin' ? 0 : count($companies);
 $canAdd     = $user['role'] === 'superadmin' || $limit == -1 || $ownCount < $limit;
@@ -87,7 +128,22 @@ require_once __DIR__ . '/../../includes/header.php';
       <?php foreach ($companies as $c): ?>
       <tr>
         <td><?= $c['id'] ?></td>
-        <td class="fw-semibold"><?= htmlspecialchars($c['Name']) ?></td>
+        <td class="fw-semibold">
+          <?= htmlspecialchars($c['Name']) ?>
+          <?php $ll = $lastLoginFor($c); ?>
+          <div class="mt-1 d-flex flex-wrap gap-1 fw-normal">
+            <span class="badge rounded-pill bg-info-subtle text-info-emphasis" title="Last successful login (company users or owner)">
+              <i class="bi bi-box-arrow-in-right"></i>
+              <?= $ll ? htmlspecialchars(date('d-M H:i', strtotime($ll))) : 'no login yet' ?>
+            </span>
+            <span class="badge rounded-pill bg-primary-subtle text-primary" title="Punches recorded today">
+              <i class="bi bi-fingerprint"></i> <?= (int)($punchToday[(int)$c['id']] ?? 0) ?> today
+            </span>
+            <span class="badge rounded-pill bg-success-subtle text-success" title="Active employees">
+              <i class="bi bi-people"></i> <?= (int)($empActive[(int)$c['id']] ?? 0) ?> active
+            </span>
+          </div>
+        </td>
         <?php if ($user['role'] === 'superadmin'): ?>
         <td class="small"><?= htmlspecialchars($c['AdminName']) ?><br>
           <span class="text-muted"><?= htmlspecialchars($c['AdminEmail']) ?></span></td>
