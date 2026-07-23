@@ -230,7 +230,7 @@ $syncUrl      = '?' . http_build_query($expArgs + ['sync' => '1']);
           <td class="small"><?= htmlspecialchars(substr((string)$d['last'], 0, 16)) ?></td>
         </tr>
         <tr>
-          <td colspan="6" class="p-0">
+          <td colspan="6" class="p-0 drill-cell">
             <div class="collapse" id="<?= $rid ?>">
               <div class="ps-4 pe-2 py-2 bg-light-subtle">
                 <table class="table table-sm mb-0 align-middle">
@@ -250,7 +250,7 @@ $syncUrl      = '?' . http_build_query($expArgs + ['sync' => '1']);
                       <td class="text-end"><?= count($da['emps']) ?></td>
                     </tr>
                     <tr>
-                      <td colspan="4" class="p-0">
+                      <td colspan="4" class="p-0 drill-cell">
                         <div class="collapse" id="<?= $did ?>">
                           <div class="ps-4 pe-2 py-2 bg-body-secondary">
                             <?php if ($da['truncated']): ?>
@@ -307,6 +307,9 @@ $syncUrl      = '?' . http_build_query($expArgs + ['sync' => '1']);
 <style>
   .drill-row .drill-caret { transition: transform .15s ease; }
   .drill-row[aria-expanded="true"] .drill-caret { transform: rotate(90deg); }
+  /* Collapse-carrier cells: kill the stray line box so a closed row takes no height */
+  .drill-cell { line-height: 0; border: 0; }
+  .drill-cell .collapse, .drill-cell .collapsing { line-height: normal; }
 </style>
 
 <?php
