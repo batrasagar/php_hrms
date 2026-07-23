@@ -53,17 +53,18 @@ if ($fCompany) {
     foreach ($en->fetchAll() as $r) $codeToName[(string)$r['EmployeeCode']] = (string)$r['Name'];
 }
 
-// ── Gather punches from the local shards and roll them up per device ──────────
-// Counts (punches / distinct employees / first / last) tally EVERY row; the
-// detail list kept for drilldown is capped so a busy month doesn't bloat the DOM.
-const DETAIL_CAP = 1500;
-$devSummary = [];   // serial => [count, emps(set), first, last, detail[], truncated]
+// ── Gather punches from the local shards and roll them up device → date → punch ─
+// Every level's counts (punches / distinct employees) tally EVERY row; the punch
+// rows kept for the innermost drilldown are capped per date so a busy month
+// doesn't bloat the DOM. Exports still stream the full, uncapped log.
+const DATE_CAP = 1000;
+$devSummary = [];   // serial => [count, emps(set), first, last, dates => [date => [count, emps, punches[], truncated]]]
 $scanned    = false;
 
 if ($fCompany) {
     $fromDt = $fFrom . ' 00:00:00';
     $toDt   = $fTo   . ' 23:59:59';
-    // Newest shard first + newest punch first, so the per-device cap keeps recent rows.
+    // Newest shard first + newest punch first, so the per-date cap keeps recent rows.
     foreach (array_reverse(punchShardsForRange($fFrom, $fTo)) as $tbl) {
         $sql = "SELECT DeviceSerial, EmpCode, EnrollId, PunchTime, PunchType
                   FROM `$tbl`
@@ -80,34 +81,43 @@ if ($fCompany) {
         foreach ($st->fetchAll() as $r) {
             $sn = (string)$r['DeviceSerial'];
             if (!isset($devSummary[$sn])) {
-                $devSummary[$sn] = ['count' => 0, 'emps' => [], 'first' => null, 'last' => null,
-                                    'detail' => [], 'truncated' => false];
+                $devSummary[$sn] = ['count' => 0, 'emps' => [], 'first' => null, 'last' => null, 'dates' => []];
             }
             $d    = &$devSummary[$sn];
             $code = (string)($r['EmpCode'] ?? '');
             $eid  = (string)($r['EnrollId'] ?? '');
             $pt   = (string)$r['PunchTime'];
+            $date = substr($pt, 0, 10);
+            $ekey = $code !== '' ? 'c:' . $code : 'e:' . $eid;
 
             $d['count']++;
-            $d['emps'][$code !== '' ? 'c:' . $code : 'e:' . $eid] = true;
+            $d['emps'][$ekey] = true;
             if ($d['first'] === null || $pt < $d['first']) $d['first'] = $pt;
             if ($d['last']  === null || $pt > $d['last'])  $d['last']  = $pt;
 
-            if (count($d['detail']) < DETAIL_CAP) {
-                $d['detail'][] = [
+            if (!isset($d['dates'][$date])) {
+                $d['dates'][$date] = ['count' => 0, 'emps' => [], 'punches' => [], 'truncated' => false];
+            }
+            $da = &$d['dates'][$date];
+            $da['count']++;
+            $da['emps'][$ekey] = true;
+            if (count($da['punches']) < DATE_CAP) {
+                $da['punches'][] = [
                     'code' => $code,
                     'name' => $code !== '' ? ($codeToName[$code] ?? '') : '',
                     'eid'  => $eid,
-                    'time' => $pt,
+                    'time' => substr($pt, 11, 8),   // HH:MM:SS — the date heads the group
                     'type' => (int)($r['PunchType'] ?? 0),
                 ];
             } else {
-                $d['truncated'] = true;
+                $da['truncated'] = true;
             }
-            unset($d);
+            unset($da, $d);
         }
     }
     ksort($devSummary);
+    foreach ($devSummary as &$d) krsort($d['dates']); // newest date first within each device
+    unset($d);
 }
 
 $totalPunches = array_sum(array_column($devSummary, 'count'));
@@ -210,46 +220,73 @@ $syncUrl      = '?' . http_build_query($expArgs + ['sync' => '1']);
       </thead>
       <tbody>
       <?php $i = 0; foreach ($devSummary as $sn => $d): $i++; $rid = 'dev-' . $i; ?>
-        <tr class="dev-row" role="button" data-bs-toggle="collapse" data-bs-target="#<?= $rid ?>"
+        <tr class="drill-row" role="button" data-bs-toggle="collapse" data-bs-target="#<?= $rid ?>"
             aria-expanded="false" style="cursor:pointer">
-          <td class="text-muted"><i class="bi bi-chevron-right dev-caret"></i></td>
+          <td class="text-muted"><i class="bi bi-chevron-right drill-caret"></i></td>
           <td><code class="small"><?= htmlspecialchars($sn) ?></code></td>
           <td class="text-end"><?= (int)$d['count'] ?></td>
           <td class="text-end"><?= count($d['emps']) ?></td>
           <td class="small"><?= htmlspecialchars(substr((string)$d['first'], 0, 16)) ?></td>
           <td class="small"><?= htmlspecialchars(substr((string)$d['last'], 0, 16)) ?></td>
         </tr>
-        <tr class="dev-detail-row">
+        <tr>
           <td colspan="6" class="p-0">
             <div class="collapse" id="<?= $rid ?>">
-              <div class="p-2 bg-light-subtle">
-                <?php if ($d['truncated']): ?>
-                <div class="small text-muted mb-1">
-                  <i class="bi bi-info-circle"></i>
-                  Showing the <?= DETAIL_CAP ?> most recent of <?= (int)$d['count'] ?> punches — use Export CSV for the full list.
-                </div>
-                <?php endif; ?>
-                <table class="table table-sm table-borderless mb-0">
+              <div class="ps-4 pe-2 py-2 bg-light-subtle">
+                <table class="table table-sm mb-0 align-middle">
                   <thead>
                     <tr class="text-muted small">
-                      <th>Emp Code</th><th>Name</th><th>Enroll ID</th><th>Punch Time</th><th>Type</th>
+                      <th style="width:2rem"></th><th>Date</th>
+                      <th class="text-end">Punches</th><th class="text-end">Employees</th>
                     </tr>
                   </thead>
                   <tbody>
-                  <?php foreach ($d['detail'] as $l): ?>
+                  <?php $j = 0; foreach ($d['dates'] as $date => $da): $j++; $did = $rid . '-d-' . $j; ?>
+                    <tr class="drill-row" role="button" data-bs-toggle="collapse" data-bs-target="#<?= $did ?>"
+                        aria-expanded="false" style="cursor:pointer">
+                      <td class="text-muted"><i class="bi bi-chevron-right drill-caret"></i></td>
+                      <td><?= htmlspecialchars(date('d-M-Y (D)', strtotime($date))) ?></td>
+                      <td class="text-end"><?= (int)$da['count'] ?></td>
+                      <td class="text-end"><?= count($da['emps']) ?></td>
+                    </tr>
                     <tr>
-                      <td><?= htmlspecialchars($l['code'] ?: '—') ?></td>
-                      <td><?= $l['name'] ? htmlspecialchars($l['name']) : '<span class="text-muted">—</span>' ?></td>
-                      <td><?= htmlspecialchars($l['eid'] ?: '—') ?></td>
-                      <td class="small"><?= htmlspecialchars($l['time']) ?></td>
-                      <td>
-                        <?php if ($l['type'] === 1): ?>
-                          <span class="badge bg-success-subtle text-success">In</span>
-                        <?php elseif ($l['type'] === 2): ?>
-                          <span class="badge bg-danger-subtle text-danger">Out</span>
-                        <?php else: ?>
-                          <span class="text-muted small">—</span>
-                        <?php endif; ?>
+                      <td colspan="4" class="p-0">
+                        <div class="collapse" id="<?= $did ?>">
+                          <div class="ps-4 pe-2 py-2 bg-body-secondary">
+                            <?php if ($da['truncated']): ?>
+                            <div class="small text-muted mb-1">
+                              <i class="bi bi-info-circle"></i>
+                              Showing the <?= DATE_CAP ?> most recent of <?= (int)$da['count'] ?> punches this day — use Export for the full list.
+                            </div>
+                            <?php endif; ?>
+                            <table class="table table-sm table-borderless mb-0">
+                              <thead>
+                                <tr class="text-muted small">
+                                  <th>Emp Code</th><th>Name</th><th>Enroll ID</th><th>Time</th><th>Type</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                              <?php foreach ($da['punches'] as $l): ?>
+                                <tr>
+                                  <td><?= htmlspecialchars($l['code'] ?: '—') ?></td>
+                                  <td><?= $l['name'] ? htmlspecialchars($l['name']) : '<span class="text-muted">—</span>' ?></td>
+                                  <td><?= htmlspecialchars($l['eid'] ?: '—') ?></td>
+                                  <td class="small"><?= htmlspecialchars($l['time']) ?></td>
+                                  <td>
+                                    <?php if ($l['type'] === 1): ?>
+                                      <span class="badge bg-success-subtle text-success">In</span>
+                                    <?php elseif ($l['type'] === 2): ?>
+                                      <span class="badge bg-danger-subtle text-danger">Out</span>
+                                    <?php else: ?>
+                                      <span class="text-muted small">—</span>
+                                    <?php endif; ?>
+                                  </td>
+                                </tr>
+                              <?php endforeach; ?>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   <?php endforeach; ?>
@@ -268,8 +305,8 @@ $syncUrl      = '?' . http_build_query($expArgs + ['sync' => '1']);
 <?php endif; ?>
 
 <style>
-  .dev-row .dev-caret { transition: transform .15s ease; }
-  .dev-row[aria-expanded="true"] .dev-caret { transform: rotate(90deg); }
+  .drill-row .drill-caret { transition: transform .15s ease; }
+  .drill-row[aria-expanded="true"] .drill-caret { transform: rotate(90deg); }
 </style>
 
 <?php
